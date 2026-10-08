@@ -1,0 +1,8 @@
+调用方法：
+启动 WinPython Command Prompt.exe
+cd /d D:\github\my_astro_project
+python app.py
+浏览器打开
+http://127.0.0.1:5000/
+退出：
+Ctrl + c

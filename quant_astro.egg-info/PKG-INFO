@@ -1,0 +1,26 @@
+Metadata-Version: 2.4
+Name: quant-astro
+Version: 0.1.5
+Summary: 一个用于量化占星研究的Python库。
+Home-page: https://github.com/LouiShadowMZ/quant-astro-lib.git
+Author: Lucius
+Author-email: kristenrobi85@gmail.com
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: Astronomy
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+Requires-Dist: pysweph
+Requires-Dist: pytz
+Requires-Dist: pandas
+Requires-Dist: numpy
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary

@@ -1,0 +1,56 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 5000
+  },
+  "default_location": {
+    "latitude": 23.0331389,
+    "longitude": 113.1010556,
+    "timezone": "+08:00",
+    "label": "默认地点"
+  },
+  "birth_defaults": {
+    "elevation": 0.0,
+    "atpress": 1013.25,
+    "attemp": 20.0,
+    "calendar": "g"
+  },
+  "calculation_defaults": {
+    "ecliptic_mode": "tropical",
+    "ayanamsha_mode": "SIDM_KRISHNAMURTI",
+    "node_mode": "mean",
+    "house_system": "Regiomontanus",
+    "heliocentric": false,
+    "strict_ephe": true,
+    "selected_planets": [
+      "Su",
+      "Mo",
+      "Me",
+      "Ve",
+      "Ma",
+      "Ju",
+      "Sa",
+      "Ra",
+      "Ke"
+    ],
+    "selected_minor_planets": [],
+    "selected_stars": [
+      "Algol,bePer",
+      "Alcyone,etTau",
+      "Aldebaran,alTau",
+      "Capella,alAur",
+      "Sirius,alCMa",
+      "Procyon,alCMi",
+      "Regulus,alLeo",
+      "Algorab,deCrv",
+      "Spica,alVir",
+      "Arcturus,alBoo",
+      "Alphecca,alCrB",
+      "Antares,alSco",
+      "Vega,alLyr",
+      "DenebAlgedi,deCap",
+      "Fomalhaut,alPsA"
+    ],
+    "sunrise_rsmi": 256
+  }
+}

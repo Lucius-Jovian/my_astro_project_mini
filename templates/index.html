@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quant Astro 本地排盘</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="topbar">
+    <div>
+        <h1>Quant Astro 本地排盘</h1>
+        <p>人物档案模式：选中档案即自动排盘。当前时间/位置、手动输入模式：填好参数后点击「排盘」。修改过数值后，也需要重新点击「排盘」才会用新数值计算。</p>
+    </div>
+    <div class="topbar-actions">
+        <button id="calcBtn" type="button" class="calc-btn">排盘</button>
+        <div id="statusBadge" class="status-badge">初始化中</div>
+    </div>
+</header>
+
+<main class="layout">
+    <aside class="sidebar">
+        <section class="panel">
+            <h2>数据来源</h2>
+            <div class="source-tabs">
+                <label><input type="radio" name="sourceMode" value="current" checked> 当前时间 / 位置</label>
+                <label><input type="radio" name="sourceMode" value="manual"> 手动输入</label>
+                <label><input type="radio" name="sourceMode" value="profile"> 人物档案</label>
+            </div>
+            <div id="locationInfo" class="info-box">正在初始化。</div>
+        </section>
+
+        <section id="profilePanel" class="panel hidden">
+            <h2>人物档案</h2>
+
+            <!-- 档案列表：每页只向后端要 50 人的基础信息（名字、出生时间、修改时间、标签） -->
+            <div class="profile-browser">
+                <div class="profile-filters">
+                    <input id="profileSearch" type="search" placeholder="按名字搜索" autocomplete="off">
+                    <div class="filter-row">
+                        <input id="bornFrom" type="text" inputmode="numeric" placeholder="出生自（如 1980）" autocomplete="off" title="年、年-月、或 年-月-日，均可">
+                        <span class="filter-sep">～</span>
+                        <input id="bornTo" type="text" inputmode="numeric" placeholder="至（如 1989）" autocomplete="off" title="年、年-月、或 年-月-日，均可">
+                    </div>
+                    <div class="filter-row">
+                        <input id="filterTagInput" type="text" list="tagDatalist" placeholder="按标签筛选，回车添加" autocomplete="off">
+                        <select id="tagModeSelect" class="hidden" title="选了多个标签时，它们之间的关系">
+                            <option value="all">全部满足</option>
+                            <option value="any">满足任一</option>
+                        </select>
+                    </div>
+                    <datalist id="tagDatalist"></datalist>
+                    <div id="filterTagChips" class="chips"></div>
+                    <div class="filter-row">
+                        <select id="sortSelect" title="排序依据"></select>
+                        <select id="orderSelect" title="排序方向">
+                            <option value="asc">正序 ↑</option>
+                            <option value="desc">倒序 ↓</option>
+                        </select>
+                        <button id="resetFiltersBtn" type="button" title="清除所有筛选，恢复按名字排序">重置</button>
+                    </div>
+                </div>
+
+                <div id="profileList" class="profile-list" role="listbox" aria-label="人物档案列表"></div>
+
+                <div class="pager">
+                    <button id="prevPageBtn" type="button">‹ 上一页</button>
+                    <span id="pagerInfo" class="muted"></span>
+                    <button id="nextPageBtn" type="button">下一页 ›</button>
+                </div>
+                <div class="pager-jump">
+                    <label>跳到第 <input id="pageJump" type="number" min="1" step="1" placeholder="页码"> 页，回车确定</label>
+                </div>
+            </div>
+
+            <div class="profile-editor">
+                <h3>档案内容</h3>
+                <label>人物名称<input id="profileName" type="text"></label>
+                <label>分类标签<input id="profileTags" type="text" placeholder="用逗号分隔，如：名人, 案例" autocomplete="off"></label>
+                <div id="profileTagSuggest" class="chips" title="点一下就加上 / 去掉这个标签"></div>
+                <div id="profileCustomFields"></div>
+                <p class="muted">出生时间、时区、经纬度在下方「时间与地点」里填写，随档案一起保存。</p>
+                <div class="button-row four">
+                    <button id="newProfileBtn" type="button" title="把当前表单内容存成一份新档案">新建</button>
+                    <button id="saveProfileBtn" type="button" title="用当前表单内容覆盖当前选中的档案">保存</button>
+                    <button id="deleteProfileBtn" type="button" class="danger">删除</button>
+                    <button id="clearProfileBtn" type="button" title="取消选中，并清空人物名称、标签和自定义字段（时间与地点不变）">清空</button>
+                </div>
+                <p class="muted"><b>保存</b>＝覆盖当前选中的档案；<b>新建</b>＝把当前内容另存为一份新档案。</p>
+            </div>
+
+            <details class="field-manager">
+                <summary>管理自定义字段</summary>
+                <p class="muted">增加字段后所有档案都会多出这一项；删除字段会同时删掉所有档案里这一项的内容。类型：<b>文本</b>（单行）；<b>数字</b>（可以在上面的列表里按大小排序）。必备字段（人物名称、出生时间、时区、经纬度）不能删除。</p>
+                <div id="fieldManagerList"></div>
+                <div class="field-add-row">
+                    <input id="newFieldLabel" type="text" placeholder="新字段名称" maxlength="40">
+                    <select id="newFieldKind" title="字段类型"></select>
+                    <button id="addFieldBtn" type="button">添加</button>
+                </div>
+            </details>
+        </section>
+
+        <section class="panel">
+            <h2>时间与地点</h2>
+            <label>本地日期时间<input id="localTime" type="datetime-local" step="1"></label>
+            <label>UTC 时区<input id="timezone" type="text" placeholder="+08:00"></label>
+            <label>纬度<input id="latitude" type="number" step="0.000001" min="-90" max="90"></label>
+            <label>经度<input id="longitude" type="number" step="0.000001" min="-180" max="180"></label>
+            <label>海拔（米）<input id="elevation" type="number" step="0.1"></label>
+            <label>气压（hPa）<input id="atpress" type="number" step="0.01"></label>
+            <label>气温（℃）<input id="attemp" type="number" step="0.1"></label>
+            <label>历法
+                <select id="calendar">
+                    <option value="g">Gregorian</option>
+                    <option value="j">Julian</option>
+                </select>
+            </label>
+        </section>
+
+        <section class="panel">
+            <h2>计算设置</h2>
+            <label>黄道体系
+                <select id="eclipticMode">
+                    <option value="tropical">Tropical</option>
+                    <option value="sidereal">Sidereal</option>
+                </select>
+            </label>
+            <label>岁差体系<select id="ayanamshaMode"></select></label>
+            <label>月交点
+                <select id="nodeMode">
+                    <option value="mean">Mean Node</option>
+                    <option value="true">True Node</option>
+                </select>
+            </label>
+            <label>宫位制<select id="houseSystem"></select></label>
+            <label class="checkbox-row"><input id="heliocentric" type="checkbox"> 日心制</label>
+            <label class="checkbox-row"><input id="strictEphe" type="checkbox" checked> 严格使用 Swiss Ephemeris 星历文件</label>
+            <div id="selectedPlanets"></div>
+            <div id="selectedMinorPlanets"></div>
+            <div id="selectedStars"></div>
+        </section>
+    </aside>
+
+    <section class="content">
+        <div id="errorBox" class="error-box hidden"></div>
+
+        <section class="panel result-panel"><h2>时间地理上下文</h2><div id="contextResult"></div></section>
+        <section class="panel result-panel"><h2>主行星</h2><div id="planetResult"></div></section>
+        <section class="panel result-panel"><h2>小行星</h2><div id="minorPlanetResult"></div></section>
+        <section class="panel result-panel"><h2>恒星</h2><div id="fixedStarResult"></div></section>
+        <section class="panel result-panel"><h2>宫位与四轴</h2><div id="houseResult"></div></section>
+        <section class="panel result-panel"><h2>日出日落、值日星、行星时</h2><div id="sunResult"></div></section>
+    </section>
+</main>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
