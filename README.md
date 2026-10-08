@@ -1,0 +1,1 @@
+# my_astro_project_mini
