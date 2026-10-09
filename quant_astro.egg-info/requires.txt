@@ -1,4 +1,0 @@
-pysweph
-pytz
-pandas
-numpy
