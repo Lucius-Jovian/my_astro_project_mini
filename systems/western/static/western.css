@@ -1,0 +1,386 @@
+/*
+ * 西方占星专用的样式：圆形星盘、星体配置 / 相位设置浮窗、相位结果、恒星信息框。
+ * 共用样式在 common/static/common.css，这里只引用其中的颜色变量。
+ */
+
+:root {
+    /* 相位：入相 / 出相 */
+    --asp-applying: #8cc3ae;
+    --asp-separating: #e0a37f;
+    --c-fire: #e08c80;
+    --c-earth: #c8bd7e;
+    --c-air: #8cc4b6;
+    --c-water: #93a9d8;
+    --c-asteroid: #c3a3d6;
+    --c-special: #d8b886;
+    --c-lot: #e09ab3;
+    --c-star: #e6c46a;
+}
+
+/* ---------- 圆形星盘 ---------- */
+
+/*
+ * 圆形星盘的大小：改下面两个数即可（改完刷新网页）。
+ *   --chart-max-width   星盘最大宽度。调大，星盘就大；调小，星盘就小。
+ *   --chart-vh-offset   用窗口高度减去这个值作为星盘宽度的另一个上限，保证打开页面不用滚动就能看到整张盘。
+ *                       调小（例如 120px），星盘可以更接近窗口高度；调大，星盘更矮。
+ * 星盘最终宽度 = 下面三者中最小的一个：面板宽度、--chart-max-width、窗口高度 − --chart-vh-offset（但不小于 360px）。
+ * 星盘是矢量图，所有文字跟着整体一起缩放，不会变糊，也不需要改别的地方。
+ */
+:root {
+    --chart-max-width: 820px;
+    --chart-vh-offset: 140px;
+}
+
+.chart-box { position: relative; }
+
+.astro-chart {
+    width: min(100%, var(--chart-max-width), max(360px, calc(100vh - var(--chart-vh-offset))));
+    height: auto;
+    user-select: none;
+}
+
+/* 最下层：边界圆、宫位线、真实位置刻度 */
+.astro-chart .ring { fill: none; stroke: var(--chart-line); stroke-width: 1.2; }
+.astro-chart .ring-1 { stroke-width: 1.6; }
+.astro-chart .house-line { stroke: var(--chart-line); stroke-width: 0.9; opacity: 0.75; }
+.astro-chart .house-line.angular { stroke-width: 1.5; opacity: 1; }
+.astro-chart .el-tick { stroke: var(--c-deg); stroke-width: 1.2; }
+
+/* 文字 */
+.astro-chart text { pointer-events: none; }
+.astro-chart .house-num { fill: var(--chart-num); }
+.astro-chart .cusp-deg { fill: var(--text); }
+.astro-chart .cusp-min { fill: var(--c-deg); }
+.astro-chart .el-sym { fill: var(--c-planet); }
+.astro-chart .kind-asteroid .el-sym { fill: var(--c-asteroid); }
+.astro-chart .kind-special .el-sym { fill: var(--c-special); }
+.astro-chart .kind-lot .el-sym { fill: var(--c-lot); }
+.astro-chart .el-deg { fill: var(--text); }
+.astro-chart .el-min { fill: var(--c-deg); }
+.astro-chart .el-retro { fill: var(--c-retro); }
+.astro-chart .el-sign, .astro-chart .cusp-sign { fill: var(--text-2); }
+.astro-chart .chart-error { fill: var(--danger); font-size: 18px; font-weight: 700; }
+
+/* 恒星 */
+.astro-chart .chart-star { cursor: pointer; }
+.astro-chart .star-hit { fill: transparent; }
+.astro-chart .star-glyph { fill: var(--c-star); }
+.astro-chart .chart-star:hover .star-hit,
+.astro-chart .chart-star.aspecting .star-hit { fill: var(--hl-aspect); }
+
+/* 盘中元素：点击查看相位 */
+.astro-chart .chart-element, .astro-chart .el-hit { cursor: pointer; }
+.astro-chart .el-hit { fill: transparent; transition: fill 0.15s; }
+.astro-chart .el-hit:hover { fill: var(--hover); }
+.astro-chart .el-hit.selected { fill: var(--hl-self); }
+.astro-chart .el-hit.aspecting { fill: var(--hl-aspect); }
+.astro-chart .dimmed { opacity: 0.38; }
+
+
+
+/* ---------- 星体配置（计算设置里的入口 + 浮窗） ---------- */
+
+.points-modal { width: min(760px, calc(100vw - 32px)); }
+.point-hint code, .lot-help code { background: var(--subtle); padding: 0 4px; border-radius: 3px; font-size: 12px; }
+
+.point-list { display: grid; gap: 4px; }
+
+.point-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) 4.5em auto auto;
+    gap: 8px;
+    align-items: center;
+    margin: 0;
+    padding: 4px 6px;
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+}
+.point-row:hover { background: var(--hover); }
+.point-row input[type="checkbox"] { width: auto; margin: 0; accent-color: var(--accent); }
+.point-row input[type="text"] { margin: 0; padding: 4px 8px; }
+.point-meta { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.special-row { grid-template-columns: auto minmax(0, 1fr); align-items: start; cursor: pointer; }
+.special-row input[type="checkbox"] { margin-top: 3px; }
+.special-text { line-height: 1.5; }
+
+.point-add {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+    gap: 6px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+}
+.point-add input { margin: 0; }
+.point-add .point-add-num { font-variant-numeric: tabular-nums; }
+
+.lot-sect { display: grid; gap: 6px; margin-bottom: 6px; }
+.lot-list { display: grid; gap: 8px; }
+
+.lot-card {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--field);
+}
+.lot-head {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) 4.5em auto minmax(0, 0.7fr) auto;
+    gap: 6px;
+    align-items: center;
+}
+.lot-add .lot-head { grid-template-columns: minmax(0, 1fr) 4.5em auto minmax(0, 0.7fr); }
+.lot-head input[type="checkbox"] { width: auto; margin: 0; accent-color: var(--accent); }
+.lot-head input[type="text"] { margin: 0; padding: 4px 8px; }
+.lot-label { font-weight: 600; }
+.lot-formulas { display: grid; gap: 4px; margin-top: 6px; }
+.lot-formula {
+    display: grid;
+    grid-template-columns: 2.6em minmax(0, 1fr);
+    gap: 6px;
+    align-items: center;
+    margin: 0;
+    font-size: 12px;
+    color: var(--muted);
+}
+.lot-formula input {
+    margin: 0;
+    padding: 4px 8px;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 12.5px;
+}
+.lot-add { margin-top: 12px; border-style: dashed; background: transparent; }
+.lot-add-title { margin-bottom: 6px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+.lot-add-foot { display: flex; justify-content: flex-end; margin-top: 8px; }
+.lot-help ul { margin: 4px 0; padding-left: 18px; }
+.lot-help p, .lot-help li { font-size: 12.5px; line-height: 1.7; color: var(--text-2); margin: 4px 0; }
+
+/* 结果表下方：算不出来的点 */
+.point-note { margin: 0 0 8px; }
+.point-error {
+    margin: 8px 0 0;
+    padding: 6px 10px;
+    border-left: 3px solid var(--danger);
+    border-radius: 4px;
+    background: var(--danger-soft);
+    color: var(--danger);
+    font-size: 12.5px;
+    line-height: 1.6;
+    word-break: break-word;
+}
+
+/* ---------- 设置浮窗：批量操作、分组标题、符号输入 ---------- */
+
+.bulk-bar { display: flex; gap: 6px; margin-bottom: 10px; }
+.dialog-section-title {
+    margin: 14px 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+}
+.dialog-section-title:first-child { margin-top: 0; }
+.symbol-input { text-align: center; padding-left: 4px !important; padding-right: 4px !important; }
+.point-row .symbol-input, .lot-head .symbol-input { margin: 0; padding-top: 4px; padding-bottom: 4px; }
+.check-item.wide { display: flex; gap: 8px; align-items: flex-start; line-height: 1.6; }
+.check-item.wide input { margin-top: 4px; }
+.lot-sect-select { margin: 0; padding: 4px 8px; font-size: 12.5px; }
+
+/* 容许度 */
+.orb-rule { margin-bottom: 6px; }
+.orb-table {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 4px 16px;
+}
+.orb-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 4.6em 1em auto;
+    gap: 6px;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 13px;
+}
+.orb-row:hover { background: var(--hover); }
+.orb-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.orb-input { margin: 0; padding: 3px 6px; text-align: right; font-variant-numeric: tabular-nums; }
+.orb-unit { color: var(--muted); }
+.orb-flag { display: flex; align-items: center; gap: 4px; margin: 0; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.orb-flag input { width: auto; margin: 0; accent-color: var(--accent); }
+
+/* 相位类型 */
+.aspect-type-table td, .aspect-type-table th { padding: 4px 6px; vertical-align: middle; }
+.aspect-type-table th.center, .aspect-type-table td.center { text-align: center; }
+.aspect-type-table input[type="text"], .aspect-type-table input[type="number"] { margin: 0; padding: 3px 6px; }
+.aspect-type-table .type-name { width: 7em; }
+.aspect-type-table .type-angle { width: 5.5em; }
+.aspect-type-table .symbol-input { width: 4.5em; }
+.aspect-type-table input[type="checkbox"] { width: auto; margin: 0; accent-color: var(--accent); }
+.type-add { grid-template-columns: minmax(0, 1.3fr) minmax(0, 0.8fr) minmax(0, 0.7fr) auto; }
+
+/* ---------- 相位结果 ---------- */
+
+.aspect-view-switch { margin-bottom: 10px; max-width: 460px; }
+
+.aspect-matrix-wrap { overflow-x: auto; }
+table.aspect-matrix {
+    width: auto;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-variant-numeric: tabular-nums;
+}
+table.aspect-matrix td, table.aspect-matrix th {
+    width: 58px;
+    min-width: 58px;
+    height: 44px;
+    padding: 2px 3px;
+    text-align: center;
+    vertical-align: middle;
+    border: 0;
+    background: transparent;
+}
+table.aspect-matrix tr:hover { background: transparent; }
+/* 交叉格与对角线格画框；左侧标签列和右上方空白不画 */
+table.aspect-matrix .am-cell,
+table.aspect-matrix .am-diag {
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+table.aspect-matrix tr:first-child .am-diag { border-top: 1px solid var(--border); }
+table.aspect-matrix .am-diag { border-top: 1px solid var(--border); }
+table.aspect-matrix td:nth-child(2) { border-left: 1px solid var(--border); }
+table.aspect-matrix .am-void { border: 0 !important; }
+table.aspect-matrix .am-diag {
+    background: var(--subtle);
+    color: var(--text);
+    font-size: 18px;
+    font-weight: 600;
+}
+table.aspect-matrix .am-label {
+    color: var(--text);
+    font-size: 17px;
+    font-weight: 600;
+    background: transparent;
+}
+table.aspect-matrix .am-cell:hover { background: var(--hover); }
+
+.asp-hit { display: flex; flex-direction: column; align-items: center; line-height: 1.15; }
+.asp-hit + .asp-hit { margin-top: 3px; padding-top: 3px; border-top: 1px dashed var(--border); }
+/* 星体与相位符号：优先用带占星符号的字体，避免显示成表情或过小 */
+.asp-sym, .asp-point-sym, table.aspect-matrix .am-diag, table.aspect-matrix .am-label {
+    font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", "Noto Sans Symbols", "Apple Symbols", "DejaVu Sans", sans-serif;
+}
+.asp-sym { font-size: 16px; color: var(--text); }
+.asp-dev { font-size: 11px; font-weight: 600; white-space: nowrap; }
+.asp-dev.motion-A { color: var(--asp-applying); }
+.asp-dev.motion-S { color: var(--asp-separating); }
+.asp-dev.motion-none { color: var(--muted); }
+
+.aspect-legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 0 0; font-size: 12px; }
+
+.aspect-group { margin-bottom: 10px; }
+.aspect-group > summary {
+    cursor: pointer;
+    padding: 6px 2px;
+    font-weight: 600;
+    color: var(--text);
+}
+/* 其它点相位：四列固定宽度，各组表格对齐；文字多时自动换行 */
+table.aspect-list { table-layout: fixed; width: 100%; }
+table.aspect-list col.c-point { width: 34%; }
+table.aspect-list col.c-aspect { width: 20%; }
+table.aspect-list col.c-planet { width: 28%; }
+table.aspect-list col.c-dev { width: 18%; }
+table.aspect-list td, table.aspect-list th { white-space: normal; word-break: break-word; vertical-align: middle; }
+.asp-point-sym { display: inline-block; min-width: 2.2em; color: var(--text-2); font-weight: 600; }
+
+/* 矩阵里的星体符号（颜色由设置决定） */
+table.aspect-matrix .am-sym { font: inherit; }
+
+/* 设置浮窗里的颜色选择 */
+.color-input {
+    width: 30px;
+    height: 24px;
+    margin: 0;
+    padding: 1px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--field);
+    cursor: pointer;
+}
+.color-input::-webkit-color-swatch-wrapper { padding: 1px; }
+.color-input::-webkit-color-swatch { border: 0; border-radius: 3px; }
+.point-row { grid-template-columns: auto minmax(0, 1fr) 4.5em 30px auto auto; }
+.special-row { grid-template-columns: minmax(0, 1fr) 4.5em 30px; align-items: center; }
+.special-row .special-text { display: flex; gap: 8px; align-items: flex-start; margin: 0; cursor: pointer; }
+.lot-head { grid-template-columns: auto minmax(0, 1fr) 4.5em 30px auto minmax(0, 0.7fr) auto; }
+.check-grid.colored .check-item { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.check-grid.colored .check-label { display: flex; align-items: center; gap: 6px; margin: 0; min-width: 0; cursor: pointer; }
+.check-grid.colored.wide-items { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.check-grid.colored.wide-items .symbol-input { width: 4.2em; margin: 0 0 0 auto; padding: 3px 4px; }
+.sign-swatch { display: inline-block; min-width: 1.4em; font-size: 17px; text-align: center;
+    font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", "Noto Sans Symbols", "Apple Symbols", "DejaVu Sans", sans-serif; }
+
+/* 星盘上点恒星弹出的信息框：与项目的浮窗同一风格 */
+.chart-pop {
+    position: absolute;
+    z-index: 20;
+    width: 280px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--pop-shadow);
+    color: var(--text);
+    font-size: 13px;
+}
+.chart-pop .pop-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px 8px 14px;
+    border-bottom: 1px solid var(--border);
+}
+.chart-pop .pop-title { font-weight: 700; font-size: 14px; }
+.chart-pop .pop-body { padding: 10px 14px 12px; max-height: 320px; overflow-y: auto; }
+.chart-pop .pop-row { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; }
+.chart-pop .pop-row span { color: var(--muted); }
+.chart-pop .pop-sub { margin: 8px 0 4px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+.chart-pop .pop-list { margin: 0; padding: 0; list-style: none; }
+.chart-pop .pop-list li { display: flex; align-items: center; gap: 4px; padding: 2px 0; }
+.chart-pop .pop-sym {
+    font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", "Noto Sans Symbols", "Apple Symbols", "DejaVu Sans", sans-serif;
+    font-size: 15px;
+}
+.chart-pop .pop-dev { margin-left: auto; font-size: 12px; font-weight: 600; }
+.chart-pop .pop-dev.motion-A { color: var(--asp-applying); }
+.chart-pop .pop-dev.motion-S { color: var(--asp-separating); }
+.chart-pop .pop-dev.motion-none { color: var(--muted); }
+.check-grid.colored .color-input { flex: 0 0 30px; width: 30px; }
+.check-grid.colored.wide-items .symbol-input { flex: 0 0 4.2em; }
+.check-grid.colored.wide-items .check-label { flex: 1 1 auto; }
+.asp-point-sym { min-width: 2.8em; }
+.retro-swatch { display: inline-block; min-width: 1.4em; text-align: center; font-weight: 700; font-size: 15px; }
+.check-grid.colored.planet-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.check-grid.colored.planet-grid .check-label span { white-space: nowrap; }
+
+/* 古典设置浮窗 */
+.classical-seg { flex-wrap: wrap; margin-bottom: 4px; }
+.sect-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px 16px; }
+.sect-row { display: flex; align-items: center; gap: 10px; }
+.sect-name { width: 22px; text-align: center; }
+.sect-name .glyph { font-size: 17px; }
+.sect-row select { flex: 1; }
+.speed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px 16px; }
+.speed-row { display: flex; align-items: center; gap: 10px; }
+.speed-input { flex: 1; min-width: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.speed-input:disabled { opacity: .6; }
+
+/* 太阳光束：自定义的各档 */
+.sun-phase-list { display: flex; flex-direction: column; gap: 6px; }
+.sun-phase-row { display: grid; grid-template-columns: minmax(0, 10em) 6.5em auto auto; gap: 8px; align-items: center; }
+.sun-phase-row input { margin: 0; }
+.sun-phase-add { margin-top: 10px; }

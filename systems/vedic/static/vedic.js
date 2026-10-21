@@ -1,0 +1,442 @@
+"use strict";
+/*
+ * 印度占星的前端部分。共用的页面逻辑（档案、时间地点、过境、外观……）在 common/static/common.js，
+ * 这里只放本体系自己的东西，通过 registerSystem({...}) 挂进去：
+ *   - 计算设置里的「启用 KP」（含 KP 卜卦）、Dasha 设置；改了就写回 settings.json
+ *   - KP 星主表、象征宫位 / 象征星、主宰星、Vimshottari Dasha 的结果标签页
+ *   - 月亮盘、九分盘两种分盘
+ *   - 南北印度盘（chart.js 提供 AstroChart）
+ * 本体系的接口都在 /vedic/api/ 下，用 systemApi("/...") 拼地址。
+ */
+
+// 本体系自己的状态（挂在共用的 state 上）
+// 模块开关：五个 KP 模块随「启用 KP」一起开关（systems.vedic.calculation_defaults.kp_enabled），大运永远开着。
+state.modules = {};
+// 每张盘（natal / transit）排盘时实际启用的模块：用来判断“刚打开、还没算过”的模块。
+state.chartModules = {natal: {}, transit: {}};
+state.computedModules = {};
+// 星盘样式：north 北印度 / south 南印度
+state.chartStyle = "north";
+
+// 大运起算行星：所有行星（包括罗睺 / 计都）都可以选。
+function fillDashaStartOptions() {
+    const planets = state.optionsMeta.main_planets;
+    fillSelect($("dashaStartPlanet"), planets.map((code) => ({value: code, label: code})));
+    const wanted = state.settings.calculation_defaults.dasha_start_planet || "Mo";
+    $("dashaStartPlanet").value = planets.includes(wanted) ? wanted : "Mo";
+}
+
+// KS-N 上限 249，CIL-N 上限 2193（对应 kp.py 的 get_horary_ascendant）。
+function updateHoraryRange() {
+    const mode = $("horaryMode").value;
+    const max = mode === "CIL-N" ? 2193 : 249;
+    const input = $("horaryNumber");
+    input.max = String(max);
+    input.placeholder = `1-${max}`;
+
+    const current = Number(input.value);
+    if (!current || current < 1) input.value = "1";
+    else if (current > max) input.value = String(max);
+}
+
+// ---------- 可开关的模块 ----------
+// 每个模块：结果放在哪个容器、用哪个后端结果键、怎么画。Dasha 单独处理（逐层展开）。
+const MODULE_VIEWS = {
+    kp_planet_lords: {target: "kp1", key: "kp_planet_results", draw: (t, d) => { $(t).innerHTML = kpLordsHtml(d, (k) => k); }},
+    kp_house_lords: {target: "kp2", key: "kp_house_results", draw: (t, d) => { $(t).innerHTML = kpLordsHtml(d, houseName); }},
+    kp_planet_sigs: {target: "kp3", key: "kp_planet_sigs", draw: (t, d) => { $(t).innerHTML = kpPlanetSigsHtml(d); }},
+    kp_house_sigs: {target: "kp4", key: "kp_house_sigs", draw: (t, d) => { $(t).innerHTML = kpHouseSigsHtml(d); }},
+    kp_ruling: {target: "kp5", key: "kp_ruling_planets", draw: (t, d) => { $(t).innerHTML = kpRulingHtml(d); }},
+    dasha: {target: "dashaResult", key: "dasha_level1", draw: () => renderDashaRoot()},
+};
+
+// 关掉某个模块时，要从当前结果里一并删掉的键（与后端 MODULE_RESULT_KEYS 一致）。
+const MODULE_RESULT_KEYS = {
+    kp_planet_lords: ["kp_planet_results"],
+    kp_house_lords: ["kp_house_results"],
+    kp_planet_sigs: ["kp_planet_sigs"],
+    kp_house_sigs: ["kp_house_sigs"],
+    kp_ruling: ["kp_ruling_planets", "asc_kp_result"],
+    dasha: ["dasha_level1"],
+};
+
+// 由「启用 KP」得到完整的模块开关表（与后端 resolve_modules 同一规则）：五个 KP 模块随它一起开关，大运永远开着。
+function resolveModules(kpOn) {
+    const result = {dasha: true};
+    for (const name of state.optionsMeta?.kp_modules || []) result[name] = Boolean(kpOn);
+    return result;
+}
+
+function kpEnabled() {
+    return $("kpEnabled").checked;
+}
+
+// KP 面板：右边的摘要，以及启用 KP 之前卜卦设置变灰。
+function updateKpUI() {
+    const on = kpEnabled();
+    const horary = $("horaryActive").checked ? ` · 卜卦 ${$("horaryMode").value} ${$("horaryNumber").value}` : "";
+    $("kpMeta").textContent = on ? `已启用${horary}` : "未启用";
+    $("kpHoraryBox").classList.toggle("disabled", !on);
+    for (const id of ["horaryActive", "horaryMode", "horaryNumber"]) $(id).disabled = !on;
+}
+
+// 「启用 KP」一改：关掉的模块结果马上清掉、标签页隐藏；已经排过盘时立即按新设置重算一次
+// （卜卦会改变宫位，所以关掉 KP 也要重算）。
+function setKpEnabled(on) {
+    state.modules = resolveModules(on);
+    for (const [m, keys] of Object.entries(MODULE_RESULT_KEYS)) {
+        if (state.modules[m]) continue;
+        keys.forEach((k) => delete state.results[k]);
+        state.computedModules[m] = false;
+    }
+    updateKpUI();
+    updateTabVisibility();
+    renderModuleResults();
+    saveVedicCalc({kp_enabled: on});
+    if (state.charts[chartKind()].results) calculateFull();
+}
+
+// 计算设置里本体系自己的选项（启用 KP、卜卦、大运）一改就写回 settings.json，下次打开沿用。
+// 排队依次发送：连续快速修改时，后改的一定在先改的之后写入。
+let vedicCalcSaveChain = Promise.resolve();
+
+function saveVedicCalc(changes) {
+    vedicCalcSaveChain = vedicCalcSaveChain
+        .then(async () => {
+            state.settings.calculation_defaults = await api(systemApi("/calc-defaults"), {
+                method: "POST", body: JSON.stringify(changes),
+            });
+        })
+        .catch((error) => showError(`计算设置没能保存：${error.message}`));
+}
+
+function horaryPayload() {
+    return {
+        is_active: $("horaryActive").checked,
+        mode: $("horaryMode").value,
+        number: Number($("horaryNumber").value || 1),
+    };
+}
+
+function bindVedicCalc() {
+    $("kpEnabled").addEventListener("change", () => setKpEnabled(kpEnabled()));
+    $("horaryMode").addEventListener("change", updateHoraryRange);
+    for (const id of ["horaryActive", "horaryMode", "horaryNumber"]) {
+        $(id).addEventListener("change", () => {
+            if (id === "horaryNumber") updateHoraryRange();
+            updateKpUI();
+            saveVedicCalc({KP_HORARY: horaryPayload()});
+        });
+    }
+    $("dashaStartPlanet").addEventListener("change", () => saveVedicCalc({dasha_start_planet: $("dashaStartPlanet").value}));
+    $("dashaDaysInYear").addEventListener("change", () => {
+        const days = Number($("dashaDaysInYear").value);
+        if (!Number.isFinite(days) || days < 300 || days > 400) {
+            showError("Dasha 年长度必须是 300–400 之间的天数。");
+            return;
+        }
+        saveVedicCalc({dasha_days_in_year: days});
+    });
+}
+
+function renderModuleResults() {
+    const hasResults = Object.keys(state.results).length > 0;
+    for (const [name, view] of Object.entries(MODULE_VIEWS)) {
+        if (!state.modules[name]) {
+            $(view.target).innerHTML = "";
+        } else if (hasResults && !state.computedModules[name]) {
+            $(view.target).innerHTML = "<p class='muted'>未计算</p>";
+        } else {
+            view.draw(view.target, state.results[view.key] || {});
+        }
+    }
+}
+
+// 标记「当前所在大运」的符号；想换成别的符号，只改这一处。
+const DASHA_NOW_MARK = "●";
+
+// 第 1、2 层只显示日期；从第 3 层起显示到分钟。想改分界，只改这一处。
+const DASHA_TIME_FROM_LEVEL = 3;
+
+// 后端给的是 ISO 时间（如 2031-04-17T09:12:45.123+08:00），这里只取当地的「日期 [时:分]」，
+// 不经过 Date 对象，所以不会被浏览器所在时区改动，也不会出现 T、秒和时区后缀。
+function formatDashaTime(iso, level) {
+    const m = /^(-?\d{4,})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(String(iso || ""));
+    if (!m) return String(iso || "");
+    const date = `${m[1]}-${m[2]}-${m[3]}`;
+    return level >= DASHA_TIME_FROM_LEVEL ? `${date} ${m[4]}:${m[5]}` : date;
+}
+
+function findNowIndex(items, now) {
+    for (let i = 0; i < items.length; i++) {
+        const start = new Date(items[i].start);
+        const end = new Date(items[i].end);
+        if (now >= start && now < end) return i;
+    }
+    return -1;
+}
+
+function fetchDashaChildren(item) {
+    return api(systemApi("/dasha/expand"), {
+        method: "POST",
+        body: JSON.stringify({
+            planet: item.planet,
+            start: item.start,
+            duration_seconds: item.duration_seconds,
+        }),
+    });
+}
+
+// 排盘后只显示第一层大运（已由后端算好）；当前所在的一支会高亮并加符号标出，但不自动展开。
+// 需要看下一层时，点击某个区间才向后端请求并展开（见 buildDashaLevel），再点一次收起。
+function renderDashaRoot() {
+    const root = $("dashaResult");
+    root.innerHTML = "";
+    const data = state.results.dasha_level1 || [];
+    if (!data.length) {
+        root.innerHTML = "<p class='muted'>没有大运数据。</p>";
+        return;
+    }
+
+    root.appendChild(buildDashaLevel(data, 1, findNowIndex(data, new Date())));
+}
+
+function buildDashaLevel(items, level, nowIndex) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "dasha-level";
+    wrapper.dataset.level = String(level);
+
+    items.forEach((item, index) => {
+        const holder = document.createElement("div");
+        const row = document.createElement("div");
+        row.className = "dasha-row" + (index === nowIndex ? " current-dasha" : "");
+        row.innerHTML = `
+            <div class="dasha-level-tag">L${level}</div>
+            <div class="dasha-planet">${escapeHtml(item.planet)}${
+                index === nowIndex ? `<span class="dasha-now-mark">${DASHA_NOW_MARK}</span>` : ""
+            }</div>
+            <div class="dasha-time">${escapeHtml(formatDashaTime(item.start, level))}</div>
+            <div class="dasha-time">${escapeHtml(formatDashaTime(item.end, level))}</div>
+        `;
+
+        row.addEventListener("click", async (event) => {
+            event.stopPropagation();
+
+            const existing = holder.querySelector(":scope > .dasha-level");
+            if (existing) {
+                existing.remove();
+                return;
+            }
+
+            try {
+                const children = await fetchDashaChildren(item);
+                holder.appendChild(buildDashaLevel(children, level + 1, findNowIndex(children, new Date())));
+            } catch (error) {
+                showError(error.message);
+            }
+        });
+
+        holder.appendChild(row);
+        wrapper.appendChild(holder);
+    });
+
+    return wrapper;
+}
+
+// 月亮盘：行星位置不变，以月亮所在星座为第一宫；不画宫头。
+function deriveMoonChart(natal) {
+    const moon = natal.planet_pos?.Mo;
+    if (!moon) return null;
+    return {
+        planet_pos: natal.planet_pos,
+        house_result: {house_system: "Whole Sign", axes: {Asc: natal.house_result.axes.Asc}, houses: {}},
+        chart_meta: {lagna_sign: Math.floor(norm360(moon.lon) / 30), hide_cusps: true},
+    };
+}
+
+// 九分盘（D9 Navamsa）：每个星座 9 等分（每份 3°20′），从白羊起连续数下去；
+// 换算后的黄经 = 原黄经 × 9（取 360 的余数），所在星座就是九分盘星座，度数是九分盘内的度数。
+function navamsaLon(lon) {
+    return (norm360(lon) * 9) % 360;
+}
+
+function deriveNavamsa(natal) {
+    const planet_pos = Object.fromEntries(
+        Object.entries(natal.planet_pos || {}).map(([code, p]) => [code, {...p, lon: navamsaLon(p.lon)}])
+    );
+    const asc = natal.house_result.axes.Asc;
+    return {
+        planet_pos,
+        house_result: {house_system: "Whole Sign", axes: {Asc: {...asc, lon: navamsaLon(asc.lon)}}, houses: {}},
+        chart_meta: {hide_cusps: true},
+    };
+}
+
+
+
+// ---------- 结果表 ----------
+// 行星、宫位：黄经（星座 + 星座内度分秒）、星宿、宿主星、Pada（后端 basics.py 算好）。
+// KP 各表用同样的写法：行星写代号，星座写中文，星宿写「梵文名 中文宿名」，宫位写「第 N 宫」。
+
+const SIGN_CN = {
+    Aries: "白羊", Taurus: "金牛", Gemini: "双子", Cancer: "巨蟹", Leo: "狮子", Virgo: "处女",
+    Libra: "天秤", Scorpio: "天蝎", Sagittarius: "射手", Capricorn: "摩羯", Aquarius: "水瓶", Pisces: "双鱼",
+};
+
+function nakshatraText(name, cn) {
+    return cn ? `${name} ${cn}` : name;
+}
+
+function basicRow(row, name) {
+    return {
+        name,
+        position: `${row.sign_cn} ${row.dms}`,
+        nakshatra: nakshatraText(row.nakshatra, row.nakshatra_cn),
+        star_lord: row.star_lord,
+        pada: String(row.pada),
+        motion: row.motion ? {text: row.motion, cls: row.retrograde ? "bad" : ""} : null,
+    };
+}
+
+const BASIC_COLUMNS = [
+    {key: "name", label: "名称"},
+    {key: "position", label: "黄经"},
+    {key: "nakshatra", label: "星宿"},
+    {key: "star_lord", label: "宿主星"},
+    {key: "pada", label: "Pada"},
+];
+
+function renderVedicPlanets(container, results) {
+    const rows = (results.planet_table || []).map((r) => basicRow(r, r.name));
+    container.innerHTML = rowsTableHtml([...BASIC_COLUMNS, {key: "motion", label: "顺 / 逆"}], rows);
+}
+
+function renderVedicHouses(container, results) {
+    const rows = (results.house_table || []).map((r) => basicRow(r, houseName(r.name)));
+    container.innerHTML = rowsTableHtml(BASIC_COLUMNS, rows);
+}
+
+function kpLordsHtml(data, nameOf) {
+    const rows = Object.entries(data || {}).map(([key, r]) => ({
+        name: nameOf(key),
+        sign: `${r.sign_cn || SIGN_CN[r.sign] || r.sign}${r.dms ? ` ${r.dms}` : ""}`,
+        star: nakshatraText(r.star, r.star_cn),
+        sign_lord: r.sign_lord,
+        star_lord: r.star_lord,
+        sub_lord: r.sub_lord,
+        sub_sub_lord: r.sub_sub_lord,
+        pada: String(r.paada),
+    }));
+    return rowsTableHtml([
+        {key: "name", label: "名称"},
+        {key: "sign", label: "黄经"},
+        {key: "star", label: "星宿"},
+        {key: "sign_lord", label: "星座主"},
+        {key: "star_lord", label: "宿主星"},
+        {key: "sub_lord", label: "子主星"},
+        {key: "sub_sub_lord", label: "子子主星"},
+        {key: "pada", label: "Pada"},
+    ], rows);
+}
+
+const listText = (v) => (Array.isArray(v) && v.length ? v.join(", ") : "");
+
+function kpPlanetSigsHtml(data) {
+    const rows = Object.entries(data || {}).map(([code, r]) => ({
+        name: code, A: listText(r.A), B: listText(r.B), C: listText(r.C), D: listText(r.D),
+    }));
+    return rowsTableHtml(["name", "A", "B", "C", "D"].map((k) => ({key: k, label: k === "name" ? "名称" : k})), rows);
+}
+
+function kpHouseSigsHtml(data) {
+    const rows = Object.entries(data || {}).map(([house, r]) => ({
+        name: houseName(house), l1: listText(r["1"]), l2: listText(r["2"]), l3: listText(r["3"]), l4: listText(r["4"]),
+    }));
+    return rowsTableHtml([
+        {key: "name", label: "名称"}, {key: "l1", label: "1"}, {key: "l2", label: "2"}, {key: "l3", label: "3"}, {key: "l4", label: "4"},
+    ], rows);
+}
+
+const RULING_LABELS = {
+    Asc_Sign_Lord: "上升星座主", Asc_Star_Lord: "上升宿主星", Asc_Sub_Lord: "上升子主星",
+    Moon_Sign_Lord: "月亮星座主", Moon_Star_Lord: "月亮宿主星", Moon_Sub_Lord: "月亮子主星",
+    Day_Lord: "值日星",
+};
+
+function kpRulingHtml(data) {
+    const rows = Object.entries(data || {}).map(([key, v]) => ({name: RULING_LABELS[key] || key, value: v}));
+    return rowsTableHtml([{key: "name", label: "名称"}, {key: "value", label: "值"}], rows);
+}
+
+// ---------- 星盘样式：北印度 / 南印度 ----------
+
+function bindChartStyle() {
+    document.querySelectorAll("input[name='chartStyle']").forEach((radio) => {
+        radio.checked = radio.value === state.chartStyle;
+        radio.addEventListener("change", async () => {
+            state.chartStyle = radio.value;
+            renderChart();
+            try {
+                await api(systemApi("/chart-style"), {method: "POST", body: JSON.stringify({chart_style: radio.value})});
+            } catch (error) {
+                showError(`星盘样式没能保存：${error.message}`);
+            }
+        });
+    });
+}
+
+// ================= 挂到共用页面上 =================
+
+registerSystem({
+    init(bootstrap) {
+        state.modules = resolveModules(state.settings.calculation_defaults?.kp_enabled !== false);
+        state.chartStyle = state.settings.chart_style === "south" ? "south" : "north";
+    },
+    bind() {
+        updateHoraryRange();
+        bindVedicCalc();
+        updateKpUI();
+        bindChartStyle();
+    },
+    applyDefaults(calc) {
+        $("kpEnabled").checked = calc.kp_enabled !== false;
+        $("horaryActive").checked = Boolean(calc.KP_HORARY?.is_active);
+        $("horaryMode").value = calc.KP_HORARY?.mode || "KS-N";
+        $("horaryNumber").value = calc.KP_HORARY?.number ?? 78;
+        $("dashaDaysInYear").value = calc.dasha_days_in_year ?? 365.25;
+        fillDashaStartOptions();
+        updateKpUI();
+    },
+    collectOptions() {
+        return {
+            kp_enabled: kpEnabled(),
+            KP_HORARY: horaryPayload(),
+            dasha_days_in_year: Number($("dashaDaysInYear").value || 365.25),
+            dasha_start_planet: $("dashaStartPlanet").value || "Mo",
+        };
+    },
+    afterCalculate(kind, result) {
+        state.chartModules[kind] = {...(result.modules || {})};
+    },
+    renderResults() {
+        state.computedModules = state.chartModules[chartKind()] || {};
+        renderModuleResults();
+    },
+    renderPlanetTab: renderVedicPlanets,
+    planetName: (code) => escapeHtml(code || "—"),
+    renderHouseTab: renderVedicHouses,
+    renderChart(container, results, {emptyText}) {
+        AstroChart.render(container, results, {style: state.chartStyle, emptyText});
+    },
+    onNewChart() {
+        AstroChart.clearSelection();
+    },
+    tabVisible(button) {
+        const module = button.dataset.module;
+        return module ? Boolean(state.modules[module]) : undefined;
+    },
+    derivedViews: {
+        moon: {label: "月亮盘", derive: deriveMoonChart},
+        d9: {label: "九分盘", derive: deriveNavamsa},
+    },
+});

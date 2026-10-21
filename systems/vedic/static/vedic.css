@@ -1,0 +1,105 @@
+/*
+ * 印度占星专用的样式：南北印度盘、Vimshottari Dasha。
+ * 共用样式在 common/static/common.css，这里只引用其中的颜色变量。
+ */
+
+/* ---------- 南北印度盘 ---------- */
+
+/* 南北两种盘用同一宽度显示（字号因此一致）；宽度同时受窗口高度限制，
+   保证打开页面不滚动就能看到整张北印度盘。 */
+.astro-chart {
+    width: min(100%, 560px, max(320px, calc(100vh - 230px)));
+    height: auto;
+    user-select: none;
+}
+
+/* 格子默认透明，只有点击查看相位时才着色。 */
+.astro-chart .sign-cell {
+    fill: transparent;
+    stroke: var(--chart-line);
+    stroke-width: 1.3;
+    stroke-linejoin: round;
+    transition: fill 0.15s;
+}
+
+.astro-chart .sign-cell.hl-self { fill: var(--hl-self); }
+.astro-chart .sign-cell.hl-aspect { fill: var(--hl-aspect); }
+
+.astro-chart .center-box { fill: transparent; stroke: var(--chart-line); stroke-width: 1.3; }
+.astro-chart .lagna-mark { stroke: var(--c-asc); stroke-width: 1.6; }
+.astro-chart .sign-number { fill: var(--chart-num); font-weight: 600; pointer-events: none; }
+
+/* 星座数字可点击：查看哪些行星相位这个星座 */
+.astro-chart .sign-num { cursor: pointer; }
+.astro-chart .sign-num-hit { fill: transparent; }
+.astro-chart .sign-num:hover .sign-num-hit { fill: var(--hover); }
+.astro-chart .sign-num:hover .sign-number { fill: var(--text-2); }
+.astro-chart .sign-num.selected .sign-num-hit { fill: var(--hl-self); stroke: var(--c-asc); stroke-width: 0.8; }
+.astro-chart .sign-num.selected .sign-number { fill: var(--c-asc); }
+
+.astro-chart .chart-item { cursor: default; }
+.astro-chart .chart-item.clickable { cursor: pointer; }
+.astro-chart .item-hit { fill: transparent; }
+.astro-chart .chart-item.clickable:hover .item-hit { fill: var(--hover); }
+.astro-chart .chart-item.selected .item-hit { fill: var(--hover); stroke: var(--c-asc); stroke-width: 0.8; }
+/* 点星座数字时：向这个星座投射相位的行星 */
+.astro-chart .chart-item.aspecting .item-hit { fill: var(--hl-aspect); stroke: var(--c-cusp); stroke-width: 0.9; }
+
+.astro-chart .item-code { font-weight: 700; fill: var(--c-planet); }
+.astro-chart .item-deg { fill: var(--c-deg); }
+.astro-chart .retro-mark { stroke: var(--c-retro); stroke-linecap: round; }
+
+.astro-chart .kind-asc .item-code { fill: var(--c-asc); }
+.astro-chart .kind-cusp .item-code,
+.astro-chart .kind-cusp .item-deg { fill: var(--c-cusp); }
+.astro-chart .chart-item.overflow .item-code { fill: var(--danger); }
+
+/* ---------- Dasha ---------- */
+
+.dasha-level {
+    margin-left: 16px;
+    border-left: 2px solid var(--border);
+    padding-left: 10px;
+}
+
+#dashaResult > .dasha-level { margin-left: 0; border-left: 0; padding-left: 0; }
+
+.dasha-row {
+    display: grid;
+    grid-template-columns: 34px 52px max-content max-content;
+    justify-content: start;
+    column-gap: 28px;
+    align-items: center;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.dasha-row:hover { background: var(--hover); }
+.dasha-planet { font-weight: 600; }
+.dasha-row.current-dasha { background: var(--hl-self); }
+
+.dasha-level-tag {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-2);
+    background: var(--subtle);
+    border-radius: 4px;
+    text-align: center;
+}
+
+.dasha-now-mark { margin-left: 6px; font-size: 10px; color: var(--c-asc); }
+
+
+/* ---------- Dasha 补充 ---------- */
+
+.dasha-time { white-space: nowrap; min-width: 6.5em; }
+
+
+/* ---------- 计算设置：KP ---------- */
+
+.kp-note { margin: 2px 0 8px; line-height: 1.6; }
+.kp-horary { margin-top: 6px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.kp-horary.disabled { opacity: 0.5; }

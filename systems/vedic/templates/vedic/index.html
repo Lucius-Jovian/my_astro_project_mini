@@ -1,0 +1,64 @@
+{% extends "shell.html" %}
+{# 印度占星页面：只写本体系自己的部分，其余（档案、时间地点、过境……）来自 common/templates/shell.html #}
+
+{% block styles %}<link rel="stylesheet" href="{{ url_for('vedic.static', filename='vedic.css') }}">{% endblock %}
+
+{% block calc_settings %}
+                <details class="fold nested" id="foldKp">
+                    <summary>KP <span id="kpMeta" class="fold-meta"></span></summary>
+                    <div class="fold-body">
+                        <label class="checkbox-row"><input id="kpEnabled" type="checkbox"> 启用 KP</label>
+                        <div id="kpHoraryBox" class="kp-horary">
+                        <span class="field-label">KP 卜卦</span>
+                        <label class="checkbox-row"><input id="horaryActive" type="checkbox"> 启用卜卦</label>
+                        <div class="grid-2">
+                            <label>模式
+                                <select id="horaryMode">
+                                    <option value="KS-N">KS-N</option>
+                                    <option value="CIL-N">CIL-N</option>
+                                </select>
+                            </label>
+                            <label>数字<input id="horaryNumber" type="number" value="78" min="1" max="249"></label>
+                        </div>
+                        </div>
+                    </div>
+                </details>
+
+                <details class="fold nested" id="foldAdvanced">
+                    <summary>高级</summary>
+                    <div class="fold-body">
+                        <label>Dasha 起算行星<select id="dashaStartPlanet"></select></label>
+                        <label>Dasha 年长度（天）<input id="dashaDaysInYear" type="number" step="0.000001" value="365.25"></label>
+                    </div>
+                </details>
+{% endblock %}
+
+{% block chart_head %}
+                <div class="segmented compact" role="radiogroup" aria-label="星盘样式">
+                    <label><input type="radio" name="chartStyle" value="north" checked><span>北印度</span></label>
+                    <label><input type="radio" name="chartStyle" value="south"><span>南印度</span></label>
+                </div>
+{% endblock %}
+
+{% block result_tabs %}
+                <button type="button" role="tab" data-tab="tabKpPlanets" data-module="kp_planet_lords">KP 行星</button>
+                <button type="button" role="tab" data-tab="tabKpHouses" data-module="kp_house_lords">KP 宫位</button>
+                <button type="button" role="tab" data-tab="tabKpAbcd" data-module="kp_planet_sigs">KP 行星 ABCD</button>
+                <button type="button" role="tab" data-tab="tabKp1234" data-module="kp_house_sigs">KP 宫位 1234</button>
+                <button type="button" role="tab" data-tab="tabRuling" data-module="kp_ruling">KP 主宰星</button>
+                <button type="button" role="tab" data-tab="tabDasha" data-module="dasha">Vimshottari 大运</button>
+{% endblock %}
+
+{% block result_panels %}
+            <div class="tab-panel hidden" id="tabKpPlanets"><div id="kp1"></div></div>
+            <div class="tab-panel hidden" id="tabKpHouses"><div id="kp2"></div></div>
+            <div class="tab-panel hidden" id="tabKpAbcd"><div id="kp3"></div></div>
+            <div class="tab-panel hidden" id="tabKp1234"><div id="kp4"></div></div>
+            <div class="tab-panel hidden" id="tabRuling"><div id="kp5"></div></div>
+            <div class="tab-panel hidden" id="tabDasha"><div id="dashaResult"></div></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('vedic.static', filename='chart.js') }}"></script>
+<script src="{{ url_for('vedic.static', filename='vedic.js') }}"></script>
+{% endblock %}

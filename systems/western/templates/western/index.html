@@ -1,0 +1,142 @@
+{% extends "shell.html" %}
+{# 西方占星页面：只写本体系自己的部分，其余（档案、时间地点、过境……）来自 common/templates/shell.html #}
+
+{% block styles %}<link rel="stylesheet" href="{{ url_for('western.static', filename='western.css') }}">{% endblock %}
+
+{% block calc_settings %}
+                <div class="point-settings">
+                    <span class="field-label">星体配置</span>
+                    <div class="point-entries">
+                    <button type="button" class="point-entry" data-point-dialog="planets">
+                        <span class="point-entry-name">行星</span>
+                        <span class="point-count"></span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                    <button type="button" class="point-entry" data-point-dialog="asteroids">
+                        <span class="point-entry-name">小行星</span>
+                        <span class="point-count"></span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                    <button type="button" class="point-entry" data-point-dialog="stars">
+                        <span class="point-entry-name">恒星</span>
+                        <span class="point-count"></span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                    <button type="button" class="point-entry" data-point-dialog="lots">
+                        <span class="point-entry-name">Lot</span>
+                        <span class="point-count"></span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                    <button type="button" class="point-entry" data-point-dialog="specials">
+                        <span class="point-entry-name">特殊点</span>
+                        <span class="point-count"></span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                    <button type="button" class="point-entry" data-point-dialog="antiscia">
+                        <span class="point-entry-name">映点与反映点</span>
+                        <span class="point-count"></span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                    <button type="button" class="point-entry" data-point-dialog="signs">
+                        <span class="point-entry-name">星座配色</span>
+                        <span class="point-count"></span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                    </div>
+                </div>
+
+                <div class="point-settings">
+                    <span class="field-label">相位</span>
+                    <div class="point-entries">
+                    <button type="button" class="point-entry" data-aspect-dialog="selection">
+                        <span class="point-entry-name">行星选用</span>
+                        <span class="point-count"></span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                    <button type="button" class="point-entry" data-aspect-dialog="orbs">
+                        <span class="point-entry-name">容许度</span>
+                        <span class="point-count"></span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                    <button type="button" class="point-entry" data-aspect-dialog="types">
+                        <span class="point-entry-name">相位类型</span>
+                        <span class="point-count"></span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                    </div>
+                </div>
+                <div class="point-settings">
+                    <span class="field-label">古典</span>
+                    <div class="point-entries">
+                    <button type="button" class="point-entry" data-classical-dialog="dignity">
+                        <span class="point-entry-name">先天尊贵</span>
+                        <span class="point-count"></span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                    <button type="button" class="point-entry" data-classical-dialog="sect">
+                        <span class="point-entry-name">得时</span>
+                        <span class="point-count"></span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                    <button type="button" class="point-entry" data-classical-dialog="speed">
+                        <span class="point-entry-name">速度</span>
+                        <span class="point-count"></span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                    <button type="button" class="point-entry" data-classical-dialog="sun">
+                        <span class="point-entry-name">太阳光束</span>
+                        <span class="point-count"></span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                    </div>
+                </div>
+{% endblock %}
+
+{% block result_tabs %}
+                <button type="button" role="tab" data-tab="tabAsteroids" data-points="asteroids">小行星</button>
+                <button type="button" role="tab" data-tab="tabStars" data-points="stars">恒星</button>
+                <button type="button" role="tab" data-tab="tabLots" data-points="lots">Lot</button>
+                <button type="button" role="tab" data-tab="tabSpecials" data-points="specials">特殊点</button>
+                <button type="button" role="tab" data-tab="tabAntiscia" data-points="antiscia">映点与反映点</button>
+                <button type="button" role="tab" data-tab="tabAspects">相位</button>
+{% endblock %}
+
+{% block result_panels %}
+            <div class="tab-panel hidden" id="tabAsteroids"><div id="asteroidResult"></div></div>
+            <div class="tab-panel hidden" id="tabStars"><div id="starResult"></div></div>
+            <div class="tab-panel hidden" id="tabLots"><div id="lotResult"></div></div>
+            <div class="tab-panel hidden" id="tabSpecials"><div id="specialResult"></div></div>
+            <div class="tab-panel hidden" id="tabAntiscia"><div id="antisciaResult"></div></div>
+            <div class="tab-panel hidden" id="tabAspects">
+                <div class="segmented aspect-view-switch" id="aspectViewSwitch" role="radiogroup" aria-label="相位视图">
+                    <label><input type="radio" name="aspectView" value="main" checked><span>主相位表</span></label>
+                    <label><input type="radio" name="aspectView" value="others"><span>特殊点 · 恒星 · Lot · 映点与反映点</span></label>
+                </div>
+                <div id="aspectResult"></div>
+            </div>
+{% endblock %}
+
+{% block dialogs %}
+<!-- 设置浮窗：星体配置、相位、古典共用，内容由 app.js 按类别生成；修改只改草稿，点「完成」才保存 -->
+<dialog id="pointsDialog" class="modal points-modal" aria-labelledby="pointsTitle" data-guarded>
+    <div class="modal-head">
+        <h2 id="pointsTitle"></h2>
+        <button id="pointsCloseBtn" type="button" class="icon-btn" aria-label="取消">×</button>
+    </div>
+    <div class="modal-body">
+        <p class="dialog-msg hidden" data-dialog-msg></p>
+        <div id="pointsBody"></div>
+    </div>
+    <div class="modal-foot">
+        <button id="pointsRestoreBtn" type="button" class="small-btn">恢复默认</button>
+        <span class="spacer"></span>
+        <button id="pointsCancelBtn" type="button" class="small-btn">取消</button>
+        <button id="pointsDoneBtn" type="button" class="accent-btn">完成</button>
+    </div>
+</dialog>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('western.static', filename='chart.js') }}"></script>
+<script src="{{ url_for('western.static', filename='western.js') }}"></script>
+{% endblock %}
