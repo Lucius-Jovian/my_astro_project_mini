@@ -678,7 +678,11 @@ function bindRawDialog() {
 // 交给别的项目组或另一台电脑导入后即可沿用。不含服务器地址和档案数据。
 
 function bindSettingsTransfer() {
-    $("exportSettingsBtn").addEventListener("click", () => { window.location.href = "/api/settings/export"; });
+    $("openTransferBtn").addEventListener("click", () => openDialog("transferDialog"));
+    $("exportSettingsBtn").addEventListener("click", () => {
+        closeDialog("transferDialog");
+        window.location.href = "/api/settings/export";
+    });
     $("importSettingsBtn").addEventListener("click", () => $("importSettingsFile").click());
     $("importSettingsFile").addEventListener("change", async (event) => {
         const file = event.target.files[0];

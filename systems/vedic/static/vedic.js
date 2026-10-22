@@ -3,7 +3,7 @@
  * 印度占星的前端部分。共用的页面逻辑（档案、时间地点、过境、外观……）在 common/static/common.js，
  * 这里只放本体系自己的东西，通过 registerSystem({...}) 挂进去：
  *   - 计算设置里的「启用 KP」（含 KP 卜卦）、Dasha 设置；改了就写回 settings.json
- *   - KP 星主表、象征宫位 / 象征星、主宰星、Vimshottari Dasha 的结果标签页
+ *   - KP 星主表、象征宫位 / 象征星、主宰星、Dasha（多种大运体系）的结果标签页
  *   - 月亮盘、九分盘两种分盘
  *   - 南北印度盘（chart.js 提供 AstroChart）
  * 本体系的接口都在 /vedic/api/ 下，用 systemApi("/...") 拼地址。
@@ -47,7 +47,7 @@ const MODULE_VIEWS = {
     kp_planet_sigs: {target: "kp3", key: "kp_planet_sigs", draw: (t, d) => { $(t).innerHTML = kpPlanetSigsHtml(d); }},
     kp_house_sigs: {target: "kp4", key: "kp_house_sigs", draw: (t, d) => { $(t).innerHTML = kpHouseSigsHtml(d); }},
     kp_ruling: {target: "kp5", key: "kp_ruling_planets", draw: (t, d) => { $(t).innerHTML = kpRulingHtml(d); }},
-    dasha: {target: "dashaResult", key: "dasha_level1", draw: () => renderDashaRoot()},
+    dasha: {target: "dashaResult", key: "dasha", draw: () => renderDashaRoot()},
 };
 
 // 关掉某个模块时，要从当前结果里一并删掉的键（与后端 MODULE_RESULT_KEYS 一致）。
@@ -57,7 +57,7 @@ const MODULE_RESULT_KEYS = {
     kp_planet_sigs: ["kp_planet_sigs"],
     kp_house_sigs: ["kp_house_sigs"],
     kp_ruling: ["kp_ruling_planets", "asc_kp_result"],
-    dasha: ["dasha_level1"],
+    dasha: ["dasha"],
 };
 
 // 由「启用 KP」得到完整的模块开关表（与后端 resolve_modules 同一规则）：五个 KP 模块随它一起开关，大运永远开着。
@@ -129,6 +129,7 @@ function bindVedicCalc() {
         });
     }
     $("dashaStartPlanet").addEventListener("change", () => saveVedicCalc({dasha_start_planet: $("dashaStartPlanet").value}));
+    $("dashaSystem").addEventListener("change", () => selectDashaSystem($("dashaSystem").value));
     $("dashaDaysInYear").addEventListener("change", () => {
         const days = Number($("dashaDaysInYear").value);
         if (!Number.isFinite(days) || days < 300 || days > 400) {
@@ -176,11 +177,37 @@ function findNowIndex(items, now) {
     return -1;
 }
 
+// ---------- 大运体系 ----------
+// 后端一次算好全部体系的第一层（results.dasha.systems），标签页里切换只是换一份数据重画，不重新排盘。
+// 当前显示哪一种记在 calculation_defaults.dasha_system，左侧「Dasha → 大运体系」和标签页顶部的下拉框是同一个设置。
+
+function dashaSystemOptions() {
+    return (state.optionsMeta.dasha_systems || []).map((s) => ({value: s.value, label: `${s.label}（${s.years} 年）`}));
+}
+
+function currentDashaSystem() {
+    const wanted = state.settings.calculation_defaults.dasha_system;
+    const known = (state.optionsMeta.dasha_systems || []).map((s) => s.value);
+    return known.includes(wanted) ? wanted : (known[0] || "vimshottari");
+}
+
+function selectDashaSystem(id) {
+    state.settings.calculation_defaults.dasha_system = id;
+    $("dashaSystem").value = id;
+    saveVedicCalc({dasha_system: id});
+    if (state.results.dasha) renderDashaRoot();
+}
+
+function dashaLabel(item) {
+    return item.label === item.planet ? item.planet : `${item.label} · ${item.planet}`;
+}
+
 function fetchDashaChildren(item) {
     return api(systemApi("/dasha/expand"), {
         method: "POST",
         body: JSON.stringify({
-            planet: item.planet,
+            system: item.system,
+            lord: item.lord,
             start: item.start,
             duration_seconds: item.duration_seconds,
         }),
@@ -192,13 +219,32 @@ function fetchDashaChildren(item) {
 function renderDashaRoot() {
     const root = $("dashaResult");
     root.innerHTML = "";
-    const data = state.results.dasha_level1 || [];
-    if (!data.length) {
+    const systems = state.results.dasha?.systems || [];
+    if (!systems.length) {
         root.innerHTML = "<p class='muted'>没有大运数据。</p>";
         return;
     }
+    const id = currentDashaSystem();
+    const data = systems.find((s) => s.value === id) || systems[0];
+    // Yogini 的名称较长（如 Bhramari · Ma）：主星一栏放宽，各层的日期仍上下对齐。
+    root.toggleAttribute("data-wide", data.periods.some((p) => p.label !== p.planet));
 
-    root.appendChild(buildDashaLevel(data, 1, findNowIndex(data, new Date())));
+    const head = document.createElement("div");
+    head.className = "dasha-head";
+    const select = document.createElement("select");
+    select.setAttribute("aria-label", "大运体系");
+    fillSelect(select, dashaSystemOptions());
+    select.value = data.value;
+    select.addEventListener("change", () => selectDashaSystem(select.value));
+    head.appendChild(select);
+    if (data.condition) {
+        const note = document.createElement("span");
+        note.className = "dasha-condition";
+        note.textContent = `BPHS 适用：${data.condition}`;
+        head.appendChild(note);
+    }
+    root.appendChild(head);
+    root.appendChild(buildDashaLevel(data.periods, 1, findNowIndex(data.periods, new Date())));
 }
 
 function buildDashaLevel(items, level, nowIndex) {
@@ -212,7 +258,7 @@ function buildDashaLevel(items, level, nowIndex) {
         row.className = "dasha-row" + (index === nowIndex ? " current-dasha" : "");
         row.innerHTML = `
             <div class="dasha-level-tag">L${level}</div>
-            <div class="dasha-planet">${escapeHtml(item.planet)}${
+            <div class="dasha-planet">${escapeHtml(dashaLabel(item))}${
                 index === nowIndex ? `<span class="dasha-now-mark">${DASHA_NOW_MARK}</span>` : ""
             }</div>
             <div class="dasha-time">${escapeHtml(formatDashaTime(item.start, level))}</div>
@@ -405,6 +451,8 @@ registerSystem({
         $("horaryNumber").value = calc.KP_HORARY?.number ?? 78;
         $("dashaDaysInYear").value = calc.dasha_days_in_year ?? 365.25;
         fillDashaStartOptions();
+        fillSelect($("dashaSystem"), dashaSystemOptions());
+        $("dashaSystem").value = currentDashaSystem();
         updateKpUI();
     },
     collectOptions() {

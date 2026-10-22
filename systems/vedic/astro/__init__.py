@@ -1,7 +1,7 @@
 """印度占星专用的计算：KP 查表、象征星、主宰星、卜卦上升（kp）、Vimshottari Dasha。
 
 行星、宫位、星历路径等共用基础来自 common.astro。
-KP 查表和星宿表放在本文件夹的 data/ 里：sub-sub.csv、star.csv。
+KP 查表放在本文件夹的 data/ 里：sub-sub.csv。星宿和大运按黄经直接计算（basics.py、dasha.py）。
 """
 
 from .basics import describe, describe_points, dms

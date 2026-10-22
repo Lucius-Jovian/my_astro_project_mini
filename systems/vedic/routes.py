@@ -72,15 +72,16 @@ def chart_full():
 @bp.post("/api/dasha/expand")
 def dasha_expand():
     try:
-        from .astro.dasha_vimshottari import expand_dasha_interval
+        from .astro import dasha as dasha_engine
 
         payload = request.get_json(force=True) or {}
-        intervals = expand_dasha_interval(
-            planet=str(payload["planet"]),
-            start=str(payload["start"]),
-            duration_seconds=str(payload["duration_seconds"]),
+        intervals = dasha_engine.expand(
+            str(payload.get("system") or dasha_engine.DEFAULT_SYSTEM),
+            str(payload["lord"]),
+            str(payload["start"]),
+            str(payload["duration_seconds"]),
         )
-        return ok([item.to_dict(json_safe=True) for item in intervals])
+        return ok([item.to_dict() for item in intervals])
     except Exception as exc:
         current_app.logger.exception("Dasha expansion failed")
         return fail(exc, 400)

@@ -196,15 +196,10 @@
                             <span class="point-entry-name">原始参数</span>
                             <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
                         </button>
-                        <button id="exportSettingsBtn" type="button" class="point-entry">
-                            <span class="point-entry-name">导出设置</span>
-                            <span class="point-count">JSON</span>
+                        <button id="openTransferBtn" type="button" class="point-entry">
+                            <span class="point-entry-name">导入 / 导出设置</span>
+                            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
                         </button>
-                        <button id="importSettingsBtn" type="button" class="point-entry">
-                            <span class="point-entry-name">导入设置</span>
-                            <span class="point-count">JSON</span>
-                        </button>
-                        <input id="importSettingsFile" type="file" accept=".json,application/json" hidden style="display:none">
                     </div>
                 </div>
             </div>
@@ -221,6 +216,8 @@
                 {% block chart_head %}{% endblock %}
             </div>
             <div id="chartBox" class="chart-box"></div>
+            {# 体系自己放在星盘区域里的内容（西方占星：与星盘互相切换的相位表） #}
+            {% block chart_extra %}{% endblock %}
         </section>
 
         <section class="panel result-panel">
@@ -371,6 +368,28 @@
 </dialog>
 
 <!-- 原始参数：当前这张盘后端传回的全部原始数据 -->
+<!-- 导入 / 导出设置：先选做哪一件事，避免误触 -->
+<dialog id="transferDialog" class="modal transfer-modal" aria-labelledby="transferTitle">
+    <div class="modal-head">
+        <h2 id="transferTitle">导入 / 导出设置</h2>
+        <button type="button" class="icon-btn" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+        <p class="dialog-msg hidden" data-dialog-msg></p>
+        <div class="transfer-choices">
+            <button id="exportSettingsBtn" type="button" class="transfer-choice">
+                <span class="transfer-name">导出设置</span>
+                <span class="transfer-desc">把两个体系的全部设置存成一个 JSON 文件，交给别人导入后即可用相同设置起盘。不含档案数据。</span>
+            </button>
+            <button id="importSettingsBtn" type="button" class="transfer-choice">
+                <span class="transfer-name">导入设置</span>
+                <span class="transfer-desc">选择导出的 JSON 文件，替换当前设置。档案数据不受影响。</span>
+            </button>
+        </div>
+        <input id="importSettingsFile" type="file" accept=".json,application/json" hidden style="display:none">
+    </div>
+</dialog>
+
 <dialog id="rawDialog" class="modal raw-modal" aria-labelledby="rawTitle">
     <div class="modal-head">
         <h2 id="rawTitle">原始参数</h2>

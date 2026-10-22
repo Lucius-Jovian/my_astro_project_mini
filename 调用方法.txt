@@ -1,8 +1,6 @@
 调用方法：
 启动 WinPython Command Prompt.exe
-cd /d 文件夹my_astro_project_mini的本地路径
-例如：
-cd /d D:\github\my_astro_project_mini
+cd /d D:\github\my_astro_project
 python app.py
 浏览器打开
 http://127.0.0.1:5300/

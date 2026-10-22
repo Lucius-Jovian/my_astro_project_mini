@@ -1131,6 +1131,35 @@ function renderAspectGroups(box, data) {
         || "<p class='muted'>特殊点、恒星、Lot、映点与反映点都没有落在容许度内的相位。</p>";
 }
 
+// ---------- 星盘 ⇄ 相位表 ----------
+// 相位表放在星盘的位置上，用星盘区域右上角的「星盘 / 相位」切换，方便边看盘边对照。
+// 两个视图各自保留状态：切回相位时仍是上次看的主相位表或特殊点等分组表。
+
+function applyChartMode(mode) {
+    state.chartMode = mode === "aspects" ? "aspects" : "chart";
+    const chart = $("chartBox");
+    const panel = $("aspectPanel");
+    if (state.chartMode === "aspects") {
+        // 相位表至少和星盘一样高，切换时页面下方的内容不会跳动。
+        if (chart.offsetHeight) panel.style.minHeight = `${chart.offsetHeight}px`;
+        chart.classList.add("hidden");
+        panel.classList.remove("hidden");
+        renderAspects();
+    } else {
+        panel.classList.add("hidden");
+        chart.classList.remove("hidden");
+    }
+    document.querySelectorAll("#chartModeSwitch input").forEach((radio) => {
+        radio.checked = radio.value === state.chartMode;
+    });
+}
+
+function bindChartMode() {
+    document.querySelectorAll("#chartModeSwitch input").forEach((radio) => {
+        radio.addEventListener("change", () => { if (radio.checked) applyChartMode(radio.value); });
+    });
+}
+
 function bindAspectView() {
     document.querySelectorAll("#aspectViewSwitch input").forEach((radio) => {
         radio.addEventListener("change", () => {
@@ -1375,6 +1404,7 @@ registerSystem({
     bind() {
         bindSettingsDialogs();
         bindAspectView();
+        bindChartMode();
     },
     collectOptions() {
         return {points: state.points, aspects: state.aspects, classical: state.classical};

@@ -13,11 +13,12 @@
     "calendar": "g"
   },
   "session": {
-    "library": "测试专用",
+    "library": "卜卦",
     "last_profile": {
       "本命": 5,
+      "卜卦": 1,
       "测试专用": 1,
-      "卜卦": 1
+      "婚姻本命盘": 1
     },
     "last_system": "vedic"
   },
@@ -39,7 +40,8 @@
         "sunrise_rsmi": 256,
         "dasha_days_in_year": 365.25,
         "dasha_start_planet": "Mo",
-        "kp_enabled": true
+        "kp_enabled": true,
+        "dasha_system": "vimshottari"
       },
       "modules": {
         "kp_planet_lords": true,
@@ -480,7 +482,8 @@
             "#1",
             "#4",
             "#2060",
-            "#433"
+            "#433",
+            "#3"
           ],
           "axes": [
             "Asc",
@@ -512,9 +515,9 @@
           "antiscia": 2.0,
           "exclusive": {
             "specials": false,
-            "stars": true,
+            "stars": false,
             "lots": false,
-            "antiscia": true
+            "antiscia": false
           }
         },
         "types": [
@@ -652,8 +655,8 @@
       ],
       "western": [
         "tabPlanets",
-        "tabHouses",
         "tabAspects",
+        "tabHouses",
         "tabSun",
         "tabAsteroids",
         "tabStars",

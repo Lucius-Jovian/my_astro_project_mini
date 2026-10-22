@@ -27,7 +27,7 @@ from .astro import (
     kp_lookup_many,
     solve_horary_houses,
 )
-from .astro.dasha_vimshottari import get_dasha_level1
+from .astro import dasha as dasha_engine
 
 
 # ---------------------------------------------------------------- 计算模块
@@ -41,7 +41,7 @@ MODULES = {
     "kp_planet_sigs": "KP 行星 ABCD",
     "kp_house_sigs": "KP 宫位 1234",
     "kp_ruling": "KP 主宰星",
-    "dasha": "Vimshottari 大运",
+    "dasha": "Dasha",
 }
 KP_MODULES = ("kp_planet_lords", "kp_house_lords", "kp_planet_sigs", "kp_house_sigs", "kp_ruling")
 
@@ -75,8 +75,10 @@ DEFAULT_SYSTEM_SETTINGS = {
         },
         "sunrise_rsmi": int(swe.BIT_DISC_CENTER),
         "dasha_days_in_year": 365.25,
-        # 大运从哪颗行星起算（默认月亮；可选任何行星，包括罗睺 / 计都）。
+        # 大运从哪颗行星起算（默认月亮；可选任何行星，包括罗睺 / 计都）。所有大运体系共用。
         "dasha_start_planet": "Mo",
+        # 打开 Dasha 标签页时先显示哪一种大运；在标签页里切换后自动记住。
+        "dasha_system": dasha_engine.DEFAULT_SYSTEM,
     },
     # 星盘样式：north 北印度 / south 南印度。
     "chart_style": "north",
@@ -133,6 +135,12 @@ def _clean_vedic_calc(updates, *, strict):
                     raise ValueError(f"未知的大运起算行星：{value}")
                 continue
             clean[key] = value
+        elif key == "dasha_system":
+            if value not in dasha_engine.SYSTEMS:
+                if strict:
+                    raise ValueError(f"未知的大运体系：{value}")
+                continue
+            clean[key] = value
         elif strict:
             raise ValueError(f"未知的计算设置：{key}")
     return clean
@@ -143,9 +151,10 @@ def normalize_system_settings(section):
     calc = dict(section.get("calculation_defaults") or {})
     section.pop("modules", None)       # 旧版本的 6 个模块开关已经换成「启用 KP」，不再使用
     calc.update(_clean_vedic_calc({k: calc[k] for k in ("kp_enabled", "KP_HORARY", "dasha_days_in_year",
-                                                        "dasha_start_planet") if k in calc}, strict=False))
+                                                        "dasha_start_planet", "dasha_system") if k in calc},
+                                  strict=False))
     defaults = DEFAULT_SYSTEM_SETTINGS["calculation_defaults"]
-    for key in ("kp_enabled", "dasha_days_in_year", "dasha_start_planet"):
+    for key in ("kp_enabled", "dasha_days_in_year", "dasha_start_planet", "dasha_system"):
         if not isinstance(calc.get(key), type(defaults[key])):
             calc[key] = defaults[key]
     section["calculation_defaults"] = calc
@@ -195,6 +204,7 @@ def public_options():
         "horary_modes": ["KS-N", "CIL-N"],
         "modules": [{"value": name, "label": label} for name, label in MODULES.items()],
         "kp_modules": list(KP_MODULES),
+        "dasha_systems": dasha_engine.system_options(),
     }
 
 
@@ -365,20 +375,23 @@ def _calculate_kp_group(planet_pos, house_result, day_lord_result, modules):
 
 
 def _calculate_dasha(context, planet_pos, options):
+    """全部大运体系的第一层（每种只有十几段，一起算好，标签页里切换不必重新排盘）。"""
     if not options["modules"]["dasha"]:
         return None
     start_planet = options["dasha_start_planet"]
     if start_planet not in planet_pos:
         raise ValueError(f"未知的大运起算行星：{start_planet}")
-
-    # 起算点的黄经就是当前所选黄道体系下这颗行星的黄经；
-    # 之后的星宿定位、比例换算与“从月亮起算”完全相同。
-    intervals = get_dasha_level1(
-        context,
-        float(planet_pos[start_planet]["lon"]),
-        days_in_year=options["dasha_days_in_year"],
-    )
-    return [item.to_dict(json_safe=True) for item in intervals]
+    # 起算点的黄经就是当前所选黄道体系下这颗行星的黄经。
+    lon = float(planet_pos[start_planet]["lon"])
+    systems = []
+    for item in dasha_engine.system_options():
+        periods = dasha_engine.level1(context, lon, item["value"], days_in_year=options["dasha_days_in_year"])
+        systems.append({**item, "periods": [p.to_dict() for p in periods]})
+    return {
+        "start_planet": start_planet,
+        "days_in_year": options["dasha_days_in_year"],
+        "systems": systems,
+    }
 
 
 def calculate_full_chart(payload):
@@ -410,5 +423,5 @@ def calculate_full_chart(payload):
     }
     dasha = _calculate_dasha(context, planet_pos, options)
     if dasha is not None:
-        result["dasha_level1"] = dasha
+        result["dasha"] = dasha
     return safe_json(result)

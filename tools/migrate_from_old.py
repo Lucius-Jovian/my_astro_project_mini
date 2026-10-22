@@ -6,7 +6,7 @@
 
 会做的事（旧项目里的文件只读，不删除、不修改）：
   1. 星历文件：旧项目 quant_astro/ephe/ 下的 .se1、ast*/ 子目录 → common/astro/ephe/
-  2. KP 数据表：旧印占 quant_astro/data/*.csv（sub-sub.csv、star.csv）→ systems/vedic/astro/data/
+  2. KP 数据表：旧印占 quant_astro/data/sub-sub.csv → systems/vedic/astro/data/
   3. 档案库：旧项目 user_data/libraries/*.sqlite3（以及更旧版本的 user_data/people.sqlite3）
      → user_data/libraries/。两个旧项目里同名的档案库：内容相同只拷一份；内容不同时
      分别改名为「名字（印占）」「名字（西占）」。用 SQLite 的备份接口复制，运行中的 -wal 内容也会带上。

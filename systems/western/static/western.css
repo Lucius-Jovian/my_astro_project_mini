@@ -384,3 +384,8 @@ table.aspect-matrix .am-sym { font: inherit; }
 .sun-phase-row { display: grid; grid-template-columns: minmax(0, 10em) 6.5em auto auto; gap: 8px; align-items: center; }
 .sun-phase-row input { margin: 0; }
 .sun-phase-add { margin-top: 10px; }
+
+/* 与星盘互相切换的相位表 */
+.aspect-panel { display: flex; flex-direction: column; gap: 10px; overflow: auto; }
+.aspect-panel.hidden { display: none; }
+.aspect-panel .aspect-view-switch { align-self: flex-start; }

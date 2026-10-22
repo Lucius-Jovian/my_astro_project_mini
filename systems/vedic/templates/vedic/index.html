@@ -25,10 +25,11 @@
                 </details>
 
                 <details class="fold nested" id="foldAdvanced">
-                    <summary>高级</summary>
+                    <summary>Dasha</summary>
                     <div class="fold-body">
-                        <label>Dasha 起算行星<select id="dashaStartPlanet"></select></label>
-                        <label>Dasha 年长度（天）<input id="dashaDaysInYear" type="number" step="0.000001" value="365.25"></label>
+                        <label>大运体系<select id="dashaSystem"></select></label>
+                        <label>起算行星<select id="dashaStartPlanet"></select></label>
+                        <label>一年的天数<input id="dashaDaysInYear" type="number" step="0.000001" value="365.25"></label>
                     </div>
                 </details>
 {% endblock %}
@@ -46,7 +47,7 @@
                 <button type="button" role="tab" data-tab="tabKpAbcd" data-module="kp_planet_sigs">KP 行星 ABCD</button>
                 <button type="button" role="tab" data-tab="tabKp1234" data-module="kp_house_sigs">KP 宫位 1234</button>
                 <button type="button" role="tab" data-tab="tabRuling" data-module="kp_ruling">KP 主宰星</button>
-                <button type="button" role="tab" data-tab="tabDasha" data-module="dasha">Vimshottari 大运</button>
+                <button type="button" role="tab" data-tab="tabDasha" data-module="dasha">Dasha</button>
 {% endblock %}
 
 {% block result_panels %}

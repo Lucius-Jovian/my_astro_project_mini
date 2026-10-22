@@ -66,7 +66,7 @@
 
 .dasha-row {
     display: grid;
-    grid-template-columns: 34px 52px max-content max-content;
+    grid-template-columns: 34px minmax(52px, max-content) max-content max-content;
     justify-content: start;
     column-gap: 28px;
     align-items: center;
@@ -78,7 +78,8 @@
 }
 
 .dasha-row:hover { background: var(--hover); }
-.dasha-planet { font-weight: 600; }
+.dasha-planet { font-weight: 600; white-space: nowrap; min-width: 52px; }
+#dashaResult[data-wide] .dasha-planet { min-width: 9.5em; }
 .dasha-row.current-dasha { background: var(--hl-self); }
 
 .dasha-level-tag {
@@ -103,3 +104,8 @@
 .kp-note { margin: 2px 0 8px; line-height: 1.6; }
 .kp-horary { margin-top: 6px; padding-top: 8px; border-top: 1px dashed var(--border); }
 .kp-horary.disabled { opacity: 0.5; }
+
+/* Dasha 标签页顶部：体系切换 */
+.dasha-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.dasha-head select { width: auto; min-width: 14em; margin: 0; }
+.dasha-condition { font-size: 12px; color: var(--muted); }

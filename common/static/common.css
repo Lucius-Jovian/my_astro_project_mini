@@ -1475,3 +1475,15 @@ dialog.modal.raw-modal { width: min(1100px, calc(100vw - 32px)); height: min(820
 .info-table .glyph { font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", "Noto Sans Symbols", "Apple Symbols", "DejaVu Sans", sans-serif; font-size: 15px; }
 .info-table .glyph.active { color: var(--text); font-weight: 700; border-bottom: 2px solid var(--accent); }
 .info-table .glyph.inactive { color: var(--muted); }
+
+/* 导入 / 导出设置 */
+dialog.modal.transfer-modal { width: min(460px, calc(100vw - 32px)); }
+.transfer-choices { display: flex; flex-direction: column; gap: 10px; }
+.transfer-choice {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+    width: 100%; padding: 12px 14px; text-align: left;
+    border: 1px solid var(--border); border-radius: 8px; background: transparent;
+}
+.transfer-choice:hover { background: var(--hover); border-color: var(--border-strong); }
+.transfer-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.transfer-desc { font-size: 12px; color: var(--muted); line-height: 1.5; white-space: normal; }

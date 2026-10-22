@@ -3,91 +3,69 @@
 
 {% block toc %}
         <li><a href="#calc">计算设置</a></li>
-        <li><a href="#chart">星盘怎么读</a></li>
-        <li><a href="#aspect">相位高亮</a></li>
-        <li><a href="#results">结果标签页</a></li>
+        <li><a href="#dasha">Dasha</a></li>
+        <li><a href="#chart">星盘</a></li>
+        <li><a href="#results">结果表</a></li>
 {% endblock %}
 
 {% block body %}
     <h2 id="calc">计算设置</h2>
     <ul>
-        <li><b>黄道体系</b>：Sidereal（恒星黄道）或 Tropical（回归黄道），两者都完整支持。黄道体系只决定算出来的那组行星 / 宫头黄经；之后的星盘、KP 星主、象征星、主宰星、Dasha 都只在这组黄经上计算，不区分它来自哪种黄道。选 Tropical 时岁差不参与计算，岁差下拉框会变灰。</li>
-        <li><b>岁差体系</b>：KP 用 Krishnamurti，传统 Parashari 常用 Lahiri。</li>
-        <li><b>宫位制</b>：Whole Sign 为整宫制；其余为非整宫制，见下文“星盘怎么读”。</li>
-        <li><b>月交点</b>：Mean Node 平交点 / True Node 真交点。</li>
-        <li><b>主行星</b>：勾选的才会计算，也才会出现在星盘和结果表里。罗睺 / 计都只要勾选就一定画在星盘上。</li>
-        <li><b>KP</b>：勾选「启用 KP」时，KP 行星星主、KP 宫位星主、行星象征宫位 ABCD、宫位象征星 1234、主宰星作为一个整体一起计算，对应的标签页一起出现；不勾选时它们都不计算、标签页隐藏。Vimshottari Dasha 永远计算。
-            <ul>
-                <li>KP 卜卦也在这一栏里：启用 KP 后才能设置，启用卜卦后用卜卦数字推算上升点。KS-N 数字范围 1–249，CIL-N 为 1–2193。</li>
-                <li>已经排过盘时，切换「启用 KP」会立即按新设置重算一次。</li>
-            </ul>
-        </li>
-        <li><b>高级</b>：
-            <ul>
-                <li>Dasha 起算行星：大运从哪颗行星的星宿起算，默认月亮；可以选任何在「主行星」里已勾选的行星（包括罗睺 / 计都）。取消勾选当前起算行星时，自动退回月亮。</li>
-                <li>Dasha 年长度：Vimshottari Dasha 一“年”按多少天计算，默认 365.25。</li>
-                <li>星历：始终使用 Swiss Ephemeris 星历文件（<code>common/astro/ephe</code> 里的 .se1 文件）。缺少覆盖该日期的文件时直接报错并提示缺哪个文件，不会悄悄改用精度较低的内置算法。</li>
-            </ul>
-        </li>
+        <li><b>黄道体系</b>：恒星黄道（Sidereal）或回归黄道（Tropical）。星盘、KP、Dasha 都在所选黄道的黄经上计算。</li>
+        <li><b>岁差体系</b>：KP 通常用 Krishnamurti，传统 Parashari 常用 Lahiri。</li>
+        <li><b>宫位制</b>、<b>月交点</b>（平交点或真交点）。</li>
+        <li><b>启用 KP</b>：勾选后计算 KP 行星、KP 宫位、行星 ABCD、宫位 1234 和主宰星，对应的标签页一起出现。KP 卜卦也在这一栏，KS-N 签号 1 到 249，CIL-N 签号 1 到 2193。</li>
+        <li><b>Dasha</b>：见下一节。</li>
     </ul>
 
-    <h2 id="chart">星盘怎么读</h2>
-    <p>星盘右上角切换北印度 / 南印度，一改就自动记住（<code>systems.vedic.chart_style</code>）。</p>
-    <h3>北印度星盘</h3>
+    <h2 id="dasha">Dasha</h2>
+    <h3>设置</h3>
+    <p>在左侧「Dasha」折叠栏里。</p>
     <ul>
-        <li>最上方的菱形是上升点所在的星座，逆时针依次往下排。</li>
-        <li>格内尖角处的数字是星座：1 白羊、2 金牛、3 双子、4 巨蟹、5 狮子、6 处女、7 天秤、8 天蝎、9 射手、10 摩羯、11 水瓶、12 双鱼。</li>
-        <li>格内元素“中心优先”，整块对准格子的几何中心：
-            <ul>
-                <li>四方形（菱形）格：3 个以内竖排；4 个排成 2×2。</li>
-                <li>侧立三角形（尖朝左 / 右）：4 个以内竖排。</li>
-                <li>正立 / 倒立三角形（尖朝上 / 下）：2 个以内竖排；3 个为 1+2，4 个为 1+1+2（从尖角数到底边，宽的一行贴着底边）。</li>
-                <li>竖排时各元素左边缘对齐成一列，整列居中。更多元素时自动选择最匀称、最紧凑的排法。</li>
-                <li>全盘统一字号，尽量大；只有特别挤的格子才单独缩小。</li>
-            </ul>
-        </li>
+        <li><b>大运体系</b>：标签页打开时先显示哪一种。和 Dasha 标签页顶部的下拉框是同一个设置，在哪边改都可以。</li>
+        <li><b>起算行星</b>：从哪颗行星所在的星宿起算，默认月亮。所有体系共用。</li>
+        <li><b>一年的天数</b>：默认 365.25。</li>
     </ul>
-    <h3>南印度星盘</h3>
+    <h3>查看</h3>
     <ul>
-        <li>星座位置固定：左上角双鱼，顺时针依次是白羊、金牛、双子……；上升星座的格子左上角有一道斜线；每格右上角的小数字是星座编号（与北印度盘相同，可点击）。</li>
-        <li>每个格子里每行一个点，所有点左边缘对齐成一列，整列在格子里水平、垂直居中；格子高度随点数自动增高。</li>
+        <li>Dasha 标签页顶部的下拉框切换体系，切换时不用重新排盘。</li>
+        <li>先显示第一层，覆盖出生后约 120 年。当前所在的一段有底色和 ● 标记。</li>
+        <li>点任意一段展开下一层，再点一次收起，可以一直往下展开。第 3 层起显示到分钟。</li>
     </ul>
-    <h3>格子里的内容</h3>
+    <h3>各体系</h3>
+    <p>都以起算行星所在的星宿决定出生时的第一位主星。出生时已走过的部分，按它在本主星所辖星宿里走过的比例计算。下级的分法都是从本段的主星开始，按各主星年数的比例循环一遍。</p>
+    <table>
+        <tr><th>体系</th><th>周期</th><th>主星与年数</th><th>BPHS 的适用情形</th></tr>
+        <tr><td>Vimshottari</td><td>120 年</td><td>Ke 7、Ve 20、Su 6、Mo 10、Ma 7、Ra 18、Ju 16、Sa 19、Me 17</td><td>通用</td></tr>
+        <tr><td>Yogini</td><td>36 年</td><td>Mangala（Mo）1、Pingala（Su）2、Dhanya（Ju）3、Bhramari（Ma）4、Bhadrika（Me）5、Ulka（Sa）6、Siddha（Ve）7、Sankata（Ra）8</td><td>通用</td></tr>
+        <tr><td>Ashtottari</td><td>108 年</td><td>Su 6、Mo 15、Ma 8、Me 17、Sa 10、Ju 19、Ra 12、Ve 21</td><td>罗睺不在命主星的角宫或三方宫</td></tr>
+        <tr><td>Shodashottari</td><td>116 年</td><td>Su 11、Ma 12、Ju 13、Sa 14、Ke 15、Mo 16、Me 17、Ve 18</td><td>黑分日生，或白分夜生</td></tr>
+        <tr><td>Dwadashottari</td><td>112 年</td><td>Su 7、Ju 9、Ke 11、Me 13、Ra 15、Ma 17、Sa 19、Mo 21</td><td>上升在金星的 Navamsa</td></tr>
+        <tr><td>Panchottari</td><td>105 年</td><td>Su 12、Me 13、Sa 14、Ma 15、Ve 16、Mo 17、Ju 18</td><td>上升巨蟹且在巨蟹的 Dwadashamsa</td></tr>
+        <tr><td>Shatabdika</td><td>100 年</td><td>Su 5、Mo 5、Ve 10、Me 10、Ju 20、Ma 20、Sa 30</td><td>上升 Vargottama</td></tr>
+        <tr><td>Chaturashiti Sama</td><td>84 年</td><td>Su、Mo、Ma、Me、Ju、Ve、Sa 各 12</td><td>第十宫主星在第十宫</td></tr>
+        <tr><td>Dwisaptati Sama</td><td>72 年</td><td>Su、Mo、Ma、Me、Ju、Ve、Sa、Ra 各 9</td><td>上升主星在第一宫或第七宫</td></tr>
+        <tr><td>Shattrimsha Sama</td><td>36 年</td><td>Mo 1、Su 2、Ju 3、Ma 4、Me 5、Sa 6、Ve 7、Ra 8</td><td>日生上升在太阳的 Hora，或夜生上升在月亮的 Hora</td></tr>
+    </table>
     <ul>
-        <li><b>每个格子永远只代表一个星座的 0°–30°</b>，度数是星座内度数。</li>
-        <li>行星：Su 太阳、Mo 月亮、Me 水星、Ve 金星、Ma 火星、Ju 木星、Sa 土星、Ra 罗睺、Ke 计都。</li>
-        <li><b>代号下有红色下划线 = 逆行</b>。罗睺、计都本来就是逆行，不标。</li>
-        <li><b>As</b> = 上升点。整宫制时总会标出；非整宫制时 H1 就是上升点，只有两者不同（如 Equal/MC 宫制）才另标 As。</li>
-        <li><b>H1–H12</b>（灰蓝色）= 非整宫制下各宫宫头所在的位置。整宫制不显示宫头，因为“星座 = 宫”。</li>
-        <li>鼠标停在任何一个点上，会显示全称和完整位置。</li>
-    </ul>
-
-    <h2 id="aspect">相位高亮</h2>
-    <ul>
-        <li><b>点行星 → 看它相位哪些星座</b>：它所在的星座着陶土色，受它相位的星座着灰绿色，星盘下方一行文字列出具体星座。</li>
-        <li><b>点星座数字 → 看哪些行星相位这个星座</b>：这个星座着陶土色，从其它星座向它投射相位的行星加框高亮，星盘下方列出“哪颗行星、从哪个星座、第几相位”。同一星座里的行星不算。</li>
-        <li>再点一次或点空白处取消。</li>
-        <li>相位按星座计（Parashari 星座相位），从所在星座数起，所在星座本身算第 1 个：
-            Su / Mo / Me / Ve 看第 7；Ma 看第 4、7、8；Ju 看第 5、7、9；Sa 看第 3、7、10；Ra / Ke 看第 5、7、9。</li>
-        <li>整宫制下“星座 = 宫”，例如木星在 1 宫，则 1、5、7、9 宫高亮；非整宫制下按星座算，例如木星在白羊，则白羊、狮子、天秤、射手高亮。</li>
-        <li>切换南北印度盘时，选中状态会保留；重新排盘会清除。</li>
+        <li>第一位主星的定法：Vimshottari 从 Ashwini 起每个星宿依次归一位主星；Yogini 用（星宿序号 + 3）除以 8 的余数；Ashtottari 从 Ardra 起依次分给各主星 4、3、4、3、4、3、4、3 个星宿（土星一组含 Abhijit）；其余按 BPHS 从规定的星宿数到出生星宿（Dwadashottari 是从出生星宿数到 Revati），除以主星个数取余。</li>
+        <li>适用情形只作参考，程序不自动判断，也不会因此隐藏某种体系。</li>
+        <li>周期短于 120 年的体系（如 Yogini、Shattrimsha Sama）会连续排几个周期。</li>
     </ul>
 
-    <h2 id="results">结果标签页</h2>
+    <h2 id="chart">星盘</h2>
     <ul>
-        <li>星盘下方的标签页切换各项结果：Vimshottari 大运、行星、宫位、值日星 · 行星时、KP 行星、KP 宫位、KP 行星 ABCD、KP 宫位 1234、KP 主宰星。顺序在「工具 → 结果标签页顺序」里调整。</li>
-        <li>统一写法：行星用两字母代码（Su Mo Ma …）；宫位写「第 N 宫」；黄经 = 中文星座 + 星座内度分秒；星宿写梵文名加中文宿名，其余都不重复中英文。</li>
-        <li><b>行星</b>：黄经、星宿、宿主星、Pada（星宿四分之一，每份 3°20′）、顺 / 逆（按速度正负）。</li>
-        <li><b>宫位</b>：十二宫宫头的黄经、星宿、宿主星、Pada。</li>
-        <li><b>KP 行星</b>、<b>KP 宫位</b>：黄经、星宿、星座主、宿主星、子主星、子子主星、Pada。</li>
-        <li>度分秒截断到整秒，不四舍五入，与星盘上的显示一致。黄经、速度等原始数值在「工具 → 原始参数」里看。</li>
-        <li>星座、星宿、宿主星、Pada 是印度占星的通用基础，由 <code>systems/vedic/astro/basics.py</code> 直接按黄经计算（不查表）；KP 星主表也从这里取这几项，只用 <code>sub-sub.csv</code> 查 Sub / Sub-Sub 星主。</li>
-        <li><b>Vimshottari Dasha</b>：排盘后只计算第一层大运（L1），底色和 ● 标出当前所在的一支。点击任意区间才计算并展开下一层（L2、L3…），再点一次收起，可以逐层往下展开。第 1、2 层只显示日期，第 3 层起显示到分钟（当地时间）。起算行星和一年的天数在计算设置里。</li>
-        <li><b>档案资料</b>：见“人物档案”。</li>
+        <li>星盘右上角切换北印度和南印度样式。星盘左上角除了本命和过境，还有月亮盘（以月亮所在星座为第一宫）和九分盘。</li>
+        <li>每个格子代表一个星座，度数是星座内度数。北印度盘最上方的菱形是上升星座；南印度盘星座位置固定，上升星座的格子有一道斜线。</li>
+        <li>行星用两字母代码：Su 太阳、Mo 月亮、Me 水星、Ve 金星、Ma 火星、Ju 木星、Sa 土星、Ra 罗睺、Ke 计都。代码下有红线表示逆行。As 是上升点，H1 到 H12 是非整宫制下的宫头。</li>
+        <li>点一颗行星，高亮它投射相位的星座；点星座数字，高亮向这个星座投射相位的行星。相位按 Parashari 星座相位计算：所有行星看第 7 个星座，火星另看第 4、8，木星和罗睺计都另看第 5、9，土星另看第 3、10。</li>
     </ul>
-{% endblock %}
 
-{% block settings_items %}
-        <li><code>systems.vedic.calculation_defaults</code>：计算设置（黄道、岁差、宫位制、月交点、启用 KP <code>kp_enabled</code>、KP 卜卦、Dasha 年长度与起算行星等）。网页上任何一项改了都会自动记住，下次打开沿用。</li>
-        <li><code>systems.vedic.chart_style</code>：<code>north</code> 北印度 / <code>south</code> 南印度。</li>
+    <h2 id="results">结果表</h2>
+    <ul>
+        <li>星盘下方的标签页：Dasha、行星、宫位、值日星 · 行星时，启用 KP 后还有 KP 行星、KP 宫位、KP 行星 ABCD、KP 宫位 1234、KP 主宰星，以及档案资料。</li>
+        <li>黄经写成中文星座加星座内度分秒；宫位写「第 N 宫」；星宿写梵文名加中文宿名。</li>
+        <li><b>行星</b>：黄经、星宿、宿主星、Pada、顺行逆行。<b>宫位</b>：黄经、星宿、宿主星、Pada。</li>
+        <li><b>KP 行星、KP 宫位</b>：黄经、星宿、星座主、宿主星、子主星、子子主星、Pada。子主星和子子主星查 <code>systems/vedic/astro/data/sub-sub.csv</code>，其他都由程序按黄经直接计算。</li>
+    </ul>
 {% endblock %}
