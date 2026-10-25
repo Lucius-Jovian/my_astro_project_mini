@@ -16,11 +16,11 @@
     "library": "卜卦",
     "last_profile": {
       "本命": 5,
-      "卜卦": 1,
-      "测试专用": 1,
+      "卜卦": 2,
+      "测试专用": 2,
       "婚姻本命盘": 1
     },
-    "last_system": "vedic"
+    "last_system": "western"
   },
   "appearance": {
     "coord_format": "dms"
@@ -79,7 +79,7 @@
             "label": "婚神星",
             "symbol": "⚵",
             "color": "#c9a3b8",
-            "enabled": true
+            "enabled": false
           },
           {
             "number": 2,
@@ -233,7 +233,7 @@
               "color": "#e0c27a",
               "day": "Asc + Mo - Su",
               "night": "Asc + Su - Mo",
-              "sect_mode": "auto",
+              "sect_mode": "day",
               "enabled": true
             },
             {
@@ -258,10 +258,7 @@
             }
           ]
         },
-        "specials": [
-          "MeanApog",
-          "Syzygy"
-        ],
+        "specials": [],
         "antiscia": [
           {
             "planet": "Su",

@@ -2,7 +2,7 @@
 /*
  * 印度占星的前端部分。共用的页面逻辑（档案、时间地点、过境、外观……）在 common/static/common.js，
  * 这里只放本体系自己的东西，通过 registerSystem({...}) 挂进去：
- *   - 计算设置里的「启用 KP」（含 KP 卜卦）、Dasha 设置；改了就写回 settings.json
+ *   - 计算设置里的「启用 KP」（含 KP 卜卦）、Dasha 设置（起算行星、年长度）；改了就写回 settings.json
  *   - KP 星主表、象征宫位 / 象征星、主宰星、Dasha（多种大运体系）的结果标签页
  *   - 月亮盘、九分盘两种分盘
  *   - 南北印度盘（chart.js 提供 AstroChart）
@@ -129,7 +129,6 @@ function bindVedicCalc() {
         });
     }
     $("dashaStartPlanet").addEventListener("change", () => saveVedicCalc({dasha_start_planet: $("dashaStartPlanet").value}));
-    $("dashaSystem").addEventListener("change", () => selectDashaSystem($("dashaSystem").value));
     $("dashaDaysInYear").addEventListener("change", () => {
         const days = Number($("dashaDaysInYear").value);
         if (!Number.isFinite(days) || days < 300 || days > 400) {
@@ -179,7 +178,7 @@ function findNowIndex(items, now) {
 
 // ---------- 大运体系 ----------
 // 后端一次算好全部体系的第一层（results.dasha.systems），标签页里切换只是换一份数据重画，不重新排盘。
-// 当前显示哪一种记在 calculation_defaults.dasha_system，左侧「Dasha → 大运体系」和标签页顶部的下拉框是同一个设置。
+// 当前显示哪一种记在 calculation_defaults.dasha_system，只在 Dasha 标签页顶部的下拉框里切换（左侧 Dasha 设置里不再重复放这一项）。
 
 function dashaSystemOptions() {
     return (state.optionsMeta.dasha_systems || []).map((s) => ({value: s.value, label: `${s.label}（${s.years} 年）`}));
@@ -193,7 +192,6 @@ function currentDashaSystem() {
 
 function selectDashaSystem(id) {
     state.settings.calculation_defaults.dasha_system = id;
-    $("dashaSystem").value = id;
     saveVedicCalc({dasha_system: id});
     if (state.results.dasha) renderDashaRoot();
 }
@@ -451,8 +449,6 @@ registerSystem({
         $("horaryNumber").value = calc.KP_HORARY?.number ?? 78;
         $("dashaDaysInYear").value = calc.dasha_days_in_year ?? 365.25;
         fillDashaStartOptions();
-        fillSelect($("dashaSystem"), dashaSystemOptions());
-        $("dashaSystem").value = currentDashaSystem();
         updateKpUI();
     },
     collectOptions() {

@@ -77,7 +77,7 @@ DEFAULT_SYSTEM_SETTINGS = {
         "dasha_days_in_year": 365.25,
         # 大运从哪颗行星起算（默认月亮；可选任何行星，包括罗睺 / 计都）。所有大运体系共用。
         "dasha_start_planet": "Mo",
-        # 打开 Dasha 标签页时先显示哪一种大运；在标签页里切换后自动记住。
+        # 打开 Dasha 标签页时先显示哪一种大运；只在 Dasha 标签页顶部切换，切换后自动记住。
         "dasha_system": dasha_engine.DEFAULT_SYSTEM,
     },
     # 星盘样式：north 北印度 / south 南印度。
