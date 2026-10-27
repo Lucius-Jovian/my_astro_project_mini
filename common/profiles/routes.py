@@ -10,7 +10,7 @@ from flask import Blueprint, Response, current_app, request, stream_with_context
 
 from ..web import fail, ok
 from .driver import LockedError
-from .db import FIELD_KINDS
+from .db import DEFAULT_SORT, FIELD_KINDS, default_order
 
 PAGE_META_KEYS = ("page", "page_size", "total", "total_pages", "has_more", "sort", "order")
 
@@ -48,10 +48,27 @@ def field_kind_options():
     return [{"value": key, "label": label} for key, label in FIELD_KINDS.items()]
 
 
+def saved_sort():
+    """当前档案库保存的人物排序 (sort, order)；没保存过时是默认排序（最近打开，倒序）。"""
+    entry = ((store.data.get("session") or {}).get("profile_sort") or {}).get(libraries.current)
+    if isinstance(entry, dict) and entry.get("sort"):
+        return str(entry["sort"]), str(entry.get("order") or default_order(entry["sort"]))
+    return DEFAULT_SORT, default_order(DEFAULT_SORT)
+
+
 def library_payload():
-    """切换档案库 / 打开网页时前端需要的全部档案数据（只有第一页人物）。"""
+    """切换档案库 / 打开网页时前端需要的全部档案数据（只有第一页人物）。
+
+    第一页直接按这个库保存的排序来取，打开网页时列表不会先按名字显示、再跳成别的顺序。
+    保存的排序已经失效（例如排序用的字段被删了）时退回默认排序；返回的 profiles_page 里
+    的 sort / order 就是实际使用的排序，前端照着它设置排序下拉框。
+    """
     current = db()
-    first_page = current.list_profiles()
+    sort, order = saved_sort()
+    try:
+        first_page = current.list_profiles(sort=sort, order=order)
+    except ValueError:
+        first_page = current.list_profiles(sort=DEFAULT_SORT, order=default_order(DEFAULT_SORT))
     return {
         "library": libraries.current_name(),
         "libraries": libraries.summary(),
@@ -92,8 +109,8 @@ def profile_list_args():
         "tag_mode": args.get("tag_mode", "all"),
         "born_from": args.get("born_from"),
         "born_to": args.get("born_to"),
-        "sort": args.get("sort", "name"),
-        "order": args.get("order", "asc"),
+        "sort": args.get("sort") or DEFAULT_SORT,
+        "order": args.get("order") or None,          # 不传时用这个排序依据的默认方向
         "with_total": args.get("with_total", "1").strip().lower() not in ("0", "false", "no"),
     }
 
@@ -164,18 +181,32 @@ def rename_library():
 
 @bp.post("/api/session")
 def update_session():
-    # 记住当前选中的档案；下次打开网页时自动选回来。
+    # 记住当前选中的档案（下次打开网页时自动选回来），以及当前档案库「选择人物」列表的排序。
     try:
-        payload = request.get_json(force=True) or {}
+        payload = dict(request.get_json(force=True) or {})
         if "last_profile_id" in payload:
             # 前端只传“当前档案库里选中了谁”，记到这个库名下。
-            payload = {"last_profile": {libraries.current: payload["last_profile_id"]}}
+            profile_id = payload.pop("last_profile_id")
+            payload["last_profile"] = {libraries.current: profile_id}
+            if isinstance(profile_id, int) and not isinstance(profile_id, bool) and profile_id > 0:
+                _mark_opened(profile_id)
+        if "profile_sort" in payload:
+            # 同样只传当前档案库的排序：{"sort": ..., "order": ...}，记到这个库名下。
+            payload["profile_sort"] = {libraries.current: payload["profile_sort"]}
         return ok(store.save_session(payload))
     except ValueError as exc:
         return fail(exc, 400)
     except OSError as exc:
         current_app.logger.exception("Saving session failed")
         return fail(f"会话设置写入 settings.json 失败：{exc}", 500)
+
+
+def _mark_opened(profile_id):
+    """记下「最近打开」时间。只是排序用的辅助信息：库被锁定、档案已删除等情况下静默跳过，不影响选人。"""
+    try:
+        db().mark_opened(profile_id)
+    except Exception:
+        current_app.logger.warning("Recording last-opened time failed", exc_info=True)
 
 
 # ---------------------------------------------------------------- 加密

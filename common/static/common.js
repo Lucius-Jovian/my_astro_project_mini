@@ -16,7 +16,8 @@ const state = {
     tagOptions: [],
     profileList: {items: [], page: 1, pageSize: 50, total: 0, totalPages: 1, hasMore: false},
     profileQuery: {
-        q: "", scope: "name", bornFrom: "", bornTo: "", tags: [], tagMode: "all", sort: "name", order: "asc", page: 1,
+        // sort / order 是排序（每个档案库单独保存在 settings.json，打开网页时由后端给出）；其余是筛选和搜索，不保存。
+        q: "", scope: "name", bornFrom: "", bornTo: "", tags: [], tagMode: "all", sort: "opened", order: "desc", page: 1,
         // 字段条件：[{uid, field, min, max, options: [], empty}]，多条之间是“并且”
         fieldFilters: [],
     },
@@ -770,7 +771,7 @@ function bindCalcButton() {
 
 // ================= 本地日期时间：分段输入 =================
 // 年 / 月 / 日 / 时 / 分 / 秒 各是一个小输入框：
-// - 只能输入数字；年最多 4 位，其余最多 2 位；
+// - 只能输入数字；年最多 4 位，其余最多 2 位；秒可以再带最多 3 位小数（如 05.25），多出的位数四舍五入；
 // - 一格填满（或第一位数字已经不可能再接第二位，比如月份输入 5）就自动跳到下一格；
 // - 点进某一格会全选，直接敲数字即可覆盖；
 // - 在空格里按退格回到上一格；← → 在格子之间移动；↑ ↓ 加减当前这一格；
@@ -779,12 +780,22 @@ function bindCalcButton() {
 // - 按回车直接排盘。
 
 const DT_PARTS = ["year", "month", "day", "hour", "minute", "second"];
-const DT_LEN = {year: 4, month: 2, day: 2, hour: 2, minute: 2, second: 2};
+const DT_LEN = {year: 4, month: 2, day: 2, hour: 2, minute: 2, second: 2};   // 秒：整数部分的位数（另可带 3 位小数）
+const SECOND_DECIMALS = 3;
 const DT_RANGE = {year: [1, 9999], month: [1, 12], hour: [0, 23], minute: [0, 59], second: [0, 59]};
 // 第一位数字大于它，就不可能再有第二位，直接补零跳格。
 const DT_FIRST_DIGIT_MAX = {month: 1, day: 3, hour: 2, minute: 5, second: 5};
 const DT_NAMES = {year: "年", month: "月", day: "日", hour: "时", minute: "分", second: "秒"};
-const DT_TEXT_RE = /^\s*(\d{1,4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?(?:[ T]+(\d{1,2})[:：时](\d{1,2})(?:[:：分](\d{1,2})秒?)?)?\s*$/;
+const DT_TEXT_RE = /^\s*(\d{1,4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?(?:[ T]+(\d{1,2})[:：时](\d{1,2})(?:[:：分](\d{1,2}(?:\.\d+)?)秒?)?)?\s*$/;
+
+// 秒（可以带小数）→ 「SS」或「SS.sss」：四舍五入到 3 位小数，去掉末尾的 0（05.500 写成 05.5）。
+// 进位到 60 时记成 59.999，不往分钟进位：差别不到 1 毫秒。后端（core.py、db.py）用同一个规则。
+function formatSecondPart(sec) {
+    const totalMs = Math.min(59999, Math.max(0, Math.round(Number(sec) * 1000)));
+    const whole = Math.floor(totalMs / 1000);
+    const ms = totalMs - whole * 1000;
+    return String(whole).padStart(2, "0") + (ms ? `.${String(ms).padStart(3, "0").replace(/0+$/, "")}` : "");
+}
 
 function dtInput(part) {
     return $("localTime").querySelector(`[data-part='${part}']`);
@@ -824,6 +835,13 @@ function validateDateTime({mark = true} = {}) {
             message = message || `请填写${DT_NAMES[p]}。`;
             continue;
         }
+        if (p === "second") {
+            if (!(parts.second >= 0 && parts.second < 60)) {
+                bad.add(p);
+                message = message || "秒应在 0–59.999 之间。";
+            }
+            continue;
+        }
         const range = DT_RANGE[p];
         if (range && (parts[p] < range[0] || parts[p] > range[1])) {
             bad.add(p);
@@ -848,10 +866,10 @@ function validateDateTime({mark = true} = {}) {
 function formatDtParts(parts) {
     const p2 = (n) => String(n).padStart(2, "0");
     return `${String(parts.year).padStart(4, "0")}-${p2(parts.month)}-${p2(parts.day)} ` +
-        `${p2(parts.hour)}:${p2(parts.minute)}:${p2(parts.second)}`;
+        `${p2(parts.hour)}:${p2(parts.minute)}:${formatSecondPart(parts.second)}`;
 }
 
-// 合法时返回「YYYY-MM-DD HH:MM:SS」，否则返回空字符串。
+// 合法时返回「YYYY-MM-DD HH:MM:SS」（秒可带最多 3 位小数），否则返回空字符串。
 function getLocalTime() {
     const {ok, parts} = validateDateTime({mark: false});
     return ok ? formatDtParts(parts) : "";
@@ -864,7 +882,8 @@ function setLocalTime(text, {keepStep = false} = {}) {
     const [, y, mo, d, h = "0", mi = "0", s = "0"] = match;
     const values = {year: y, month: mo, day: d, hour: h, minute: mi, second: s};
     for (const p of DT_PARTS) {
-        dtInput(p).value = p === "year" ? values[p].padStart(4, "0") : values[p].padStart(2, "0");
+        dtInput(p).value = p === "year" ? values[p].padStart(4, "0")
+            : p === "second" ? formatSecondPart(values[p]) : values[p].padStart(2, "0");
     }
     validateDateTime();
     if (!keepStep) resetStepBase();
@@ -877,11 +896,30 @@ function focusDtPart(index) {
     input.select();
 }
 
-// 离开一格时补零：月日时分秒补到 2 位，年补到 4 位。
+// 离开一格时补零：月日时分秒补到 2 位，年补到 4 位；秒的小数部分整理成最多 3 位（5. 写成 05）。
 function padDtPart(part) {
     const input = dtInput(part);
     if (input.value === "") return;
+    if (part === "second") {
+        const value = Number(input.value);
+        if (Number.isFinite(value) && value < 60) input.value = formatSecondPart(value);
+        return;
+    }
     input.value = input.value.padStart(DT_LEN[part], "0");
+}
+
+// 秒这一格只留数字和一个小数点：整数部分最多 2 位，小数最多 3 位。
+function cleanSecondText(text) {
+    const cleaned = String(text).replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1");
+    const [whole, frac] = cleaned.split(".");
+    return frac === undefined ? whole.slice(0, DT_LEN.second)
+        : `${whole.slice(0, DT_LEN.second)}.${frac.slice(0, SECOND_DECIMALS)}`;
+}
+
+// 秒这一格已经填满（没有小数时 2 位整数；有小数时 3 位小数）：再敲数字就从头输入。
+function secondFull(text) {
+    const [whole, frac] = String(text).split(".");
+    return frac === undefined ? whole.length >= DT_LEN.second : frac.length >= SECOND_DECIMALS;
 }
 
 // ↑ ↓：只改这一格（循环），不进位；日期会限制在当月天数以内。
@@ -893,6 +931,16 @@ function nudgeDtPart(part, delta) {
         const y = Number.isNaN(parts.year) ? 2000 : parts.year;
         const m = Number.isNaN(parts.month) ? 1 : Math.min(12, Math.max(1, parts.month));
         hi = daysInMonth(y, m, currentCalendar());
+    }
+    if (part === "second") {
+        // 秒：整数部分加减，保留小数；超出 0–59 循环。
+        if (value >= 60) value -= 60;
+        if (value < 0) value += 60;
+        dtInput(part).value = formatSecondPart(value);
+        dtInput(part).select();
+        resetStepBase();
+        validateDateTime();
+        return;
     }
     if (value > hi) value = lo;
     if (value < lo) value = hi;
@@ -915,19 +963,23 @@ const DMS_PARTS = ["d", "m", "s"];
 function coordField(name) { return document.querySelector(`.coord-field[data-coord="${name}"]`); }
 function dmsInput(name, part) { return coordField(name).querySelector(`[data-dms="${part}"]`); }
 
-// 十进制度 → {neg, d, m, s}（秒保留两位小数，四舍五入后进位）
+// 十进制度 → {neg, d, m, s}（秒保留三位小数，四舍五入后进位）。
+// 十进制度保存 7 位小数（约 0.00036″），度分秒的 3 位小数换算过去再换回来不会变。
+const COORD_DECIMALS = 7;
+const DMS_SECOND_DECIMALS = 3;
+
 function decToDms(value) {
     let abs = Math.abs(value);
     let d = Math.floor(abs);
     let m = Math.floor((abs - d) * 60);
-    let sec = Math.round(((abs - d) * 60 - m) * 60 * 100) / 100;
+    let sec = Math.round(((abs - d) * 60 - m) * 60 * 1000) / 1000;
     if (sec >= 60) { sec = 0; m += 1; }
     if (m >= 60) { m = 0; d += 1; }
     return {neg: value < 0, d, m, s: sec};
 }
 
 function formatSeconds(sec) {
-    const [int, frac] = sec.toFixed(2).replace(/\.?0+$/, "").split(".");
+    const [int, frac] = sec.toFixed(DMS_SECOND_DECIMALS).replace(/\.?0+$/, "").split(".");
     return int.padStart(2, "0") + (frac ? `.${frac}` : "");
 }
 
@@ -960,7 +1012,7 @@ function parseCoordText(text, name) {
     const negative = /^\s*-/.test(raw) || [...cfg.negKeys].some((k) => raw.includes(k));
     if (negative) value = -value;
     if (Math.abs(value) > cfg.max) return null;
-    return Number(value.toFixed(6));
+    return Number(value.toFixed(COORD_DECIMALS));
 }
 
 let coordSyncing = false;
@@ -1006,7 +1058,7 @@ function commitDms(name) {
             bad.forEach((i) => i.classList.add("invalid"));
         } else {
             const value = (d + m / 60 + sec / 3600) * (neg ? -1 : 1);
-            decimal = String(Number(value.toFixed(6)));
+            decimal = String(Number(value.toFixed(COORD_DECIMALS)));
         }
     }
     coordSyncing = true;           // 写回十进制时不要反过来刷新正在输入的度分秒
@@ -1054,7 +1106,7 @@ function bindCoordInputs() {
 
         DMS_PARTS.forEach((part, index) => {
             const input = dmsInput(name, part);
-            const maxLen = part === "d" ? COORDS[name].degLen : part === "m" ? 2 : 5;
+            const maxLen = part === "d" ? COORDS[name].degLen : part === "m" ? 2 : 2 + 1 + DMS_SECOND_DECIMALS;   // 秒：59.999
             const focusPart = (i) => { const next = dmsInput(name, DMS_PARTS[i]); next.focus(); next.select(); };
 
             let focusedByMouse = false;
@@ -1097,6 +1149,10 @@ function bindCoordInputs() {
                            (key === "." && part !== "s")) {
                     event.preventDefault();
                     if (input.value !== "" && index < DMS_PARTS.length - 1) focusPart(index + 1);
+                } else if (part === "s" && /^\d$/.test(key) && input.selectionStart === input.selectionEnd &&
+                           /\.\d{3}$/.test(input.value)) {
+                    // 秒的小数已经有 3 位：多敲的数字不要，免得把已经填好的秒清掉。
+                    event.preventDefault();
                 } else if (/^\d$/.test(key) && !event.ctrlKey && !event.metaKey &&
                            input.selectionStart === input.selectionEnd && input.value.length >= maxLen) {
                     // 这一格已经填满：从头重新输入，而不是被长度卡住。
@@ -1108,7 +1164,8 @@ function bindCoordInputs() {
 
             input.addEventListener("input", () => {
                 const cleaned = part === "s"
-                    ? input.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1").slice(0, maxLen)
+                    ? input.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1")
+                        .replace(new RegExp(`(\\.\\d{${DMS_SECOND_DECIMALS}})\\d+$`), "$1").slice(0, maxLen)
                     : input.value.replace(/\D/g, "").slice(0, maxLen);
                 if (cleaned !== input.value) input.value = cleaned;
                 commitDms(name);
@@ -1167,8 +1224,19 @@ function bindDateTimeInput() {
         input.addEventListener("keydown", (event) => {
             const atStart = input.selectionStart === 0 && input.selectionEnd === 0;
             const atEnd = input.selectionStart === input.value.length && input.selectionEnd === input.value.length;
-            if (/^\d$/.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey &&
-                input.selectionStart === input.selectionEnd && input.value.length >= DT_LEN[part]) {
+            const full = part === "second" ? secondFull(input.value) : input.value.length >= DT_LEN[part];
+            const noSelection = input.selectionStart === input.selectionEnd;
+            if (part === "second" && /^\d$/.test(event.key) && noSelection && full && input.value.includes(".")) {
+                // 小数已经有 3 位：多敲的数字不要，免得把已经填好的秒清掉。
+                event.preventDefault();
+            } else if (part === "second" && event.key === "." && !input.value.includes(".")) {
+                // 秒可以带小数：小数点照常输入（空格时补成 0.）。
+                if (input.value === "") {
+                    event.preventDefault();
+                    input.value = "0.";
+                }
+            } else if (/^\d$/.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey &&
+                input.selectionStart === input.selectionEnd && full) {
                 // 这一格已经填满、又没有选中文字：从头重新输入这一格，而不是被长度卡住打不进去。
                 event.preventDefault();
                 input.value = event.key;
@@ -1199,7 +1267,7 @@ function bindDateTimeInput() {
         });
 
         input.addEventListener("input", () => {
-            const digits = input.value.replace(/\D/g, "").slice(0, DT_LEN[part]);
+            const digits = part === "second" ? cleanSecondText(input.value) : input.value.replace(/\D/g, "").slice(0, DT_LEN[part]);
             if (digits !== input.value) input.value = digits;
             resetStepBase();
             input.classList.remove("invalid");
@@ -1270,6 +1338,8 @@ function dateFromJdn(jdn, calendar) {
     };
 }
 
+// 秒可以带小数（最多 3 位）。总秒数是十几位的数，再加小数会带来浮点尾差，所以换回年月日时分秒时
+// 把秒四舍五入到毫秒。
 function partsToSeconds(parts, calendar) {
     return jdnFromDate(parts.year, parts.month, parts.day, calendar) * 86400 +
         parts.hour * 3600 + parts.minute * 60 + parts.second;
@@ -1282,7 +1352,7 @@ function secondsToParts(total, calendar) {
     const hour = Math.floor(rest / 3600);
     rest -= hour * 3600;
     const minute = Math.floor(rest / 60);
-    return {...date, hour, minute, second: rest - minute * 60};
+    return {...date, hour, minute, second: Math.round((rest - minute * 60) * 1000) / 1000};
 }
 
 function shiftDateTime(parts, unit, amount, calendar) {
@@ -1303,13 +1373,14 @@ function resetStepBase() {
 }
 
 function formatOffset(seconds) {
+    seconds = Math.round(seconds * 1000) / 1000;      // 去掉浮点尾差（秒最多 3 位小数）
     if (seconds === 0) return "相对起点 ±0";
     const sign = seconds > 0 ? "+" : "−";
     let rest = Math.abs(seconds);
     const d = Math.floor(rest / 86400); rest -= d * 86400;
     const h = Math.floor(rest / 3600); rest -= h * 3600;
     const m = Math.floor(rest / 60);
-    const s = rest - m * 60;
+    const s = Math.round((rest - m * 60) * 1000) / 1000;
     const pieces = [];
     if (d) pieces.push(`${d} 天`);
     if (h) pieces.push(`${h} 小时`);
@@ -1345,7 +1416,8 @@ function showStepOffset() {
         $("stepResetBtn").classList.add("hidden");
         return;
     }
-    const offset = partsToSeconds(parts, currentCalendar()) - partsToSeconds(state.stepBase.parts, state.stepBase.calendar);
+    const offset = Math.round((partsToSeconds(parts, currentCalendar()) -
+        partsToSeconds(state.stepBase.parts, state.stepBase.calendar)) * 1000) / 1000;
     $("stepOffset").textContent = formatOffset(offset);
     $("stepResetBtn").classList.toggle("hidden", offset === 0);
 }
@@ -1849,9 +1921,11 @@ async function applyLibraryPayload(data) {
     state.profileFields = data.profile_fields || [];
     state.tagOptions = data.tags || [];
     state.libraryTotal = null;
+    // 筛选和搜索清空；排序换成新库自己保存的排序（后端已按它取好第一页）。
     Object.assign(state.profileQuery, {
-        q: "", bornFrom: "", bornTo: "", tags: [], tagMode: "all", sort: "name", order: "asc", fieldFilters: [], page: 1,
+        q: "", bornFrom: "", bornTo: "", tags: [], tagMode: "all", fieldFilters: [], page: 1,
     });
+    applySortFromPage(data.profiles_page);
     $("profileSearch").value = "";
     for (const id of ["bornFrom", "bornTo", "filterTagInput"]) $(id).value = "";
     renderLibrarySelect();
@@ -1872,13 +1946,46 @@ async function applyLibraryPayload(data) {
 const PROFILE_PAGE_SIZE = 50;
 
 const CORE_SORT_OPTIONS = [
+    {value: "opened", label: "最近打开"},
     {value: "name", label: "名字"},
     {value: "birth", label: "出生时间"},
     {value: "updated", label: "最近修改"},
-    {value: "created", label: "创建先后"},
-    {value: "latitude", label: "纬度"},
-    {value: "longitude", label: "经度"},
+    {value: "created", label: "最近添加"},
 ];
+
+// 每种排序依据的默认方向（与后端 SORT_DEFAULT_ORDER 一致）：切换排序依据时自动换成它的默认方向。
+// 按数字 / 日期字段（field:<id>）排序默认正序。
+const SORT_DEFAULT_ORDER = {opened: "desc", name: "asc", birth: "asc", updated: "desc", created: "desc"};
+const DEFAULT_SORT = "opened";
+
+function defaultOrder(sort) {
+    if (String(sort).startsWith("field:")) return "asc";
+    return SORT_DEFAULT_ORDER[sort] || SORT_DEFAULT_ORDER[DEFAULT_SORT];
+}
+
+// 排序方向的文字随排序依据变化，比单纯的“正序 / 倒序”好懂。
+function orderLabels(sort) {
+    if (["opened", "updated", "created", "birth"].includes(sort)) return {asc: "早的在前", desc: "近的在前"};
+    if (String(sort).startsWith("field:")) return {asc: "从小到大", desc: "从大到小"};
+    return {asc: "正序 ↑", desc: "倒序 ↓"};
+}
+
+// 后端返回的一页（bootstrap、切换档案库）里带着实际使用的排序，照着它设置。
+function applySortFromPage(page) {
+    const sort = page?.sort || DEFAULT_SORT;
+    state.profileQuery.sort = sort;
+    state.profileQuery.order = page?.order === "asc" || page?.order === "desc" ? page.order : defaultOrder(sort);
+}
+
+// 排序一改就记到当前档案库名下（settings.json → session.profile_sort），下次打开、重启后照样用。
+let sortSaveChain = Promise.resolve();
+
+function saveProfileSort() {
+    const {sort, order} = state.profileQuery;
+    sortSaveChain = sortSaveChain
+        .then(() => api("/api/session", {method: "POST", body: JSON.stringify({profile_sort: {sort, order}})}))
+        .catch((error) => showError(`排序没能保存：${error.message}`));
+}
 
 // 出生日期筛选框允许的写法：1980 / 1980-05 / 1980-05-12。
 const BORN_TEXT_RE = /^\d{1,4}(?:[-/.]\d{1,2}){0,2}$/;
@@ -1915,6 +2022,14 @@ function formatDay(isoText) {
     const date = new Date(isoText);
     if (Number.isNaN(date.getTime())) return "";
     return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+}
+
+// 本机时间的「日期 时:分」；今天的只写「今天 时:分」。
+function formatDayTime(isoText) {
+    const date = new Date(isoText);
+    if (Number.isNaN(date.getTime())) return "";
+    const time = `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+    return formatDay(isoText) === formatDay(new Date().toISOString()) ? `今天 ${time}` : `${formatDay(isoText)} ${time}`;
 }
 
 // ---------- 浮窗 ----------
@@ -2136,6 +2251,7 @@ function applyProfilePage(payload) {
         total: payload.total ?? 0,
         totalPages: payload.total_pages ?? 1,
         hasMore: Boolean(payload.has_more),
+        sort: payload.sort || state.profileQuery.sort,     // 这一页实际用的排序，用来显示每行的排序依据的值
     };
     state.profileQuery.page = state.profileList.page;
     if (!hasActiveFilter()) state.libraryTotal = state.profileList.total;
@@ -2186,6 +2302,22 @@ function birthLabel(birthTime, calendar) {
     return formatBirth(birthTime) + (calendar === "j" ? " 儒" : "");
 }
 
+// 每行行尾显示「排序依据的值」，让人看得出为什么是这个顺序。按名字、出生时间排序时不需要（名字、出生已经显示）。
+function sortValueText(item) {
+    if (!("sort_value" in item)) return "";
+    const sort = state.profileList.sort;
+    const value = item.sort_value;
+    if (sort === "opened") return value ? `打开 ${formatDayTime(value)}` : "未打开过";
+    if (sort === "updated") return value ? `修改 ${formatDay(value)}` : "";
+    if (sort === "created") return value ? `添加 ${formatDay(value)}` : "";
+    if (String(sort).startsWith("field:")) {
+        const field = fieldById(sort.slice("field:".length));
+        const label = field ? field.label : "字段";
+        return value === null || value === undefined || value === "" ? `${label} 未填` : `${label} ${value}`;
+    }
+    return "";
+}
+
 function renderProfileList() {
     const box = $("profileList");
     const list = state.profileList;
@@ -2211,6 +2343,8 @@ function renderProfileList() {
         row.title = `${item.display_name}\n出生 ${formatBirth(item.birth_time)}${item.calendar === "j" ? "（儒略历）" : ""}` +
             `\n修改于 ${formatDay(item.updated_at)}` +
             ((item.tags || []).length ? `\n标签：${item.tags.join("、")}` : "");
+        const sortText = sortValueText(item);
+        if (sortText) row.title += `\n${sortText}`;
         const match = item.match
             ? `<div class="profile-row-match"><span class="match-field">${escapeHtml(item.match.field)}</span>${highlightTerm(item.match.text, item.match.term)}</div>`
             : "";
@@ -2218,6 +2352,7 @@ function renderProfileList() {
             <div class="profile-row-main">
                 <span class="profile-row-name">${escapeHtml(item.display_name)}</span>
                 <span class="chips">${tags}</span>
+                ${sortText ? `<span class="profile-row-sort${item.sort_value == null || item.sort_value === "" ? " empty" : ""}">${escapeHtml(sortText)}</span>` : ""}
                 <span class="profile-row-birth">${escapeHtml(birthLabel(item.birth_time, item.calendar))}</span>
             </div>
             ${match}
@@ -2268,12 +2403,21 @@ function renderSortOptions() {
     for (const field of sortableFields()) {
         options.push({value: `field:${field.id}`, label: `${fieldPathText(field)}（${field.kind_label}）`});
     }
-    // 正在用来排序的字段被删掉了、或不再可排序：退回按名字排序。
+    // 正在用来排序的字段被删掉了、或不再可排序：退回默认排序（最近打开），并记住。
     if (!options.some((o) => o.value === state.profileQuery.sort)) {
-        state.profileQuery.sort = "name";
+        state.profileQuery.sort = DEFAULT_SORT;
+        state.profileQuery.order = defaultOrder(DEFAULT_SORT);
+        saveProfileSort();
     }
     fillSelect($("sortSelect"), options);
     $("sortSelect").value = state.profileQuery.sort;
+    renderOrderSelect();
+}
+
+function renderOrderSelect() {
+    const labels = orderLabels(state.profileQuery.sort);
+    fillSelect($("orderSelect"), [{value: "desc", label: labels.desc}, {value: "asc", label: labels.asc}]);
+    $("orderSelect").value = state.profileQuery.order;
 }
 
 // ---------- 字段条件（数字 / 日期按范围；单选 / 多选按选项，满足任一；多条条件之间是“并且”） ----------
@@ -2455,19 +2599,20 @@ function renderFilterChips() {
     updateFilterBadge();
 }
 
-// 「筛选」按钮上的小数字 = 正在生效的筛选条件个数（不含搜索框，搜索框本身就看得见）。
+// 「筛选」按钮上的小数字 = 正在生效的筛选条件个数（不含搜索框，搜索框本身就看得见；
+// 也不含排序：排序在搜索框下面一直看得见，而且会被记住，不算筛选条件）。
 function updateFilterBadge() {
     const q = state.profileQuery;
     const n = (q.bornFrom.trim() ? 1 : 0) + (q.bornTo.trim() ? 1 : 0) + q.tags.length +
-        activeFieldFilters().length +
-        (q.sort !== "name" || q.order !== "asc" ? 1 : 0);
+        activeFieldFilters().length;
     $("filterBadge").textContent = String(n);
     $("filterBadge").classList.toggle("hidden", n === 0);
 }
 
+// 重置只清筛选和搜索，排序保持不变（排序是记住的浏览习惯，不是一次性的筛选条件）。
 function resetProfileFilters() {
     Object.assign(state.profileQuery, {
-        q: "", bornFrom: "", bornTo: "", tags: [], tagMode: "all", sort: "name", order: "asc", fieldFilters: [],
+        q: "", bornFrom: "", bornTo: "", tags: [], tagMode: "all", fieldFilters: [],
     });
     $("profileSearch").value = "";
     for (const id of ["bornFrom", "bornTo"]) {
@@ -2476,8 +2621,6 @@ function resetProfileFilters() {
     }
     $("filterTagInput").value = "";
     $("tagModeSelect").value = "all";
-    $("orderSelect").value = "asc";
-    renderSortOptions();
     renderFieldFilters();
     renderFilterChips();
     loadProfileList(1);
@@ -2563,14 +2706,17 @@ function bindProfileBrowser() {
         state.profileQuery.tagMode = $("tagModeSelect").value;
         loadProfileList(1);
     });
+    // 换排序依据时方向换成它的默认方向（最近打开 / 修改 / 添加默认近的在前，名字默认正序）。
     $("sortSelect").addEventListener("change", () => {
         state.profileQuery.sort = $("sortSelect").value;
-        updateFilterBadge();
+        state.profileQuery.order = defaultOrder(state.profileQuery.sort);
+        renderOrderSelect();
+        saveProfileSort();
         loadProfileList(1);
     });
     $("orderSelect").addEventListener("change", () => {
         state.profileQuery.order = $("orderSelect").value;
-        updateFilterBadge();
+        saveProfileSort();
         loadProfileList(1);
     });
     $("resetFiltersBtn").addEventListener("click", resetProfileFilters);
@@ -3530,6 +3676,7 @@ async function init() {
         fillSelect($("newFieldKind"), state.fieldKinds);
         renderLibrarySelect();
         bindLibraryMenu();
+        applySortFromPage(bootstrap.profiles_page);     // 后端已按这个档案库保存的排序取好第一页
         renderSortOptions();
         renderFieldFilters();
         renderFilterChips();
@@ -3544,6 +3691,7 @@ async function init() {
         bindTimeStep();
         bindFolds();
         bindResultTabs();
+        bindResultLift();
         bindTabOrderDialog();
         bindRawDialog();
     bindSettingsTransfer();
@@ -3565,6 +3713,84 @@ async function init() {
         showError(error.message);
         setStatus("初始化失败");
     }
+}
+
+// ================= 结果区上移覆盖星盘 =================
+// 按 Tab（或结果区右上角的按钮）：右下角的结果区向上移动，盖住星盘；再按一次归位。Esc 也可以归位。
+// 只有焦点不在输入框、下拉框、多行文本里，而且没有打开浮窗时，Tab 才用来切换；
+// 在输入框里 Tab 仍然是跳到下一格，Shift + Tab 也保持浏览器原来的作用。
+// 状态记在 sessionStorage：在本标签页里切换占星体系时保持上移，关掉浏览器标签页后恢复默认。
+
+const LIFT_STORE_KEY = "quant-astro:results-lifted";
+let liftObserver = null;
+
+function resultsLifted() {
+    return document.querySelector(".content").classList.contains("results-lifted");
+}
+
+// 量出上移的距离（结果区顶部到星盘区顶部）和需要覆盖的高度（星盘区的高度）。
+function measureLift() {
+    const content = document.querySelector(".content");
+    const chart = $("chartPanel");
+    const results = $("resultPanel");
+    content.style.setProperty("--lift", `${results.offsetTop - chart.offsetTop}px`);
+    content.style.setProperty("--cover-h", `${chart.offsetHeight}px`);
+}
+
+function setResultsLifted(on, {animate = true} = {}) {
+    const content = document.querySelector(".content");
+    if (on === resultsLifted()) return;
+    if (on) measureLift();
+    content.classList.toggle("results-animating", animate);
+    content.classList.toggle("results-lifted", on);
+    const button = $("liftResultsBtn");
+    button.setAttribute("aria-pressed", String(on));
+    const label = on ? "结果区归位（Tab）" : "结果区上移，覆盖星盘（Tab）";
+    button.title = label;
+    button.setAttribute("aria-label", label.replace("（Tab）", ""));
+    if (animate) setTimeout(() => content.classList.remove("results-animating"), 260);
+    try {
+        if (on) sessionStorage.setItem(LIFT_STORE_KEY, "1");
+        else sessionStorage.removeItem(LIFT_STORE_KEY);
+    } catch (_) { /* 无痕模式等情况下存不了：只是不记住，不影响使用 */ }
+
+    // 上移期间星盘、窗口大小变了，重新量一次距离。
+    if (on && !liftObserver && "ResizeObserver" in window) {
+        liftObserver = new ResizeObserver(() => { if (resultsLifted()) measureLift(); });
+        liftObserver.observe($("chartPanel"));
+    }
+    // 星盘的顶部在屏幕上方看不见时，滚到能看见结果区顶部的位置。
+    if (on) {
+        const top = $("chartPanel").getBoundingClientRect().top;
+        const topbar = document.querySelector(".topbar")?.getBoundingClientRect().height || 0;
+        if (top < topbar) window.scrollBy({top: top - topbar - 8, behavior: animate ? "smooth" : "auto"});
+    }
+}
+
+function isTypingTarget(el) {
+    if (!el || el === document.body) return false;
+    if (el.isContentEditable) return true;
+    return ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName);
+}
+
+function bindResultLift() {
+    $("liftResultsBtn").addEventListener("click", () => setResultsLifted(!resultsLifted()));
+    document.addEventListener("keydown", (event) => {
+        if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
+        if (document.querySelector("dialog[open]")) return;          // 浮窗里 Tab 照常在浮窗内移动焦点
+        if (event.key === "Escape" && resultsLifted()) {
+            setResultsLifted(false);
+            return;
+        }
+        if (event.key !== "Tab" || event.shiftKey || isTypingTarget(event.target)) return;
+        event.preventDefault();
+        if (!event.repeat) setResultsLifted(!resultsLifted());
+    });
+    window.addEventListener("resize", () => { if (resultsLifted()) measureLift(); });
+    let stored = false;
+    try { stored = sessionStorage.getItem(LIFT_STORE_KEY) === "1"; } catch (_) { stored = false; }
+    // 刚打开页面时星盘还没画好，等它画完再量距离（没有动画，直接到位）。
+    if (stored) requestAnimationFrame(() => setResultsLifted(true, {animate: false}));
 }
 
 window.addEventListener("DOMContentLoaded", init);

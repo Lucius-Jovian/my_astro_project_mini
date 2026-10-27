@@ -13,14 +13,15 @@
     "calendar": "g"
   },
   "session": {
-    "library": "卜卦",
+    "library": "测试专用",
     "last_profile": {
-      "本命": 5,
-      "卜卦": 2,
+      "卜卦": 5,
       "测试专用": 2,
-      "婚姻本命盘": 1
+      "婚姻本命盘": 1,
+      "本命": 8
     },
-    "last_system": "western"
+    "last_system": "vedic",
+    "profile_sort": {}
   },
   "appearance": {
     "coord_format": "dms"

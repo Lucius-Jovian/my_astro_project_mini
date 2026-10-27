@@ -5,7 +5,8 @@
       "server":           {"host", "port"}                       共用
       "default_location": {...}                                  共用：过境盘的默认地点
       "birth_defaults":   {"calendar"}                           共用
-      "session":          {"library", "last_profile", "last_system"}   共用：上次用的档案库、人物、体系
+      "session":          {"library", "last_profile", "last_system", "profile_sort"}
+                                                                 共用：上次用的档案库、人物、体系、各库的人物排序
       "appearance":       {"coord_format"}                       共用：经纬度格式
       "layout":           {"tab_order": {体系: [标签页]}}         共用：各体系结果区标签页的顺序
       "systems": {
@@ -41,8 +42,9 @@ SHARED_DEFAULTS = {
     "birth_defaults": {
         "calendar": "g",
     },
-    # 会话：上一次使用的档案库、每个档案库里上一次选中的人物、上一次打开的占星体系。
-    "session": {"library": None, "last_profile": {}, "last_system": None},
+    # 会话：上一次使用的档案库、每个档案库里上一次选中的人物、上一次打开的占星体系，
+    # 以及每个档案库「选择人物」列表的排序（{档案库名: {"sort": ..., "order": ...}}，只记排序，不记筛选和搜索）。
+    "session": {"library": None, "last_profile": {}, "last_system": None, "profile_sort": {}},
     # 页面外观（两个体系共用）：在网页上切换后会自动写回。
     "appearance": {
         "coord_format": "dms",       # 经纬度输入：dms 度分秒（默认）/ decimal 十进制度
@@ -51,6 +53,7 @@ SHARED_DEFAULTS = {
     "layout": {"tab_order": {}},
 }
 
+_PROFILE_SORT_RE = re.compile(r"^(?:opened|name|birth|updated|created|field:\d+)$")
 _TAB_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,40}$")
 
 APPEARANCE_CHOICES = {
@@ -195,7 +198,12 @@ class SettingsStore:
         return list(self.write(("layout", "tab_order", system_id), clean, merge=False))
 
     def save_session(self, updates):
-        """updates 可含：library（档案库名）、last_profile（{档案库名: 人物 id 或 null}）、last_system。"""
+        """updates 可含：library（档案库名）、last_profile（{档案库名: 人物 id 或 null}）、last_system、
+        profile_sort（{档案库名: {"sort": 排序依据, "order": "asc" | "desc"} 或 null}）。
+
+        排序依据只检查写法（opened / name / birth / updated / created / field:<id>）；
+        字段是否还存在由档案库在使用时检查，失效时自动退回默认排序。
+        """
         session = _copy(self.data.get("session") or {})
         for key, value in (updates or {}).items():
             if key == "library":
@@ -214,6 +222,22 @@ class SettingsStore:
                     else:
                         merged[str(lib)] = pid
                 session["last_profile"] = merged
+            elif key == "profile_sort":
+                if not isinstance(value, dict):
+                    raise ValueError("profile_sort 必须是 {档案库: {sort, order}}。")
+                merged = dict(session.get("profile_sort") or {})
+                for lib, entry in value.items():
+                    if entry is None:
+                        merged.pop(str(lib), None)
+                        continue
+                    sort = entry.get("sort") if isinstance(entry, dict) else None
+                    order = entry.get("order") if isinstance(entry, dict) else None
+                    if not isinstance(sort, str) or not _PROFILE_SORT_RE.match(sort):
+                        raise ValueError(f"排序依据不合法：{sort!r}")
+                    if order not in ("asc", "desc"):
+                        raise ValueError("排序方向只能是 asc 或 desc。")
+                    merged[str(lib)] = {"sort": sort, "order": order}
+                session["profile_sort"] = merged
             elif key == "last_system":
                 if value not in self._systems:
                     raise ValueError(f"未知的占星体系：{value}")
@@ -224,10 +248,11 @@ class SettingsStore:
 
     def rename_library_in_session(self, old, new):
         session = _copy(self.data.get("session") or {})
-        last = dict(session.get("last_profile") or {})
-        if old in last:
-            last[new] = last.pop(old)
-        session["last_profile"] = last
+        for key in ("last_profile", "profile_sort"):
+            entries = dict(session.get(key) or {})
+            if old in entries:
+                entries[new] = entries.pop(old)
+            session[key] = entries
         if session.get("library") == old:
             session["library"] = new
         self.write(("session",), session, merge=False)

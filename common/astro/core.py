@@ -220,8 +220,45 @@ def _parse_coordinate(value: str | float | int, *, latitude: bool) -> float:
 
 
 _CIVIL_RE = re.compile(
-    r"^\s*(\d{1,4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2})(?:\.(\d{1,6}))?)?\s*$"
+    r"^\s*(\d{1,4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2})(?:\.(\d+))?)?\s*$"
 )
+
+# 秒最多保留 3 位小数（毫秒）。更多位数四舍五入：儒略日用双精度浮点数存，
+# 当前日期附近只能分辨到约 0.00004 秒，再多的位数没有意义；出生时间也到不了这个精度。
+SECOND_DECIMALS = 3
+
+
+def _fraction_to_micro(digits: str | None) -> int:
+    """秒的小数部分（数字串，任意长）→ 微秒，先四舍五入到毫秒。
+
+    进位到 1000 毫秒时记成 999，不往分钟进位（差别不到 1 毫秒）。前端和档案库用同一个规则。
+    """
+    if not digits:
+        return 0
+    ms = min(999, int(round(float("0." + digits) * 1000)))
+    return ms * 1000
+
+
+def _jdn(year: int, month: int, day_: int, calendar: str) -> int:
+    """日期 → 儒略日数（整数，正午为界）。只用整数运算，没有浮点误差。"""
+    a = (14 - month) // 12
+    y = year + 4800 - a
+    m = month + 12 * a - 3
+    base = day_ + (153 * m + 2) // 5 + 365 * y + y // 4
+    if calendar == "j":
+        return base - 32083
+    return base - y // 100 + y // 400 - 32045
+
+
+def _gregorian_from_jdn(jdn: int) -> tuple[int, int, int]:
+    """儒略日数 → 格里历日期（整数运算）。"""
+    a = jdn + 32044
+    b = (4 * a + 3) // 146097
+    c = a - 146097 * b // 4
+    d = (4 * c + 3) // 1461
+    e = c - 1461 * d // 4
+    m = (5 * e + 2) // 153
+    return 100 * b + d - 4800 + m // 10, m + 3 - 12 * (m // 10), e - (153 * m + 2) // 5 + 1
 
 
 def _days_in_month(year: int, month: int, calendar: str) -> int:
@@ -250,11 +287,11 @@ def _parse_civil_datetime(value: str | datetime, calendar: str) -> datetime:
     else:
         match = _CIVIL_RE.match(str(value))
         if not match:
-            raise ValueError(f"无法解析本地时间 {value!r}，请使用 YYYY-MM-DD HH:MM:SS。")
+            raise ValueError(f"无法解析本地时间 {value!r}，请使用 YYYY-MM-DD HH:MM:SS（秒可带最多 3 位小数）。")
         y, mo, d, h, mi, sec, frac = match.groups()
         parts = (
             int(y), int(mo), int(d), int(h), int(mi), int(sec or 0),
-            int((frac or "0").ljust(6, "0")),
+            _fraction_to_micro(frac),
         )
 
     year, month, day_, hour, minute, second, micro = parts
@@ -271,11 +308,11 @@ def _parse_civil_datetime(value: str | datetime, calendar: str) -> datetime:
     if cal == "g":
         return datetime(year, month, day_, hour, minute, second, micro)
 
-    hour_decimal = hour + minute / 60.0 + second / 3600.0 + micro / 3_600_000_000.0
-    jd = swe.julday(year, month, day_, hour_decimal, swe.JUL_CAL)
-    g_year, g_month, g_day, g_hour = swe.revjul(jd, swe.GREG_CAL)
-    midnight = datetime(int(g_year), int(g_month), int(g_day))
-    return midnight + timedelta(hours=g_hour)
+    # 儒略历和格里历只是同一天的不同叫法，钟表时间不变：只换算日期，而且只用整数运算。
+    # （以前把时间折成小时小数交给 swe.julday / revjul 再换回来，会带出几微秒的误差，
+    #  例如 00:14:00 变成 00:13:59.999990，显示到分钟时就成了 00:13。）
+    g_year, g_month, g_day = _gregorian_from_jdn(_jdn(year, month, day_, "j"))
+    return datetime(g_year, g_month, g_day, hour, minute, second, micro)
 
 
 def _datetime_to_jd(dt_utc: datetime) -> float:
@@ -292,9 +329,14 @@ def _datetime_to_jd(dt_utc: datetime) -> float:
 
 
 def _jd_to_local(jd_utc: float, tzinfo: timezone) -> datetime:
-    """儒略日 → 当地钟表时间；与 _datetime_to_jd 互为逆运算。"""
+    """儒略日 → 当地钟表时间；与 _datetime_to_jd 互为逆运算。
+
+    小时小数换回时分秒时会带出几微秒的浮点误差（如 05:59:59.999990），这里四舍五入到毫秒，
+    和输入时间的精度（秒最多 3 位小数）一致；儒略日本身只能分辨到约 0.00004 秒，丢掉的不是有效数字。
+    """
     year, month, day_, hour_decimal = swe.revjul(jd_utc, swe.GREG_CAL)
-    dt_utc = datetime(int(year), int(month), int(day_), tzinfo=timezone.utc) + timedelta(hours=hour_decimal)
+    ms = round(hour_decimal * 3_600_000)
+    dt_utc = datetime(int(year), int(month), int(day_), tzinfo=timezone.utc) + timedelta(milliseconds=ms)
     return dt_utc.astimezone(tzinfo)
 
 

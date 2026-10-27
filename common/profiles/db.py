@@ -39,6 +39,35 @@ POOL_SIZE = 4                # 每个档案库保留的空闲连接数
 DEFAULT_PAGE_SIZE = 50
 MAX_PAGE_SIZE = 200
 
+# 选择人物列表的排序依据，以及各自的默认方向（切换排序依据时自动换成它的默认方向）。
+# 另有 field:<数字 / 日期字段 id>，默认正序。
+SORT_DEFAULT_ORDER = {"opened": "desc", "name": "asc", "birth": "asc", "updated": "desc", "created": "desc"}
+FIELD_SORT_DEFAULT_ORDER = "asc"
+DEFAULT_SORT = "opened"      # 新档案库、或者保存的排序已经失效（例如排序用的字段被删了）时用它
+
+
+def default_order(sort):
+    """某个排序依据的默认方向。"""
+    sort = str(sort or "")
+    if sort.startswith("field:"):
+        return FIELD_SORT_DEFAULT_ORDER
+    return SORT_DEFAULT_ORDER.get(sort, SORT_DEFAULT_ORDER[DEFAULT_SORT])
+
+
+def fraction_to_ms(digits):
+    """秒的小数部分（数字串，可以任意长）→ 毫秒整数，四舍五入到 3 位小数。
+
+    进位到 1000 时记成 999，不再往分钟进位：差别不到 1 毫秒，远小于出生时间能达到的精度。
+    """
+    if not digits:
+        return 0
+    return min(999, int(round(float("0." + digits) * 1000)))
+
+
+def ms_suffix(ms):
+    """毫秒 → 秒后面的小数部分：0 → ""，500 → ".5"，25 → ".025"。"""
+    return f".{ms:03d}".rstrip("0") if ms else ""
+
 # 历法：起盘的必备要素之一。
 CALENDARS = {"g": "格里历", "j": "儒略历"}
 
@@ -130,14 +159,15 @@ def _gregorian_from_jdn(jdn):
 # 出生时间：接受 1990-05-12 08:30:00、1990/5/12 8:30、1990-05-12T08:30 等写法
 # （Excel 另存 CSV 时常把日期改成斜杠、去掉前导零或秒）。
 _BIRTH_RE = re.compile(
-    r"^\s*(\d{1,4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?(?:[ T]+(\d{1,2})[:：时](\d{1,2})(?:[:：分](\d{1,2})(?:\.\d+)?秒?)?)?\s*$"
+    r"^\s*(\d{1,4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?(?:[ T]+(\d{1,2})[:：时](\d{1,2})(?:[:：分](\d{1,2})(?:\.(\d+))?秒?)?)?\s*$"
 )
 
 
 def parse_birth_time(text, calendar="g"):
     """出生时间文本 → (规范文本, YYYYMMDD, 当天第几秒)；不合法返回 None。
 
-    规范文本按原历法写成 “YYYY-MM-DD HH:MM:SS”。YYYYMMDD 是换算到格里历后的日期，
+    规范文本按原历法写成 “YYYY-MM-DD HH:MM:SS”，秒可以带最多 3 位小数（如 08:30:05.25），
+    更多位数四舍五入到 3 位。当天第几秒只取整数秒，只用于排序和筛选。YYYYMMDD 是换算到格里历后的日期，
     这样格里历、儒略历的档案混在一起时，按出生先后排序、按年份筛选仍然正确。
     """
     m = _BIRTH_RE.match(_norm(text))
@@ -150,7 +180,7 @@ def parse_birth_time(text, calendar="g"):
     if not (0 <= h <= 23 and 0 <= mi <= 59 and 0 <= s <= 59):
         return None
     gy, gm, gd = (y, mo, d) if calendar == "g" else _gregorian_from_jdn(_jdn(y, mo, d, "j"))
-    canonical = f"{y:04d}-{mo:02d}-{d:02d} {h:02d}:{mi:02d}:{s:02d}"
+    canonical = f"{y:04d}-{mo:02d}-{d:02d} {h:02d}:{mi:02d}:{s:02d}{ms_suffix(fraction_to_ms(m.group(7)))}"
     return canonical, gy * 10000 + gm * 100 + gd, h * 3600 + mi * 60 + s
 
 
@@ -300,6 +330,7 @@ class ProfileDB:
       people           必备字段：名称、出生时间、历法、时区、纬度、经度、创建/更新时间；
                        birth_ymd / birth_tod 是由出生时间派生出的整数（换算到格里历），
                        用来做按日期范围筛选和按出生先后排序。
+                       last_opened_at 是最近一次被选为本命盘的时间（没打开过为 NULL），用于「最近打开」排序。
       profile_fields   自定义字段的定义：字段名、类型 kind、单选/多选的选项 options（JSON 数组）、
                        上级字段 parent_id（顶层为 NULL）、同级之间的顺序 position。
                        字段树只是几十到几百行的元数据，嵌套多少层都不影响档案数据的读写速度。
@@ -314,7 +345,7 @@ class ProfileDB:
                        SQLite 不支持 trigram 时自动退回逐条模糊匹配，功能不变、只是慢一些。
 
     索引原则：
-      建索引：人名、出生日期、修改时间、纬度/经度、(字段, 数值)、(字段, 选项)、(标签, 人物)、全文索引。
+      建索引：人名、出生日期、修改时间、最近打开时间、纬度/经度、(字段, 数值)、(字段, 选项)、(标签, 人物)、全文索引。
       profile_values.value 本身不建普通索引，长文只进全文索引。
 
     连接：每个库保留一个小连接池（最多 POOL_SIZE 个空闲连接，多线程共用）。
@@ -418,6 +449,8 @@ class ProfileDB:
         "ON people(birth_ymd, birth_tod)",
         "CREATE INDEX IF NOT EXISTS idx_people_updated "
         "ON people(updated_at)",
+        "CREATE INDEX IF NOT EXISTS idx_people_opened "
+        "ON people(last_opened_at)",
         "CREATE INDEX IF NOT EXISTS idx_people_latitude "
         "ON people(latitude)",
         "CREATE INDEX IF NOT EXISTS idx_people_longitude "
@@ -453,7 +486,8 @@ class ProfileDB:
             updated_at TEXT NOT NULL,
             birth_ymd INTEGER,
             birth_tod INTEGER,
-            calendar TEXT NOT NULL DEFAULT 'g'
+            calendar TEXT NOT NULL DEFAULT 'g',
+            last_opened_at TEXT
         )
         """,
         """
@@ -515,6 +549,11 @@ class ProfileDB:
             if "parent_id" not in columns:
                 conn.execute("ALTER TABLE profile_fields ADD COLUMN parent_id INTEGER "
                              "REFERENCES profile_fields(id) ON DELETE CASCADE")
+            # 「最近打开」排序用的一列（选中某人作为本命盘时记下时间）。旧库加上这一列即可，
+            # 已有档案的值是 NULL（还没打开过），排在最后；不需要重建全文索引。
+            people_columns = {row["name"] for row in conn.execute("PRAGMA table_info(people)")}
+            if "last_opened_at" not in people_columns:
+                conn.execute("ALTER TABLE people ADD COLUMN last_opened_at TEXT")
             conn.execute("DROP INDEX IF EXISTS idx_profile_fields_label")
             conn.execute("DROP INDEX IF EXISTS idx_pv_field_num")
             conn.execute("UPDATE profile_fields SET position = id WHERE position IS NULL")
@@ -645,7 +684,7 @@ class ProfileDB:
         parsed = parse_birth_time(birth_text, calendar)
         if parsed is None:
             raise ValueError(
-                f"出生时间「{birth_text}」不合法（{CALENDARS[calendar]}）：请写成 YYYY-MM-DD HH:MM[:SS]，"
+                f"出生时间「{birth_text}」不合法（{CALENDARS[calendar]}）：请写成 YYYY-MM-DD HH:MM[:SS[.sss]]，"
                 "并确认这一天在该历法里存在。"
             )
 
@@ -1324,14 +1363,19 @@ class ProfileDB:
     # ------------------------------------------------------------------ 档案：列表与检索
 
     # 排序键白名单：用户传来的 sort 只能在这里查表，绝不会被拼进 SQL。
+    # 职业占星师几乎不按坐标找人，经纬度排序已经去掉（经纬度的索引仍保留，以后做地点筛选可以用）。
     _CORE_SORTS = {
         "name": ("p.display_name COLLATE NOCASE",),
         "birth": ("p.birth_ymd", "p.birth_tod"),
         "updated": ("p.updated_at",),
         "created": ("p.id",),
-        "latitude": ("p.latitude",),
-        "longitude": ("p.longitude",),
     }
+    # 可能没有值的排序列：有值的按值排，没有值的始终排在最后（见 _rows_by_nullable）。
+    _NULLABLE_SORTS = {
+        "opened": "p.last_opened_at",
+    }
+    # 列表每一行附带的「排序依据的值」：按这些依据排序时，行尾显示它，用户能看出为什么是这个顺序。
+    _SORT_VALUE_COLUMNS = {"opened": "last_opened_at", "updated": "updated_at", "created": "created_at"}
 
     def _field_kind(self, conn, field_id):
         try:
@@ -1503,8 +1547,8 @@ class ProfileDB:
         born_from=None,
         born_to=None,
         field_filters=None,
-        sort="name",
-        order="asc",
+        sort=DEFAULT_SORT,
+        order=None,
         with_total=True,
     ):
         """分页列表：每页只返回 id、名字、出生时间、历法、修改时间、标签（全文检索时另带命中摘要），
@@ -1516,21 +1560,23 @@ class ProfileDB:
           tags / tag_mode  标签；all＝必须同时具备（默认），any＝具备其一即可
           born_from/to     出生日期范围，写 1980 / 1980-05 / 1980-05-12 均可
           field_filters    字段条件列表（见 _field_filter_condition），最多 10 条
-        排序：sort ＝ name | birth | updated | created | latitude | longitude | field:<数字/日期字段 id>
-              order ＝ asc | desc；没有数值的人始终排在最后。
+        排序：sort ＝ opened | name | birth | updated | created | field:<数字/日期字段 id>
+              order ＝ asc | desc，不传时用这个排序依据的默认方向（见 SORT_DEFAULT_ORDER）；
+              没有值的人（从没打开过、字段没填）始终排在最后。
+        按 opened / updated / created / field 排序时，每一项另带 sort_value（排序依据的值）。
         """
         page = self._int_arg(page, "page", 1, 1, 10**9)
         size = self._int_arg(page_size, "page_size", DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE)
         offset = (page - 1) * size
 
-        order = str(order or "asc").strip().lower()
+        sort = str(sort or DEFAULT_SORT).strip()
+        order = str(order or default_order(sort)).strip().lower()
         if order not in ("asc", "desc"):
             raise ValueError("order 只能是 asc 或 desc。")
         tag_mode = str(tag_mode or "all").strip().lower()
         if tag_mode not in ("all", "any"):
             raise ValueError("tag_mode 只能是 all 或 any。")
         scope = "all" if str(scope or "name").strip().lower() == "all" else "name"
-        sort = str(sort or "name").strip()
         filters = list(field_filters or [])
         if len(filters) > MAX_FIELD_FILTERS:
             raise ValueError(f"字段条件最多 {MAX_FIELD_FILTERS} 条。")
@@ -1559,6 +1605,7 @@ class ProfileDB:
             # ---- 排序
             direction = "ASC" if order == "asc" else "DESC"
             field_sort = None
+            nullable_sort = None
             order_sql = ""
             if sort.startswith("field:"):
                 try:
@@ -1568,6 +1615,8 @@ class ProfileDB:
                 label, kind = self._field_kind(conn, field_sort)
                 if kind not in NUMERIC_KINDS:
                     raise ValueError(f"字段「{label}」不是数字或日期类型，不能按大小排序。")
+            elif sort in self._NULLABLE_SORTS:
+                nullable_sort = self._NULLABLE_SORTS[sort]
             elif sort in self._CORE_SORTS:
                 columns = list(self._CORE_SORTS[sort])
                 if sort != "created":
@@ -1575,7 +1624,7 @@ class ProfileDB:
                 order_sql = ", ".join(f"{col} {direction}" for col in columns)
             else:
                 raise ValueError(
-                    "sort 只能是 name / birth / updated / created / latitude / longitude / field:<id>。"
+                    "sort 只能是 opened / name / birth / updated / created / field:<id>。"
                 )
 
             where_sql = ("WHERE " + " AND ".join(where)) if where else ""
@@ -1584,7 +1633,11 @@ class ProfileDB:
             if with_total:
                 total = int(conn.execute(f"SELECT COUNT(*) FROM people AS p {where_sql}", params).fetchone()[0])
 
-            if field_sort is None:
+            if field_sort is not None:
+                rows = self._rows_by_field(conn, field_sort, direction, where, params, size + 1, offset)
+            elif nullable_sort is not None:
+                rows = self._rows_by_nullable(conn, nullable_sort, direction, where, params, size + 1, offset)
+            else:
                 rows = conn.execute(
                     f"""
                     SELECT {self._LIST_COLUMNS}
@@ -1595,14 +1648,22 @@ class ProfileDB:
                     """,
                     params + [size + 1, offset],   # 多取 1 条，用来判断还有没有下一页
                 ).fetchall()
-            else:
-                rows = self._rows_by_field(conn, field_sort, direction, where, params, size + 1, offset)
 
             has_more = len(rows) > size
             rows = rows[:size]
             ids = [int(r["id"]) for r in rows]
             tag_map = self._tags_of(conn, ids)
             snippets = self._match_snippets(conn, ids, _search_terms(q or "")) if scope == "all" else {}
+            field_values = {}
+            if field_sort is not None and ids:
+                marks = ",".join("?" * len(ids))
+                field_values = {
+                    int(r["profile_id"]): r["value"]
+                    for r in conn.execute(
+                        f"SELECT profile_id, value FROM profile_values WHERE field_id = ? AND profile_id IN ({marks})",
+                        [field_sort] + ids,
+                    )
+                }
 
         items = []
         for r in rows:
@@ -1614,6 +1675,10 @@ class ProfileDB:
                 "updated_at": r["updated_at"],
                 "tags": tag_map.get(int(r["id"]), []),
             }
+            if sort in self._SORT_VALUE_COLUMNS:
+                item["sort_value"] = r[self._SORT_VALUE_COLUMNS[sort]]
+            elif field_sort is not None:
+                item["sort_value"] = field_values.get(int(r["id"]))
             if int(r["id"]) in snippets:
                 item["match"] = snippets[int(r["id"])]
             items.append(item)
@@ -1628,7 +1693,60 @@ class ProfileDB:
             "order": order,
         }
 
-    _LIST_COLUMNS = "p.id, p.display_name, p.birth_time, p.calendar, p.updated_at"
+    _LIST_COLUMNS = "p.id, p.display_name, p.birth_time, p.calendar, p.updated_at, p.created_at, p.last_opened_at"
+
+    @classmethod
+    def _rows_by_nullable(cls, conn, column, direction, where, params, limit, offset):
+        """按一个可能为空的列排序的一页（含 limit 条），例如「最近打开」。
+
+        和 _rows_by_field 一样分两段读，都能顺着索引提前收工：
+          ① 有值的人：按这一列的值排；
+          ② 没有值的人（从没打开过）：排在最后，按 id 顺序读。
+        column 只来自 _NULLABLE_SORTS 白名单。
+        """
+        extra = (" AND " + " AND ".join(where)) if where else ""
+        columns = cls._LIST_COLUMNS
+        rows = conn.execute(
+            f"""
+            SELECT {columns}
+            FROM people AS p
+            WHERE {column} IS NOT NULL{extra}
+            ORDER BY {column} {direction}, p.id {direction}
+            LIMIT ? OFFSET ?
+            """,
+            params + [limit, offset],
+        ).fetchall()
+        if len(rows) >= limit:
+            return rows
+
+        if rows:
+            with_value_count = offset + len(rows)
+        elif offset == 0:
+            with_value_count = 0
+        else:
+            with_value_count = conn.execute(
+                f"SELECT COUNT(*) FROM people AS p WHERE {column} IS NOT NULL{extra}", params,
+            ).fetchone()[0]
+
+        rows += conn.execute(
+            f"""
+            SELECT {columns}
+            FROM people AS p
+            WHERE {column} IS NULL{extra}
+            ORDER BY p.id {direction}
+            LIMIT ? OFFSET ?
+            """,
+            params + [limit - len(rows), max(0, offset - with_value_count)],
+        ).fetchall()
+        return rows
+
+    def mark_opened(self, profile_id):
+        """某人被选为本命盘时调用：记下打开时间，供「最近打开」排序。
+
+        只改 last_opened_at 一列：不改 updated_at（「最近修改」保持原意），也不碰全文索引。
+        """
+        with self._tx() as conn:
+            conn.execute("UPDATE people SET last_opened_at = ? WHERE id = ?", (self._now(), int(profile_id)))
 
     @classmethod
     def _rows_by_field(cls, conn, field_id, direction, where, params, limit, offset):

@@ -90,7 +90,7 @@
                     <span class="dt-sep">:</span>
                     <input data-part="minute" type="text" inputmode="numeric" placeholder="分" aria-label="分" autocomplete="off">
                     <span class="dt-sep">:</span>
-                    <input data-part="second" type="text" inputmode="numeric" placeholder="秒" aria-label="秒" autocomplete="off">
+                    <input data-part="second" class="dt-second" type="text" inputmode="decimal" placeholder="秒" aria-label="秒（可带 3 位小数）" title="秒，可以带最多 3 位小数，如 05.25" autocomplete="off">
                 </div>
                 <p id="localTimeHint" class="dt-hint"></p>
             </div>
@@ -134,7 +134,7 @@
                 <div class="coord-fields">
                     <div class="coord-field" data-coord="latitude">
                         <label class="field-label" for="latitude">纬度</label>
-                        <input id="latitude" class="coord-dec" type="number" step="0.000001" min="-90" max="90">
+                        <input id="latitude" class="coord-dec" type="number" step="0.0000001" min="-90" max="90">
                         <div class="dt-input dms-input" role="group" aria-label="纬度（度分秒）">
                             <button type="button" class="hemi" aria-label="切换南北纬">北纬</button>
                             <input data-dms="d" type="text" inputmode="numeric" placeholder="度" aria-label="度" autocomplete="off">
@@ -147,7 +147,7 @@
                     </div>
                     <div class="coord-field" data-coord="longitude">
                         <label class="field-label" for="longitude">经度</label>
-                        <input id="longitude" class="coord-dec" type="number" step="0.000001" min="-180" max="180">
+                        <input id="longitude" class="coord-dec" type="number" step="0.0000001" min="-180" max="180">
                         <div class="dt-input dms-input" role="group" aria-label="经度（度分秒）">
                             <button type="button" class="hemi" aria-label="切换东西经">东经</button>
                             <input data-dms="d" type="text" inputmode="numeric" placeholder="度" aria-label="度" autocomplete="off">
@@ -210,7 +210,7 @@
     <section class="content">
         <div id="errorBox" class="error-box hidden"></div>
 
-        <section class="panel chart-panel">
+        <section class="panel chart-panel" id="chartPanel">
             <div class="chart-head">
                 <div id="chartViews" class="segmented compact" role="radiogroup" aria-label="星盘"></div>
                 {% block chart_head %}{% endblock %}
@@ -220,7 +220,12 @@
             {% block chart_extra %}{% endblock %}
         </section>
 
-        <section class="panel result-panel">
+        <section class="panel result-panel" id="resultPanel">
+            {# 结果区上移覆盖星盘 / 归位：也可以按 Tab 键（焦点不在输入框里时） #}
+            <button id="liftResultsBtn" type="button" class="lift-btn" aria-pressed="false"
+                    title="结果区上移，覆盖星盘（Tab）" aria-label="结果区上移，覆盖星盘">
+                <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 7.5 6 4.5 9 7.5"/></svg>
+            </button>
             <div class="tab-bar" role="tablist" id="resultTabs">
                 <button type="button" role="tab" data-tab="tabPlanets" class="active">行星</button>
                 <button type="button" role="tab" data-tab="tabHouses">宫位</button>
@@ -258,6 +263,13 @@
             </button>
         </div>
 
+        {# 排序一直显示，每个档案库单独记住（重启后照样用）；筛选和搜索不记住 #}
+        <div class="sort-row">
+            <span class="filter-label">排序</span>
+            <select id="sortSelect" title="排序依据" aria-label="排序依据"></select>
+            <select id="orderSelect" title="排序方向" aria-label="排序方向"></select>
+        </div>
+
         <div id="filterBox" class="filter-box hidden">
             <div class="filter-row">
                 <span class="filter-label">出生</span>
@@ -280,14 +292,8 @@
                 <span class="filter-label">字段</span>
                 <button id="addFieldFilterBtn" type="button" class="small-btn">＋ 字段条件</button>
             </div>
-            <div class="filter-row">
-                <span class="filter-label">排序</span>
-                <select id="sortSelect" title="排序依据"></select>
-                <select id="orderSelect" title="排序方向">
-                    <option value="asc">正序 ↑</option>
-                    <option value="desc">倒序 ↓</option>
-                </select>
-                <button id="resetFiltersBtn" type="button" class="small-btn">重置</button>
+            <div class="filter-row filter-actions">
+                <button id="resetFiltersBtn" type="button" class="small-btn" title="清空筛选和搜索（排序不变）">重置筛选</button>
             </div>
         </div>
 
