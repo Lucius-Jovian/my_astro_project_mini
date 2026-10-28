@@ -34,11 +34,6 @@ def index():
     return render_system_page("western", "western/index.html")
 
 
-@bp.get("/manual")
-def manual():
-    return render_system_page("western", "western/manual.html")
-
-
 def _save(action, what):
     try:
         payload = request.get_json(force=True) or {}

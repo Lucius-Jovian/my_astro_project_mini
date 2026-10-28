@@ -33,11 +33,6 @@ def index():
     return render_system_page("vedic", "vedic/index.html")
 
 
-@bp.get("/manual")
-def manual():
-    return render_system_page("vedic", "vedic/manual.html")
-
-
 def _save(action, payload, what):
     try:
         return ok(action(store, payload))
@@ -57,6 +52,20 @@ def update_calc_defaults():
 def update_chart_style():
     payload = request.get_json(force=True) or {}
     return _save(bridge.save_chart_style, payload.get("chart_style"), "chart style")
+
+
+@bp.post("/api/varga")
+def update_varga():
+    return _save(bridge.save_varga, request.get_json(force=True) or {}, "varga settings")
+
+
+@bp.post("/api/bhava")
+def bhava_houses():
+    try:
+        return ok(bridge.calculate_bhava_houses(request.get_json(force=True) or {}))
+    except Exception as exc:
+        current_app.logger.exception("Bhava houses calculation failed")
+        return fail(exc, 400)
 
 
 @bp.post("/api/chart/full")

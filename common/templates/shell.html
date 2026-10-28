@@ -24,7 +24,6 @@
     </div>
     <div class="topbar-actions">
         <span id="statusBadge" class="status-badge">初始化中</span>
-        <a class="ghost-btn" href="{{ url_for(current_system + '.manual') }}" target="_blank" rel="noopener">使用手册</a>
         <button id="calcBtn" type="button" class="primary-btn">排盘</button>
     </div>
 </header>
@@ -212,9 +211,14 @@
 
         <section class="panel chart-panel" id="chartPanel">
             <div class="chart-head">
-                <div id="chartViews" class="segmented compact" role="radiogroup" aria-label="星盘"></div>
+                <div class="chart-views">
+                    <div id="chartViews" class="segmented compact" role="radiogroup" aria-label="星盘"></div>
+                    {# 体系提供 viewMenu 时（分盘多），其余的盘放在这个下拉菜单里 #}
+                    <div id="chartViewMenu" class="view-menu" hidden></div>
+                </div>
                 {% block chart_head %}{% endblock %}
             </div>
+            <p id="chartCaption" class="chart-caption" hidden></p>
             <div id="chartBox" class="chart-box"></div>
             {# 体系自己放在星盘区域里的内容（西方占星：与星盘互相切换的相位表） #}
             {% block chart_extra %}{% endblock %}
@@ -433,11 +437,7 @@
         <div class="modal-body stack">
             <p id="unlockMsg" class="dialog-msg hidden"></p>
             <input id="unlockPassword" type="password" autocomplete="current-password" aria-label="密码" placeholder="密码">
-            {# 每次打开都要输密码嫌麻烦：勾上后解锁的同时取消加密，以后打开不再需要密码 #}
-            <label class="checkbox-row unlock-decrypt">
-                <input id="unlockDecrypt" type="checkbox">
-                解锁并取消加密（以后打开不再需要密码）
-            </label>
+            {# 取消加密不在这里重复提供：解锁后在档案库菜单的「加密设置（取消加密 / 改密码）…」里操作 #}
             <div id="unlockSwitch" class="unlock-switch hidden">
                 <span class="field-label">或改用其他档案库</span>
                 <div class="unlock-switch-row">

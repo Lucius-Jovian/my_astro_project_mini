@@ -4,7 +4,7 @@
  * 这里只放本体系自己的东西，通过 registerSystem({...}) 挂进去：
  *   - 计算设置里的「启用 KP」（含 KP 卜卦）、Dasha 设置（起算行星、年长度）；改了就写回 settings.json
  *   - KP 星主表、象征宫位 / 象征星、主宰星、Dasha（多种大运体系）的结果标签页
- *   - 月亮盘、九分盘两种分盘
+ *   - 分盘：Moon、Bhava、BPHS 的 16 张 D 盘（规则和算法登记在 vargas.js），Rashi 转宫
  *   - 南北印度盘（chart.js 提供 AstroChart）
  * 本体系的接口都在 /vedic/api/ 下，用 systemApi("/...") 拼地址。
  */
@@ -287,36 +287,254 @@ function buildDashaLevel(items, level, nowIndex) {
     return wrapper;
 }
 
-// 月亮盘：行星位置不变，以月亮所在星座为第一宫；不画宫头。
+// ================= 分盘：Moon、Bhava、D 盘，以及 Rashi 转宫 =================
+// 星盘上方的按钮条：Rashi（本命）、Transit（过境）、Moon、Bhava、D9；其余 D 盘在右边的「分盘」下拉菜单里。
+// 所有分盘都只在点到时才换算（common.js 的 derivedEntry），并缓存到本命盘重算或这张分盘的设置改变为止。
+// D 盘有哪些、各有哪些算法，全部登记在 vargas.js；这里不写任何一张 D 盘的规则。
+
+const SIGN_LIST = ["白羊", "金牛", "双子", "巨蟹", "狮子", "处女", "天秤", "天蝎", "射手", "摩羯", "水瓶", "双鱼"];
+
+// 放在按钮条上的 D 盘（其余在下拉菜单里）。想多放一张，只改这一处。
+const PINNED_VARGAS = ["D9"];
+
+const signIndex = (lon) => Math.floor(norm360(lon) / 30) % 12;
+
+function vargaSettings() {
+    state.settings.varga = state.settings.varga || {};
+    return state.settings.varga;
+}
+
+// Rashi 盘以哪个星座为第一宫：null = 跟随上升点；0–11 = 转宫。
+function rashiLagna() {
+    const v = vargaSettings().rashi_lagna;
+    return Number.isInteger(v) && v >= 0 && v <= 11 ? v : null;
+}
+
+function bhavaHouseSystem() {
+    const wanted = vargaSettings().bhava_house_system;
+    const known = state.optionsMeta?.house_systems || [];
+    return known.includes(wanted) ? wanted : "Sripati";
+}
+
+function vargaMethod(id) {
+    return VedicVargas.resolveMethod(id, vargaSettings().methods?.[id]);
+}
+
+// 分盘设置一改就写回 settings.json（排队依次发送）；页面上以本地状态为准，不等后端返回。
+let vargaSaveChain = Promise.resolve();
+
+function saveVarga(changes) {
+    Object.assign(vargaSettings(), changes);
+    vargaSaveChain = vargaSaveChain
+        .then(() => api(systemApi("/varga"), {method: "POST", body: JSON.stringify(changes)}))
+        .catch((error) => showError(`分盘设置没能保存：${error.message}`));
+    updateVargaMeta();
+    renderChart();          // 正在看的盘受影响时立即重画（别的分盘等点到时再按新设置换算）
+}
+
+// Moon：行星位置不变，以月亮所在星座为第一宫；不画宫头。
 function deriveMoonChart(natal) {
     const moon = natal.planet_pos?.Mo;
     if (!moon) return null;
     return {
         planet_pos: natal.planet_pos,
         house_result: {house_system: "Whole Sign", axes: {Asc: natal.house_result.axes.Asc}, houses: {}},
-        chart_meta: {lagna_sign: Math.floor(norm360(moon.lon) / 30), hide_cusps: true},
+        chart_meta: {lagna_sign: signIndex(moon.lon), hide_cusps: true},
     };
 }
 
-// 九分盘（D9 Navamsa）：每个星座 9 等分（每份 3°20′），从白羊起连续数下去；
-// 换算后的黄经 = 原黄经 × 9（取 360 的余数），所在星座就是九分盘星座，度数是九分盘内的度数。
-function navamsaLon(lon) {
-    return (norm360(lon) * 9) % 360;
+// D 盘：每个点（行星、罗计、上升点）按所选算法换算成分盘黄经；不画宫头。
+function deriveVarga(id) {
+    return (natal) => {
+        const varga = VedicVargas.get(id);
+        const toLon = varga.methods[vargaMethod(id)].toLon;
+        const planet_pos = Object.fromEntries(
+            Object.entries(natal.planet_pos || {}).map(([code, p]) => [code, {...p, lon: toLon(p.lon)}])
+        );
+        const asc = natal.house_result.axes.Asc;
+        return {
+            planet_pos,
+            house_result: {house_system: "Whole Sign", axes: {Asc: {...asc, lon: toLon(asc.lon)}}, houses: {}},
+            chart_meta: {hide_cusps: true},
+        };
+    };
 }
 
-function deriveNavamsa(natal) {
-    const planet_pos = Object.fromEntries(
-        Object.entries(natal.planet_pos || {}).map(([code, p]) => [code, {...p, lon: navamsaLon(p.lon)}])
-    );
-    const asc = natal.house_result.axes.Asc;
+/*
+ * Bhava 盘：一个格子就是一个宫位，不再是一个星座。
+ * 宫位按 Bhava 宫位制的十二个宫头划分：第 n 宫 = 从第 n 宫宫头到第 n+1 宫宫头（Sripati 的宫头就是宫的起点 Sandhi）。
+ * 格子的摆法与 Rashi 相同：第 1 宫放在上升星座的位置，往后依次排；格子里的数字照常是星座数字（Bhava Chalit 的惯例）。
+ * 点的度数照常是它在真实星座里的度数；宫头度数不画。鼠标停在点上时说明它在第几宫。
+ * Bhava 宫位制与本命盘相同时直接用本命盘的宫头；不同时向后端要一次宫头（点到 Bhava 盘时才要）。
+ */
+async function deriveBhava(natal, {payload}) {
+    const houseSystem = bhavaHouseSystem();
+    let houses = natal.house_result;
+    if (houses.house_system !== houseSystem) {
+        if (!payload) throw new Error("请先排盘。");
+        houses = await api(systemApi("/bhava"), {
+            method: "POST",
+            body: JSON.stringify({...payload, house_system: houseSystem}),
+        });
+    }
+    return buildBhavaChart(natal, houses);
+}
+
+function buildBhavaChart(natal, houses) {
+    const cusps = Array.from({length: 12}, (_, i) => norm360(houses.houses?.[`house ${i + 1}`]?.lon));
+    if (cusps.some((c) => !Number.isFinite(c))) throw new Error("缺少宫头数据。");
+    const asc = houses.axes?.Asc || natal.house_result.axes.Asc;
+    const base = signIndex(asc.lon);
+
+    // 黄经落在第几宫（0–11），以及离这一宫宫头的距离（同一格子里按它排先后）。
+    const houseOf = (lon) => {
+        let best = {h: 0, off: Infinity};
+        for (let i = 0; i < 12; i++) {
+            const span = norm360(cusps[(i + 1) % 12] - cusps[i]);
+            const off = norm360(lon - cusps[i]);
+            if (off < span) return {h: i, off};
+            if (off < best.off) best = {h: i, off};      // 浮点误差落在缝里时，归到最近的宫头之后
+        }
+        return best;
+    };
+
+    const cells = {};
+    const ranks = {};
+    const notes = {};
+    const place = (code, lon) => {
+        const {h, off} = houseOf(norm360(lon));
+        cells[code] = (base + h) % 12;
+        ranks[code] = off;
+        notes[code] = `第 ${h + 1} 宫（Bhava）`;
+    };
+    for (const [code, p] of Object.entries(natal.planet_pos || {})) place(code, p.lon);
+    place("Asc", asc.lon);
+
     return {
-        planet_pos,
-        house_result: {house_system: "Whole Sign", axes: {Asc: {...asc, lon: navamsaLon(asc.lon)}}, houses: {}},
-        chart_meta: {hide_cusps: true},
+        planet_pos: natal.planet_pos,
+        house_result: {house_system: houses.house_system, axes: {Asc: asc}, houses: {}},
+        chart_meta: {lagna_sign: base, hide_cusps: true, cells, ranks, notes},
     };
 }
 
+function buildDerivedViews() {
+    const views = {
+        moon: {label: "Moon", derive: deriveMoonChart},
+        bhava: {label: "Bhava", derive: deriveBhava, signature: () => bhavaHouseSystem()},
+    };
+    for (const varga of VedicVargas.list()) {
+        if (varga.view === "natal") continue;          // D1 就是 Rashi 本身
+        views[varga.view] = {
+            label: varga.id,
+            derive: deriveVarga(varga.id),
+            signature: () => vargaMethod(varga.id),
+            bar: PINNED_VARGAS.includes(varga.id),
+        };
+    }
+    return views;
+}
 
+function buildViewMenu() {
+    return {
+        label: "分盘",
+        items: VedicVargas.list().map((v) => ({
+            value: v.view, label: v.id, note: v.name, sub: v.topic,
+            title: `${v.id} ${v.name} · ${v.topic}`,
+        })),
+    };
+}
+
+function vargaCaption(view, results) {
+    if (view === "natal") {
+        const lagna = rashiLagna();
+        if (lagna === null) return "";
+        const asc = results?.house_result?.axes?.Asc;
+        const real = asc ? `，上升点实际在${SIGN_LIST[signIndex(asc.lon)]}` : "";
+        return `转宫：以${SIGN_LIST[lagna]}为第一宫${real}`;
+    }
+    if (view === "moon") return "Moon · 以月亮所在星座为第一宫";
+    if (view === "bhava") return `Bhava · ${bhavaHouseSystem()} 宫位制 · 一个格子是一个宫位`;
+    const varga = VedicVargas.get(view);
+    if (!varga) return "";
+    const method = varga.methods[vargaMethod(varga.id)];
+    return `${varga.id} ${varga.name} · ${varga.topic} · ${method.label}`;
+}
+
+// ---------- 计算设置 → 分盘 ----------
+
+function updateVargaMeta() {
+    const lagna = rashiLagna();
+    const parts = [];
+    if (lagna !== null) parts.push(`转宫 ${SIGN_LIST[lagna]}`);
+    parts.push(`Bhava ${bhavaHouseSystem()}`);
+    $("vargaMeta").textContent = parts.join(" · ");
+    const vargas = VedicVargas.list().filter((v) => v.view !== "natal");
+    const changed = vargas.filter((v) => vargaMethod(v.id) !== VedicVargas.defaultMethod(v.id)).length;
+    $("vargaMethodCount").textContent = changed ? `${changed} 张非默认` : `${vargas.length} 张`;
+}
+
+function fillVargaSelects() {
+    fillSelect($("rashiLagna"), [
+        {value: "asc", label: "跟随上升点"},
+        ...SIGN_LIST.map((name, i) => ({value: String(i), label: `${i + 1} ${name}`})),
+    ]);
+    const lagna = rashiLagna();
+    $("rashiLagna").value = lagna === null ? "asc" : String(lagna);
+    fillSelect($("bhavaHouseSystem"), state.optionsMeta.house_systems);
+    $("bhavaHouseSystem").value = bhavaHouseSystem();
+    updateVargaMeta();
+}
+
+function renderVargaDialog() {
+    const list = $("vargaMethodList");
+    list.innerHTML = "";
+    for (const varga of VedicVargas.list()) {
+        if (varga.view === "natal") continue;
+        const keys = Object.keys(varga.methods);
+        const current = vargaMethod(varga.id);
+        const row = document.createElement("div");
+        row.className = "varga-row";
+        row.innerHTML = `
+            <span class="varga-id">${escapeHtml(varga.id)}</span>
+            <span class="varga-name">${escapeHtml(varga.name)}<span class="muted"> · ${escapeHtml(varga.topic)}</span></span>
+            <select aria-label="${escapeHtml(varga.id)} 的算法" ${keys.length > 1 ? "" : "disabled"}></select>
+            <span class="varga-note muted"></span>`;
+        const select = row.querySelector("select");
+        fillSelect(select, keys.map((k) => ({value: k, label: varga.methods[k].label})));
+        select.value = current;
+        const note = row.querySelector(".varga-note");
+        const showNote = () => {
+            const m = varga.methods[select.value];
+            note.textContent = [m.note, m.source ? `出处：${m.source}` : ""].filter(Boolean).join("。");
+        };
+        showNote();
+        select.addEventListener("change", () => {
+            showNote();
+            const methods = {...(vargaSettings().methods || {})};
+            if (select.value === VedicVargas.defaultMethod(varga.id)) delete methods[varga.id];
+            else methods[varga.id] = select.value;
+            saveVarga({methods});
+        });
+        list.appendChild(row);
+    }
+}
+
+function bindVargaSettings() {
+    fillVargaSelects();
+    $("rashiLagna").addEventListener("change", () => {
+        const v = $("rashiLagna").value;
+        saveVarga({rashi_lagna: v === "asc" ? "asc" : Number(v)});
+    });
+    $("bhavaHouseSystem").addEventListener("change", () => saveVarga({bhava_house_system: $("bhavaHouseSystem").value}));
+    $("openVargaMethodsBtn").addEventListener("click", () => {
+        renderVargaDialog();
+        openDialog("vargaDialog");
+    });
+    $("vargaResetBtn").addEventListener("click", () => {
+        saveVarga({methods: {}});
+        renderVargaDialog();
+    });
+}
 
 // ---------- 结果表 ----------
 // 行星、宫位：黄经（星座 + 星座内度分秒）、星宿、宿主星、Pada（后端 basics.py 算好）。
@@ -441,6 +659,7 @@ registerSystem({
         bindVedicCalc();
         updateKpUI();
         bindChartStyle();
+        bindVargaSettings();
     },
     applyDefaults(calc) {
         $("kpEnabled").checked = calc.kp_enabled !== false;
@@ -469,8 +688,13 @@ registerSystem({
     renderPlanetTab: renderVedicPlanets,
     planetName: (code) => escapeHtml(code || "—"),
     renderHouseTab: renderVedicHouses,
-    renderChart(container, results, {emptyText}) {
-        AstroChart.render(container, results, {style: state.chartStyle, emptyText});
+    renderChart(container, results, {emptyText, view}) {
+        // Rashi 转宫：只换第一宫所在的星座，点仍放在真实星座里（Asc 也一样）；结果表不受影响。
+        const lagna = rashiLagna();
+        const data = view === "natal" && results && lagna !== null
+            ? {...results, chart_meta: {...(results.chart_meta || {}), lagna_sign: lagna}}
+            : results;
+        AstroChart.render(container, data, {style: state.chartStyle, emptyText});
     },
     onNewChart() {
         AstroChart.clearSelection();
@@ -479,8 +703,8 @@ registerSystem({
         const module = button.dataset.module;
         return module ? Boolean(state.modules[module]) : undefined;
     },
-    derivedViews: {
-        moon: {label: "月亮盘", derive: deriveMoonChart},
-        d9: {label: "九分盘", derive: deriveNavamsa},
-    },
+    viewLabels: {natal: "Rashi", transit: "Transit"},
+    derivedViews: buildDerivedViews(),
+    viewMenu: buildViewMenu(),
+    viewCaption: vargaCaption,
 });

@@ -5,7 +5,7 @@
   bridge.py    设置的默认值与校验、排盘计算的组织
   routes.py    页面和接口（/western/、/western/api/...）
   static/      western.js（本体系的前端逻辑）、chart.js（圆形星盘）、western.css
-  templates/   western/index.html（页面）、western/manual.html（手册）
+  templates/   western/index.html（页面）
 """
 
 from common.system import AstroSystem

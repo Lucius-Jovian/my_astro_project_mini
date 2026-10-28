@@ -24,6 +24,21 @@
                     </div>
                 </details>
 
+                <details class="fold nested" id="foldVarga">
+                    <summary>分盘 <span id="vargaMeta" class="fold-meta"></span></summary>
+                    <div class="fold-body">
+                        <label>Rashi 第一宫<select id="rashiLagna" title="转宫：只旋转 Rashi 星盘，Asc 仍画在它真正所在的星座，结果表不变"></select></label>
+                        <label>Bhava 宫位制<select id="bhavaHouseSystem" title="Bhava 盘自己的宫位制，与上面的「宫位制」互不影响"></select></label>
+                        <div class="point-entries varga-entries">
+                            <button id="openVargaMethodsBtn" type="button" class="point-entry">
+                                <span class="point-entry-name">分盘算法</span>
+                                <span id="vargaMethodCount" class="point-count"></span>
+                                <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </details>
+
                 <details class="fold nested" id="foldAdvanced">
                     <summary>Dasha</summary>
                     <div class="fold-body">
@@ -58,7 +73,28 @@
             <div class="tab-panel hidden" id="tabDasha"><div id="dashaResult"></div></div>
 {% endblock %}
 
+{% block dialogs %}
+<!-- 分盘算法：每张 D 盘选用哪一种算法（改了立即保存；正在看的分盘立即重画） -->
+<dialog id="vargaDialog" class="modal varga-modal" aria-labelledby="vargaTitle">
+    <div class="modal-head">
+        <h2 id="vargaTitle">分盘算法</h2>
+        <button type="button" class="icon-btn" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+        <p class="dialog-msg hidden" data-dialog-msg></p>
+        <p class="point-hint muted">每张分盘选一种算法，改了立即生效并保存。只有一种算法的分盘不能选择。分盘只在星盘上方点到时才计算。</p>
+        <div id="vargaMethodList" class="varga-list"></div>
+    </div>
+    <div class="modal-foot">
+        <button id="vargaResetBtn" type="button" class="small-btn">全部恢复默认</button>
+        <span class="spacer"></span>
+        <button type="button" class="accent-btn" data-close>完成</button>
+    </div>
+</dialog>
+{% endblock %}
+
 {% block scripts %}
+<script src="{{ url_for('vedic.static', filename='vargas.js') }}"></script>
 <script src="{{ url_for('vedic.static', filename='chart.js') }}"></script>
 <script src="{{ url_for('vedic.static', filename='vedic.js') }}"></script>
 {% endblock %}

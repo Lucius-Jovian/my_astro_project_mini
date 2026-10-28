@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import re
+
 import swisseph as swe
 
 from common.astro import (
+    HOUSE_SYSTEMS,
     ayanamsha_options,
     calculate_day_lord,
     calculate_houses,
@@ -82,7 +85,52 @@ DEFAULT_SYSTEM_SETTINGS = {
     },
     # 星盘样式：north 北印度 / south 南印度。
     "chart_style": "north",
+    # 分盘设置（计算设置 → 分盘）。
+    "varga": {
+        # Rashi 盘以哪个星座为第一宫：asc = 跟随上升点；0–11 = 白羊…双鱼（转宫）。只转星盘，结果表不变。
+        "rashi_lagna": "asc",
+        # Bhava 盘的宫位制（与左侧「宫位制」相互独立）；默认 Sripati。
+        "bhava_house_system": "Sripati",
+        # 各张 D 盘用哪种算法：{"D2": "parivritti", ...}。没写的用默认算法（vargas.js 里每张分盘的第一种）。
+        # 有哪些分盘、有哪些算法都登记在 static/vargas.js，这里只检查名称的写法。
+        "methods": {},
+    },
 }
+
+VARGA_ID_RE = re.compile(r"^D\d{1,3}$")
+VARGA_METHOD_RE = re.compile(r"^[a-z0-9_-]{1,40}$")
+
+
+def _clean_varga(raw, *, strict):
+    """分盘设置的校验。strict=False 用于读文件：不合法的项改回默认值；strict=True 用于网页保存：直接报错。"""
+    raw = raw if isinstance(raw, dict) else {}
+    clean = {}
+    for key, value in raw.items():
+        if key == "rashi_lagna":
+            if value == "asc" or (isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 11):
+                clean[key] = value
+            elif strict:
+                raise ValueError("Rashi 第一宫只能是 asc（跟随上升点）或 0–11（白羊…双鱼）。")
+        elif key == "bhava_house_system":
+            if value in HOUSE_SYSTEMS:
+                clean[key] = value
+            elif strict:
+                raise ValueError(f"未知的宫位制：{value}")
+        elif key == "methods":
+            if not isinstance(value, dict):
+                if strict:
+                    raise ValueError("分盘算法必须是 {分盘: 算法} 的形式。")
+                continue
+            methods = {}
+            for vid, method in value.items():
+                if isinstance(vid, str) and VARGA_ID_RE.match(vid) and isinstance(method, str) and VARGA_METHOD_RE.match(method):
+                    methods[vid] = method
+                elif strict:
+                    raise ValueError(f"分盘算法的写法不合法：{vid!r}: {method!r}")
+            clean[key] = methods
+        elif strict:
+            raise ValueError(f"未知的分盘设置：{key}")
+    return clean
 
 HORARY_MODES = {"KS-N": 249, "CIL-N": 2193}      # 卜卦模式 → 签号上限
 
@@ -160,6 +208,7 @@ def normalize_system_settings(section):
     section["calculation_defaults"] = calc
     if section.get("chart_style") not in CHART_STYLES:
         section["chart_style"] = "north"
+    section["varga"] = {**DEFAULT_SYSTEM_SETTINGS["varga"], **_clean_varga(section.get("varga"), strict=False)}
     return section
 
 
@@ -176,6 +225,14 @@ def save_calc_defaults(store, updates):
     clean = clean_basic_calc({k: v for k, v in updates.items() if k in BASIC_KEYS})
     clean.update(_clean_vedic_calc({k: v for k, v in updates.items() if k not in BASIC_KEYS}, strict=True))
     return dict(store.write(_keys("calculation_defaults"), clean))
+
+
+def save_varga(store, updates):
+    """分盘设置（Rashi 第一宫、Bhava 宫位制、各分盘算法）改了就写回；methods 整份替换。"""
+    clean = _clean_varga(updates, strict=True)
+    if not clean:
+        raise ValueError("没有要保存的分盘设置。")
+    return dict(store.write(_keys("varga"), clean))
 
 
 def save_chart_style(store, value):
@@ -392,6 +449,22 @@ def _calculate_dasha(context, planet_pos, options):
         "days_in_year": options["dasha_days_in_year"],
         "systems": systems,
     }
+
+
+def calculate_bhava_houses(payload):
+    """Bhava 盘用的宫头：与本命盘同一时刻、同样的黄道和岁差（KP 卜卦开着时同样按签号定上升点），
+    只是宫位制换成 Bhava 盘自己的（payload["house_system"]）。只在页面上点开 Bhava 盘、
+    而且它的宫位制与本命盘不同时才会请求。"""
+    house_system = str(payload.get("house_system") or "")
+    if house_system not in HOUSE_SYSTEMS:
+        raise ValueError(f"未知的宫位制：{house_system}")
+    normalized = _normalize_input(payload)
+    options = {**normalized["options"], "house_system": house_system}
+    context = _calculate_context(normalized)
+    house_result = _calculate_house_group(context, options)
+    return safe_json({"house_system": house_system,
+                      "houses": _format_point_map(house_result["houses"]),
+                      "axes": _format_point_map(house_result["axes"])})
 
 
 def calculate_full_chart(payload):

@@ -109,3 +109,29 @@
 .dasha-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
 .dasha-head select { width: auto; min-width: 14em; margin: 0; }
 .dasha-condition { font-size: 12px; color: var(--muted); }
+
+/* ---------- 计算设置：分盘 ---------- */
+
+.varga-entries { margin-top: 8px; }
+
+/* 分盘算法浮窗：每张分盘一行（编号 · 名称 · 算法 · 说明） */
+dialog.modal.varga-modal { width: min(640px, calc(100vw - 32px)); }
+.varga-list { display: grid; gap: 2px; }
+.varga-row {
+    display: grid;
+    grid-template-columns: 3.2em minmax(9em, 1fr) minmax(12em, 15em);
+    column-gap: 10px;
+    row-gap: 2px;
+    align-items: center;
+    padding: 7px 4px;
+    border-bottom: 1px solid var(--border);
+}
+.varga-row:last-child { border-bottom: 0; }
+.varga-id { font-weight: 700; font-variant-numeric: tabular-nums; }
+.varga-name { font-size: 13px; }
+.varga-row select { margin: 0; width: 100%; }
+.varga-note { grid-column: 2 / -1; font-size: 12px; line-height: 1.5; }
+@media (max-width: 560px) {
+    .varga-row { grid-template-columns: 3.2em 1fr; }
+    .varga-row select { grid-column: 2; }
+}

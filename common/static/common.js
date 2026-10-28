@@ -30,12 +30,14 @@ const state = {
     stepBase: null,          // 时间步进的起点 {parts, calendar}；手动改时间后清空
     // 当前显示的星盘：natal 本命 / transit 过境 / 体系自己的分盘（见 SYSTEM.derivedViews）
     view: "natal",
-    // 两个独立的“时刻”：各自保存表单输入、排盘结果、结果对应的计算设置（signature）和步进起点。
+    // 两个独立的“时刻”：各自保存表单输入、排盘结果、结果对应的计算设置（signature）、
+    // 排盘时发出的请求（payload，分盘需要再向后端要数据时照原样带上）和步进起点。
     charts: {
-        natal: {input: null, results: null, signature: "", stepBase: null},
-        transit: {input: null, results: null, signature: "", stepBase: null},
+        natal: {input: null, results: null, signature: "", payload: null, stepBase: null},
+        transit: {input: null, results: null, signature: "", payload: null, stepBase: null},
     },
-    // 分盘的计算结果缓存：{视图: {source: 本命结果对象, results}}；本命盘一重算就自动失效。
+    // 分盘的计算结果缓存：{视图: {source: 本命结果对象, sig: 分盘自己的设置, results, error}}。
+    // 本命盘重算、或这个分盘的设置（例如算法）改了，缓存自动失效；没点到的分盘永远不计算。
     derived: {},
     initialized: false,
     requestToken: 0,
@@ -61,11 +63,19 @@ const SYSTEM_HOOKS = {
     planetName(code) { return escapeHtml(planetLabel(code)); },   // 结果表里行星的写法（HTML）
     // 「原始参数」浮窗里的分组：[{key, title, tables: [{title, data}]}]；默认是行星、宫位、值日星 · 行星时
     rawSections(results) { return baseRawSections(results); },
-    renderChart(container, results, {emptyText}) {},
+    renderChart(container, results, {emptyText, view}) {},
     onNewChart() {},                    // 新的一张盘算好了（例如清掉上一张盘里的选中高亮）
     afterCalculate(kind, result) {},    // 某张盘（natal / transit）刚算完
     tabVisible(button) { return undefined; },   // 体系的标签页是否显示；undefined = 不管
-    derivedViews: {},                   // 从本命盘换算出来的分盘：{键: {label, derive(natalResults)}}
+    // 从本命盘换算出来的分盘：{键: {label, derive(natalResults, {payload}), signature?(), bar?}}
+    //   derive      可以直接返回结果，也可以返回 Promise（需要向后端要数据时）；只在点到这个分盘时才调用
+    //   signature   这个分盘自己的设置（如算法）写成的字符串；变了就重新换算
+    //   bar         false = 不放在星盘上方的按钮条里，只出现在 viewMenu 的下拉菜单里
+    derivedViews: {},
+    viewLabels: {},                     // 改写本命 / 过境两个按钮的名称：{natal: "...", transit: "..."}
+    // 按钮条右边的下拉菜单（分盘多时用）：{label, items: [{value: 视图键, label, note?, sub?, title?}]}；null = 不要
+    viewMenu: null,
+    viewCaption(view, results) { return ""; },   // 星盘上方的一行说明（例如分盘名称和算法）
 };
 let SYSTEM = {...SYSTEM_HOOKS};
 
@@ -563,8 +573,39 @@ function renderAllResults() {
 // ---------- 星盘与外观 ----------
 
 function renderChart() {
+    const view = state.view;
+    const box = $("chartBox");
     const emptyText = chartKind() === "natal" && !state.activeProfile ? "选择人物后显示本命盘" : "排盘后显示星盘";
-    SYSTEM.renderChart($("chartBox"), currentChartResults(), {emptyText});
+    const base = state.charts[chartKind()].results;
+    const derived = SYSTEM.derivedViews[view];
+    if (!base || !derived) {
+        SYSTEM.renderChart(box, base, {emptyText, view});
+        renderChartCaption(base);
+        return;
+    }
+    const entry = derivedEntry(view, base);
+    if (entry.results) {
+        SYSTEM.renderChart(box, entry.results, {emptyText, view});
+    } else {
+        box.innerHTML = "";
+        const p = document.createElement("p");
+        p.className = "chart-empty";
+        p.textContent = entry.error ? `这张分盘算不出来：${entry.error}` : "计算中…";
+        box.appendChild(p);
+        if (entry.error) entry.errorShown = true;
+    }
+    renderChartCaption(entry.results || base);
+}
+
+// 体系提供了说明文字时，这一行的高度一直保留（没有说明时只是看不见），切换星盘时星盘不会上下跳。
+function renderChartCaption(results) {
+    const caption = $("chartCaption");
+    if (!caption) return;
+    const used = SYSTEM.viewCaption !== SYSTEM_HOOKS.viewCaption;
+    const text = used && results ? String(SYSTEM.viewCaption(state.view, results) || "") : "";
+    caption.hidden = !used;
+    caption.textContent = text || "\u00a0";
+    caption.classList.toggle("blank", !text);
 }
 
 // 外观设置一改就生效，并在后台写回 settings.json；写失败只提示，不影响当前页面。
@@ -902,6 +943,7 @@ async function calculateFull() {
         const chart = state.charts[kind];
         chart.results = result;
         chart.input = input;
+        chart.payload = payload;
         chart.signature = JSON.stringify(payload.options);
         SYSTEM.afterCalculate(kind, result);
         SYSTEM.onNewChart();             // 新的一张盘：例如清掉上一张盘里的选中高亮
@@ -1592,8 +1634,8 @@ function bindTimeStep() {
 // 两张盘各有自己的时刻：切换视图不会改变时刻，只有点「排盘」、时间步进、「更新到现在」、
 // 「定位」「同步档案地点」或选择别的档案时，对应的那张盘才会重算。
 // 计算设置是共用的：切回某张盘时，如果设置已经改过，就按新设置、用原来的时刻重算。
-// 分盘（例如印度占星的月亮盘、九分盘）由体系在 SYSTEM.derivedViews 里提供，只从本命盘换算，
-// 点到时才算，并缓存到本命盘重算为止。
+// 分盘（例如印度占星的 Moon、Bhava 和各个 D 盘）由体系在 SYSTEM.derivedViews 里提供，只从本命盘换算，
+// 点到时才算，并缓存到本命盘重算、或这个分盘自己的设置改了为止（见 derivedEntry）。
 
 const BASE_VIEWS = {natal: "本命", transit: "过境"};
 
@@ -1605,16 +1647,41 @@ function chartKind(view = state.view) {
     return view === "transit" ? "transit" : "natal";
 }
 
-// 当前视图要画的星盘数据：本命 / 过境直接用排盘结果；分盘点到时才从本命盘换算，并缓存。
-function currentChartResults() {
-    const base = state.charts[chartKind()].results;
-    const derived = SYSTEM.derivedViews[state.view];
-    if (!base || !derived) return base;
-    const cache = state.derived[state.view];
-    if (cache && cache.source === base) return cache.results;
-    const results = derived.derive(base);
-    state.derived[state.view] = {source: base, results};
-    return results;
+// 分盘的数据：点到这个分盘时才换算（derive），结果按「本命结果 + 分盘自己的设置」缓存。
+// derive 返回 Promise 时先显示「计算中…」，算好后如果还停在这个分盘上就重画一次。
+// 所以分盘再多，也只有真正点开的那几张会被计算，平时不占任何时间。
+function derivedEntry(view, base) {
+    const derived = SYSTEM.derivedViews[view];
+    const sig = derived.signature ? String(derived.signature()) : "";
+    const cached = state.derived[view];
+    // 出错的结果显示过一次后不再沿用：下次点到这张盘时重试（例如网络一时不通）。
+    if (cached && cached.source === base && cached.sig === sig && !(cached.error && cached.errorShown)) return cached;
+
+    const entry = {source: base, sig, results: null, error: null};
+    state.derived[view] = entry;
+    let output;
+    try {
+        output = derived.derive(base, {payload: state.charts[chartKind(view)].payload});
+    } catch (error) {
+        entry.error = error.message || String(error);
+        return entry;
+    }
+    if (output && typeof output.then === "function") {
+        output
+            .then((results) => { entry.results = results; })
+            .catch((error) => { entry.error = error.message || String(error); })
+            .finally(() => {
+                if (state.derived[view] === entry && state.view === view) renderChart();
+            });
+    } else {
+        entry.results = output;
+    }
+    return entry;
+}
+
+function viewLabel(view) {
+    if (view in BASE_VIEWS) return SYSTEM.viewLabels[view] || BASE_VIEWS[view];
+    return SYSTEM.derivedViews[view]?.label || view;
 }
 
 function renderView() {
@@ -1624,18 +1691,108 @@ function renderView() {
     if (chartKind() === "transit") renderTransitCard();
 }
 
+// 星盘上方：常用的几张盘做成按钮条；分盘很多时，其余的放进按钮条右边的下拉菜单（SYSTEM.viewMenu）。
+// 按钮和菜单只是 DOM，不触发任何计算。
 function renderViewButtons() {
     const box = $("chartViews");
     box.innerHTML = "";
-    const views = {...BASE_VIEWS, ...Object.fromEntries(Object.entries(SYSTEM.derivedViews).map(([k, v]) => [k, v.label]))};
-    for (const [value, label] of Object.entries(views)) {
+    const bar = [
+        ...Object.keys(BASE_VIEWS),
+        ...Object.entries(SYSTEM.derivedViews).filter(([, v]) => v.bar !== false).map(([k]) => k),
+    ];
+    for (const value of bar) {
         const item = document.createElement("label");
-        item.innerHTML = `<input type="radio" name="chartView" value="${value}"><span>${escapeHtml(label)}</span>`;
+        item.innerHTML = `<input type="radio" name="chartView" value="${escapeHtml(value)}"><span>${escapeHtml(viewLabel(value))}</span>`;
         const radio = item.querySelector("input");
         radio.checked = value === state.view;
         radio.addEventListener("change", () => switchView(value));
         box.appendChild(item);
     }
+    renderViewMenu();
+}
+
+function renderViewMenu() {
+    const holder = $("chartViewMenu");
+    const menu = SYSTEM.viewMenu;
+    if (!holder) return;
+    if (!menu || !menu.items?.length) {
+        holder.hidden = true;
+        holder.innerHTML = "";
+        return;
+    }
+    holder.hidden = false;
+    holder.innerHTML = `
+        <button type="button" class="view-menu-btn" aria-haspopup="menu" aria-expanded="false">
+            <span class="view-menu-label"></span>
+            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
+        </button>
+        <div class="view-menu-pop" role="menu" aria-label="${escapeHtml(menu.label || "更多")}" hidden></div>`;
+    const button = holder.querySelector(".view-menu-btn");
+    const pop = holder.querySelector(".view-menu-pop");
+    pop.innerHTML = menu.items.map((item) => `
+        <button type="button" role="menuitemradio" class="view-menu-item" data-view="${escapeHtml(item.value)}"
+                title="${escapeHtml(item.title || "")}">
+            <span class="view-menu-name">${escapeHtml(item.label)}</span>
+            ${item.note ? `<span class="view-menu-note">${escapeHtml(item.note)}</span>` : ""}
+            ${item.sub ? `<span class="view-menu-sub">${escapeHtml(item.sub)}</span>` : ""}
+        </button>`).join("");
+
+    const close = (focusButton = false) => {
+        pop.hidden = true;
+        button.setAttribute("aria-expanded", "false");
+        if (focusButton) button.focus();
+    };
+    button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const opening = pop.hidden;
+        pop.hidden = !opening;
+        button.setAttribute("aria-expanded", String(opening));
+        if (!opening) return;
+        // 窗口右边放不下时往左挪，整块菜单留在窗口里。
+        pop.style.left = "0px";
+        const over = pop.getBoundingClientRect().right - (document.documentElement.clientWidth - 8);
+        if (over > 0) pop.style.left = `${-over}px`;
+        (pop.querySelector("[aria-checked='true']") || pop.querySelector("button"))?.focus();
+    });
+    pop.addEventListener("click", (event) => {
+        const item = event.target.closest("[data-view]");
+        if (!item) return;
+        close(true);
+        switchView(item.dataset.view);
+    });
+    pop.addEventListener("keydown", (event) => {
+        const items = [...pop.querySelectorAll("[data-view]")];
+        const index = items.indexOf(document.activeElement);
+        const cols = Number(getComputedStyle(pop).getPropertyValue("--cols")) || 4;
+        const moves = {ArrowRight: 1, ArrowLeft: -1, ArrowDown: cols, ArrowUp: -cols};
+        if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
+            close(true);
+        } else if (event.key in moves && index >= 0) {
+            event.preventDefault();
+            items[Math.min(items.length - 1, Math.max(0, index + moves[event.key]))].focus();
+        }
+    });
+    // 点在菜单外任何地方都收起（用捕获阶段：星盘上的点击会阻止冒泡，也照样能收起）。
+    document.addEventListener("pointerdown", (event) => {
+        if (!pop.hidden && !holder.contains(event.target)) close();
+    }, true);
+    updateViewMenu();
+}
+
+// 下拉菜单的按钮：当前看的是菜单里的某张盘时，按钮显示它的名字并高亮；否则显示菜单名。
+function updateViewMenu() {
+    const holder = $("chartViewMenu");
+    const menu = SYSTEM.viewMenu;
+    if (!holder || holder.hidden || !menu) return;
+    const inBar = [...document.querySelectorAll("input[name='chartView']")].some((r) => r.value === state.view);
+    const current = inBar ? null : menu.items.find((item) => item.value === state.view);
+    holder.querySelector(".view-menu-label").textContent = current ? current.label : (menu.label || "更多");
+    holder.querySelector(".view-menu-btn").classList.toggle("active", Boolean(current));
+    holder.querySelectorAll("[data-view]").forEach((item) => {
+        item.setAttribute("aria-checked", String(item.dataset.view === state.view));
+    });
 }
 
 // 侧栏随视图变化：本命 / 分盘显示「人物档案」面板；过境换成同样大小的「过境」面板。
@@ -1643,6 +1800,7 @@ function renderViewButtons() {
 function updateViewUI() {
     const transit = chartKind() === "transit";
     document.querySelectorAll("input[name='chartView']").forEach((r) => { r.checked = r.value === state.view; });
+    updateViewMenu();
     $("profilePanel").classList.toggle("hidden", transit);
     $("transitPanel").classList.toggle("hidden", !transit);
     $("timePanel").classList.toggle("hidden", !transit && !state.activeProfile);
@@ -1839,6 +1997,7 @@ async function useProfileForNatal(profile, {calculate = true, save = true} = {})
     const natal = state.charts.natal;
     natal.input = profile ? inputFromProfile(profile) : null;
     natal.results = null;
+    natal.payload = null;
     natal.stepBase = null;
     state.derived = {};
     if (chartKind() === "natal") {
@@ -3714,8 +3873,6 @@ function openUnlockDialog(info = {}) {
     $("unlockSwitch").classList.toggle("hidden", !others.length);
     if (dialog.open) return;
     $("unlockPassword").value = "";
-    $("unlockDecrypt").checked = false;
-    $("unlockBtn").textContent = "解锁";
     $("unlockMsg").textContent = "";
     $("unlockMsg").classList.add("hidden");
     dialog.showModal();
@@ -3732,18 +3889,13 @@ function bindUnlockDialog() {
     if (dialog.dataset.bound) return;
     dialog.dataset.bound = "1";
     dialog.addEventListener("cancel", (event) => event.preventDefault());   // 不解锁（或不换库）就不能关
-    $("unlockDecrypt").addEventListener("change", () => {
-        $("unlockBtn").textContent = $("unlockDecrypt").checked ? "解锁并取消加密" : "解锁";
-    });
     $("unlockForm").addEventListener("submit", async (event) => {
         event.preventDefault();
         const button = $("unlockBtn");
-        const decrypt = $("unlockDecrypt").checked;
-        if (decrypt && !confirm(`取消加密后，「${unlockTarget}」会以明文保存在磁盘上，任何能打开这台电脑文件的人都能读取。确定？`)) return;
         button.disabled = true;
         try {
-            // 取消加密本身就会核对密码：密码对了直接变成普通档案库，不需要先解锁。
-            await api(decrypt ? "/api/security/disable" : "/api/security/unlock", {method: "POST",
+            // 这里只解锁。取消加密在档案库菜单的「加密设置（取消加密 / 改密码）…」里。
+            await api("/api/security/unlock", {method: "POST",
                 body: JSON.stringify({library: unlockTarget, password: $("unlockPassword").value})});
             location.reload();
         } catch (error) {

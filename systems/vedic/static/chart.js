@@ -5,7 +5,7 @@
  * 用法：AstroChart.render(容器元素, 排盘结果, {style: "north" | "south"})
  *
  * 约定：
- * - 不论整宫制还是非整宫制，每一个格子永远只代表一个星座的 0°–30°。
+ * - 不论整宫制还是非整宫制，每一个格子永远只代表一个星座的 0°–30°（Bhava 盘例外，见 buildItems 的 chart_meta.cells）。
  *   北印度盘：最上方的菱形 = 上升点所在星座，逆时针依次排下去，格内数字 1–12 = 白羊…双鱼；
  *   南印度盘：星座位置固定（左上角双鱼，顺时针），每格右上角同样标星座数字。
  *   非整宫制时，H1…H12 宫头连同度数当作一个点放进它所在的星座。
@@ -155,10 +155,19 @@
     function buildItems(results) {
         const items = [];
         const house = results.house_result || {};
-        // 分盘（月亮盘、九分盘等）由 app.js 从本命盘换算后传进来，并附带 chart_meta：
-        //   lagna_sign  以哪个星座作为第一宫（月亮盘 = 月亮所在星座）
+        // 分盘（Moon、Bhava、各个 D 盘）和转宫后的 Rashi 盘由 vedic.js 换算后传进来，并附带 chart_meta：
+        //   lagna_sign  以哪个星座作为第一宫（Moon = 月亮所在星座；Rashi 转宫 = 设置里选的星座）
         //   hide_cusps  不画宫头（分盘没有宫头度数）
+        //   cells       {代号: 格子}：点放进哪个格子，不按黄经所在星座（Bhava 盘：格子 = 宫位）。
+        //               格子仍用 0–11 编号，显示的数字也照常是 格子 + 1；度数照常按黄经显示。
+        //   ranks       {代号: 数值}：同一格子里的先后（Bhava 盘：离宫头的距离）；默认按星座内度数
+        //   notes       {代号: 文字}：鼠标停留时附加的说明（Bhava 盘：第几宫）
         const meta = results.chart_meta || {};
+        const cells = meta.cells || {};
+        const ranks = meta.ranks || {};
+        const notes = meta.notes || {};
+        const cellOf = (code, lon) => (Number.isInteger(cells[code]) ? cells[code] : signOf(lon));
+        const noteOf = (code) => (notes[code] ? `  · ${notes[code]}` : "");
         const wholeSign = house.house_system === "Whole Sign" || Boolean(meta.hide_cusps);
         const ascLon = house.axes?.Asc?.lon;
 
@@ -169,8 +178,8 @@
             const retro = !isNode && Number(p.speed) < 0;
             items.push({
                 key: `P:${code}`, kind: "planet", code, retro,
-                lon: norm360(p.lon), deg: degLabel(p.lon), sign: signOf(p.lon),
-                title: `${code} ${PLANET_NAMES[code] || ""}${retro ? "（逆行）" : ""}  ${SIGN_NAMES[signOf(p.lon)]} ${degLabel(p.lon)}`,
+                lon: norm360(p.lon), deg: degLabel(p.lon), sign: cellOf(code, p.lon), rank: ranks[code],
+                title: `${code} ${PLANET_NAMES[code] || ""}${retro ? "（逆行）" : ""}  ${SIGN_NAMES[signOf(p.lon)]} ${degLabel(p.lon)}${noteOf(code)}`,
             });
         }
 
@@ -181,8 +190,9 @@
                 Math.abs(((norm360(ascLon) - norm360(cusp1) + 540) % 360) - 180) < 1 / 120;
             if (wholeSign || !sameAsCusp) {
                 items.push({
-                    key: "A:Asc", kind: "asc", code: "Asc", lon: norm360(ascLon), deg: degLabel(ascLon), sign: signOf(ascLon),
-                    title: `上升点 Asc  ${SIGN_NAMES[signOf(ascLon)]} ${degLabel(ascLon)}`,
+                    key: "A:Asc", kind: "asc", code: "Asc", lon: norm360(ascLon), deg: degLabel(ascLon),
+                    sign: cellOf("Asc", ascLon), rank: ranks.Asc,
+                    title: `上升点 Asc  ${SIGN_NAMES[signOf(ascLon)]} ${degLabel(ascLon)}${noteOf("Asc")}`,
                 });
             }
         }
@@ -198,8 +208,9 @@
             }
         }
 
-        // 同一星座里按度数从小到大排，读盘顺序就是黄道顺序。
-        items.sort((a, b) => a.sign - b.sign || (a.lon % 30) - (b.lon % 30));
+        // 同一格子里按度数从小到大排，读盘顺序就是黄道顺序（给了 ranks 时按 ranks）。
+        const rankOf = (it) => (Number.isFinite(it.rank) ? it.rank : it.lon % 30);
+        items.sort((a, b) => a.sign - b.sign || rankOf(a) - rankOf(b));
         const bySign = Array.from({length: 12}, () => []);
         items.forEach((it) => bySign[it.sign].push(it));
 
