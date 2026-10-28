@@ -1,4 +1,11 @@
-"""页面外壳：首页跳转、两个体系共用的 bootstrap / 外观接口，以及体系页面的渲染。"""
+"""页面外壳：外壳页面（常驻各体系）、两个体系共用的 bootstrap / 外观接口，以及体系页面的渲染。
+
+切换体系不再整页跳转：首页 / 是一个很薄的外壳页面（templates/app.html），每个体系的页面
+装在外壳里的一个 iframe 中（地址带 ?embed=1），打开过的体系常驻内存，切换时只改显示和隐藏，
+一到两帧就完成。各体系的页面、JS、CSS 和以前完全一样，仍然可以单独交给不同的组维护。
+
+直接打开 /vedic/、/western/（例如旧书签）会跳转到外壳页面 /?system=<体系>。
+"""
 
 from __future__ import annotations
 
@@ -32,11 +39,13 @@ def system_links():
 
 
 def render_system_page(system_id, template, **context):
-    """各体系的页面都用这个函数渲染：自动带上体系切换按钮，并记住“上次用的体系”。"""
-    try:
-        _store.save_session({"last_system": system_id})
-    except (ValueError, OSError):
-        pass
+    """各体系的页面都用这个函数渲染：自动带上体系切换按钮。
+
+    只在外壳页面的 iframe 里使用（?embed=1）。不带 embed 的直接访问跳转到外壳页面。
+    「上次用的体系」由外壳页面在切换时记录，这里不再每次加载都写一遍 settings.json。
+    """
+    if request.args.get("embed") != "1":
+        return redirect(f"/?system={system_id}")
     system = _systems[system_id]
     return render_template(
         template,
@@ -50,11 +59,14 @@ def render_system_page(system_id, template, **context):
 
 @bp.get("/")
 def home():
+    """外壳页面：先显示 ?system= 指定的体系，没指定时显示上次用的体系。"""
     if not _systems:
         return "systems/ 文件夹里没有任何占星体系。", 500
     last = (_store.data.get("session") or {}).get("last_system")
-    target = _systems.get(last) or next(iter(_systems.values()))
-    return redirect(target.url)
+    wanted = request.args.get("system") or last
+    target = _systems.get(wanted) or next(iter(_systems.values()))
+    return render_template("app.html", systems=system_links(), initial_system=target.id,
+                           initial_title=target.title, record_initial=target.id != last)
 
 
 @bp.post("/api/appearance")
@@ -136,4 +148,4 @@ def bootstrap():
         data.update(library_payload())
     except LockedError as exc:
         return locked_response(exc)
-    return ok(data, **data)
+    return ok(data)          # 前端只读 data；以前同一份数据在顶层又放了一遍，白白多传一倍

@@ -13,12 +13,12 @@
     "calendar": "g"
   },
   "session": {
-    "library": "测试专用",
+    "library": "本命",
     "last_profile": {
+      "本命": 8,
       "卜卦": 5,
       "测试专用": 2,
-      "婚姻本命盘": 1,
-      "本命": 8
+      "婚姻本命盘": 1
     },
     "last_system": "vedic",
     "profile_sort": {}
@@ -52,7 +52,7 @@
         "kp_ruling": true,
         "dasha": true
       },
-      "chart_style": "north"
+      "chart_style": "south"
     },
     "western": {
       "calculation_defaults": {

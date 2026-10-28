@@ -246,6 +246,17 @@ class SettingsStore:
                 raise ValueError(f"未知的会话设置：{key}")
         return dict(self.write(("session",), session, merge=False))
 
+    def forget_library(self, name):
+        """档案库被删除后：去掉会话里关于它的记录（上次选中的人、排序、当前库）。"""
+        session = _copy(self.data.get("session") or {})
+        for key in ("last_profile", "profile_sort"):
+            entries = dict(session.get(key) or {})
+            entries.pop(name, None)
+            session[key] = entries
+        if session.get("library") == name:
+            session["library"] = None
+        self.write(("session",), session, merge=False)
+
     def rename_library_in_session(self, old, new):
         session = _copy(self.data.get("session") or {})
         for key in ("last_profile", "profile_sort"):

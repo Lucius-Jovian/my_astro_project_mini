@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from pathlib import Path
 import re
 import threading
@@ -16,6 +17,9 @@ from .driver import LockedError
 # 想加一套现成的档案，把 .sqlite3 文件放进这个文件夹、刷新网页即可（加密的库同样可以，解锁时输入它的密码）。
 
 LIBRARY_SUFFIX = ".sqlite3"
+# 删除的档案库不直接抹掉，而是移到 user_data/deleted_libraries/，文件名后面加上删除时间。
+# 想恢复：把文件移回 libraries/，去掉名字里的「__已删除-时间」，刷新网页即可。确认不要了再手动清空这个文件夹。
+DELETED_DIR_NAME = "deleted_libraries"
 DEFAULT_LIBRARY = "档案库"
 MAX_NAME_LEN = 30
 _BAD_NAME = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
@@ -173,6 +177,30 @@ class ProfileLibraries:
                 self.current = new
             self._open(new)
             return new
+
+    def delete(self, name):
+        """删除一个档案库：关掉连接，把文件（连同 -wal / -shm）移到 deleted_libraries/。
+
+        加密且锁定的库也可以删（例如忘了密码），不需要密码：文件只是挪走，没有被读取或改动。
+        删的是当前库时，当前库改成剩下的第一个；一个都不剩时自动建一个空的默认档案库。
+        返回移动后的主文件路径。
+        """
+        with self._lock:
+            name = self._require(name)
+            self._close(name)
+            self._keys.pop(name, None)
+            target_dir = self.dir.parent / DELETED_DIR_NAME
+            target_dir.mkdir(parents=True, exist_ok=True)
+            stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+            base = target_dir / f"{name}__已删除-{stamp}{LIBRARY_SUFFIX}"
+            for suffix in ("", "-wal", "-shm"):
+                source = Path(str(self._path(name)) + suffix)
+                if source.exists():
+                    source.replace(Path(str(base) + suffix))
+            if self.current == name:
+                self.current = None
+            self.current_name()          # 重新选出当前库（必要时新建默认库）
+            return base
 
     # ------------------------------------------------------------------ 加密（都只作用于一个档案库）
 

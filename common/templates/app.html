@@ -1,0 +1,135 @@
+{#
+  外壳页面（首页 /）：本身几乎没有内容，只负责装各占星体系的页面。
+
+  每个体系装在一个 iframe 里（/<体系>/?embed=1）。打开过的体系常驻：切换时只改显示 / 隐藏，
+  不重新加载页面、不重新排盘，低端电脑上也只要一到两帧。
+    - 只加载用到的体系；当前体系加载完、浏览器空闲时，再在后台预加载其它体系，第一次切换也是即时的；
+    - 同时常驻的体系最多 MAX_LIVE 个，超过时卸载最久没用的那个（以后体系多了，内存也有上限）；
+    - 一个体系里换了人、改了档案、换了档案库等，外壳把消息转给其它体系，
+      它们等到被切换到时才跟着更新（隐藏时不做任何计算）。
+#}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quant Astro · {{ initial_title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='common.css') }}">
+    <style>
+        html, body { height: 100%; margin: 0; overflow: hidden; }
+        .sys-frame {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+            background: var(--bg);
+        }
+        /* 隐藏的体系：不显示、不能聚焦、不参与绘制，但页面和计算结果都留在内存里 */
+        .sys-frame.qa-off {
+            visibility: hidden;
+            content-visibility: hidden;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+<script>
+"use strict";
+(() => {
+    const SYSTEMS = {{ systems | tojson }};          // [{id, title, url}]，顺序同顶部切换按钮
+    const MAX_LIVE = 3;                             // 最多同时常驻几个体系
+    const PRELOAD_DELAY_MS = 1500;                  // 当前体系加载完后，等多久再在后台预加载其它体系
+
+    const frames = new Map();                       // 体系 id -> {iframe, lastUsed}
+    let active = null;
+
+    const systemById = (id) => SYSTEMS.find((s) => s.id === id);
+
+    function createFrame(id) {
+        const system = systemById(id);
+        const iframe = document.createElement("iframe");
+        iframe.className = "sys-frame qa-off";
+        iframe.title = system.title;
+        iframe.dataset.system = id;
+        iframe.src = `${system.url}?embed=1`;
+        document.body.appendChild(iframe);
+        const entry = {iframe, lastUsed: 0};
+        frames.set(id, entry);
+        return entry;
+    }
+
+    // 常驻的体系超过上限：卸载最久没用的那个（不会卸载当前显示的）。下次切过去时重新加载。
+    function evict() {
+        while (frames.size > MAX_LIVE) {
+            const [oldest] = [...frames.entries()]
+                .filter(([id]) => id !== active)
+                .sort((a, b) => a[1].lastUsed - b[1].lastUsed);
+            if (!oldest) return;
+            oldest[1].iframe.remove();
+            frames.delete(oldest[0]);
+        }
+    }
+
+    function activate(id, {record = true} = {}) {
+        if (!systemById(id)) return;
+        const entry = frames.get(id) || createFrame(id);
+        entry.lastUsed = performance.now();
+        active = id;
+        for (const [otherId, other] of frames) other.iframe.classList.toggle("qa-off", otherId !== id);
+        try {
+            document.title = entry.iframe.contentDocument?.title || `Quant Astro · ${systemById(id).title}`;
+        } catch (_) { /* 同源页面一定能读到；读不到就用默认标题 */ }
+        history.replaceState(null, "", `/?system=${encodeURIComponent(id)}`);
+        // 告诉它“轮到你了”：在隐藏期间攒下的同步消息（换了人、换了库……）现在处理。
+        entry.iframe.contentWindow?.postMessage({type: "qa-activate"}, location.origin);
+        entry.iframe.contentWindow?.focus();             // 键盘操作（Tab 上移结果区等）直接作用于新体系
+        if (record) {
+            fetch("/api/session", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({last_system: id}),
+            }).catch(() => {});
+        }
+        evict();
+    }
+
+    // 当前体系加载完、浏览器空闲时，后台预加载其它体系（一个一个来，不抢当前体系的 CPU）。
+    function preloadOthers() {
+        const next = SYSTEMS.find((s) => !frames.has(s.id));
+        if (!next || frames.size >= MAX_LIVE) return;
+        const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 200));
+        idle(() => {
+            const entry = createFrame(next.id);
+            entry.iframe.addEventListener("load", () => setTimeout(preloadOthers, PRELOAD_DELAY_MS), {once: true});
+        }, {timeout: 5000});
+    }
+
+    function frameIdOf(source) {
+        for (const [id, entry] of frames) if (entry.iframe.contentWindow === source) return id;
+        return null;
+    }
+
+    window.addEventListener("message", (event) => {
+        if (event.origin !== location.origin) return;
+        const from = frameIdOf(event.source);
+        if (!from) return;
+        const msg = event.data || {};
+        if (msg.type === "qa-switch") {
+            activate(msg.system);
+        } else if (msg.type === "qa-sync") {
+            // 转给其它常驻的体系；它们被切换到时才处理。
+            for (const [id, entry] of frames) {
+                if (id !== from) entry.iframe.contentWindow?.postMessage({type: "qa-sync", event: msg.event}, location.origin);
+            }
+        }
+    });
+
+    // 打开时显示的体系和上次记录的不一样（例如用了 /?system= 或旧书签）才需要记一次。
+    activate("{{ initial_system }}", {record: {{ 'true' if record_initial else 'false' }}});
+    const firstFrame = frames.get("{{ initial_system }}").iframe;
+    firstFrame.addEventListener("load", () => setTimeout(preloadOthers, PRELOAD_DELAY_MS), {once: true});
+})();
+</script>
+</body>
+</html>

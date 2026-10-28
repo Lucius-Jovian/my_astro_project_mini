@@ -109,6 +109,158 @@ function showNotice(message) {
 }
 
 // 返回完整的响应体（除了 data，还有分页列表用的 total / page / has_more 等）。
+// ================= 装在外壳页面里（常驻 iframe） =================
+// 首页 / 是外壳页面，每个体系的页面装在一个 iframe 里常驻，切换体系只是显示 / 隐藏（见 templates/app.html）。
+// 这里负责三件事：
+//   1. 顶部的体系切换按钮：不再跳转，而是请外壳页面切换；
+//   2. 改了共用的东西（选了别的人、改了档案、换了档案库……）时，通过外壳告诉其它体系；
+//   3. 收到其它体系的消息时先攒着，等自己被切换到时再处理，隐藏期间不做任何计算。
+
+const EMBEDDED = (() => {
+    try {
+        return window.parent !== window && window.parent.location.origin === location.origin;
+    } catch (_) {
+        return false;
+    }
+})();
+
+// 这个体系现在是否正显示在外壳里（不在外壳里时永远算“显示中”）。
+function frameActive() {
+    if (!EMBEDDED) return true;
+    try {
+        return !window.frameElement?.classList.contains("qa-off");
+    } catch (_) {
+        return true;
+    }
+}
+
+function postToShell(message) {
+    if (EMBEDDED) window.parent.postMessage(message, location.origin);
+}
+
+function notifyOthers(event) {
+    postToShell({type: "qa-sync", event});
+}
+
+// 一次成功的写操作之后：看它改了什么，告诉其它体系。
+//   /api/session 里的 last_profile_id    → 换了人（其它体系切过去时跟着换）
+//   /api/session 里的 profile_sort       → 人物排序变了
+//   /api/appearance                      → 外观（经纬度格式）
+//   /api/profiles、/api/profiles/<id>    → 新建 / 修改 / 删除了某份档案
+//   /<体系>/api/...、/api/layout/...       → 只属于这个体系的设置，不用通知
+//   其它 /api/...（档案库、加密、字段、标签、导入……）→ 变化面太广，其它体系切过去时整页重新加载
+function notifyAfterWrite(url, options, payload) {
+    if (!EMBEDDED) return;
+    const method = String(options.method || "GET").toUpperCase();
+    if (method === "GET") return;
+    const path = new URL(url, location.href).pathname;
+    if (!path.startsWith("/api/") || path.startsWith("/api/layout/")) return;
+    let body = {};
+    try { body = JSON.parse(options.body || "{}"); } catch (_) { body = {}; }
+    if (path === "/api/session") {
+        if ("last_profile_id" in body) notifyOthers({kind: "profile", library: state.library, id: body.last_profile_id || null});
+        if (body.profile_sort) notifyOthers({kind: "sort", library: state.library, ...body.profile_sort});
+        return;
+    }
+    if (path === "/api/appearance") {
+        notifyOthers({kind: "appearance", data: payload.data || body});
+        return;
+    }
+    const match = /^\/api\/profiles(?:\/(\d+))?$/.exec(path);
+    if (match) {
+        const id = match[1] ? Number(match[1]) : Number(payload.data?.id) || null;
+        notifyOthers({kind: "profile-changed", library: state.library, id, deleted: method === "DELETE"});
+        return;
+    }
+    notifyOthers({kind: "reload"});
+}
+
+// 隐藏期间攒下的消息
+const pendingSync = {reload: false, profile: undefined, sort: null, appearance: null, changed: new Map()};
+let pendingUnlockInfo = null;      // 隐藏时需要弹出的解锁窗口（不在看不见的页面里弹窗、抢焦点）
+let resolveInitDone;
+const initDone = new Promise((resolve) => { resolveInitDone = resolve; });
+
+function queueSync(event) {
+    if (!event) return;
+    if (event.kind === "reload") pendingSync.reload = true;
+    else if (event.kind === "profile") pendingSync.profile = event;
+    else if (event.kind === "sort") pendingSync.sort = event;
+    else if (event.kind === "appearance") pendingSync.appearance = event.data;
+    else if (event.kind === "profile-changed" && event.id) pendingSync.changed.set(event.id, event);
+}
+
+// 被切换到时调用：把攒下的消息一次处理掉。
+async function applyPendingSync() {
+    if (pendingSync.reload) {
+        location.reload();             // 档案库、加密、字段等变了：整页重新加载最稳妥（这种情况很少）
+        return;
+    }
+    if (pendingUnlockInfo) {
+        const info = pendingUnlockInfo;
+        pendingUnlockInfo = null;
+        openUnlockDialog(info);
+    }
+    await initDone;
+    if (!state.initialized) return;
+    const {profile, sort, appearance, changed} = pendingSync;
+    pendingSync.profile = undefined;
+    pendingSync.sort = null;
+    pendingSync.appearance = null;
+    pendingSync.changed = new Map();
+
+    if (appearance) {
+        Object.assign(state.appearance, appearance);
+        applyCoordFormat();
+        if (state.activeProfile) renderProfileView();
+    }
+    if (sort && sort.library === state.library) {
+        state.profileQuery.sort = sort.sort;
+        state.profileQuery.order = sort.order;
+        renderSortOptions();
+    }
+    // 要用的人：另一个体系换了人就用那个人；否则还是自己当前的人。他的档案被改过就重新读，被删了就清空。
+    let targetId = state.activeProfileId;
+    let reloadProfile = false;
+    if (profile && profile.library === state.library && profile.id !== state.activeProfileId) {
+        targetId = profile.id;
+        reloadProfile = true;
+    }
+    const change = targetId ? changed.get(targetId) : null;
+    if (change) {
+        reloadProfile = true;
+        if (change.deleted) targetId = null;
+    }
+    if (!reloadProfile) return;
+    try {
+        if (!targetId) {
+            await useProfileForNatal(null, {save: false});
+        } else {
+            await useProfileForNatal(await api(`/api/profiles/${targetId}`), {save: false});
+        }
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
+function bindEmbedding() {
+    if (!EMBEDDED) return;
+    // 顶部的体系切换：请外壳切换，不跳转。按住 Ctrl / ⌘ / Shift 或用中键时照常在新窗口打开。
+    document.querySelectorAll(".system-switch a[data-system]").forEach((link) => {
+        link.addEventListener("click", (event) => {
+            if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            postToShell({type: "qa-switch", system: link.dataset.system});
+        });
+    });
+    window.addEventListener("message", (event) => {
+        if (event.origin !== location.origin || event.source !== window.parent) return;
+        const message = event.data || {};
+        if (message.type === "qa-sync") queueSync(message.event);
+        else if (message.type === "qa-activate") applyPendingSync();
+    });
+}
+
 async function apiRaw(url, options = {}) {
     const response = await fetch(url, {
         headers: {"Content-Type": "application/json"},
@@ -124,6 +276,7 @@ async function apiRaw(url, options = {}) {
         if (error.locked && state.initialized) openUnlockDialog(payload);
         throw error;
     }
+    notifyAfterWrite(url, options, payload);
     return payload;
 }
 
@@ -1678,9 +1831,11 @@ function bindTransitActions() {
 
 // 把档案设为本命盘的来源：本命盘的输入换成这份档案的出生数据，旧结果作废。
 // 当前正显示本命时立即排盘；正在看过境时不打扰，切回本命再算。
-async function useProfileForNatal(profile, {calculate = true} = {}) {
+// save = false：只在这一页换人，不写会话、不记「最近打开」
+// （打开网页时选回上次的人、或另一个体系已经记过时用）。
+async function useProfileForNatal(profile, {calculate = true, save = true} = {}) {
     setActiveProfile(profile);
-    saveSession(profile ? profile.id : null);
+    if (save) saveSession(profile ? profile.id : null);
     const natal = state.charts.natal;
     natal.input = profile ? inputFromProfile(profile) : null;
     natal.results = null;
@@ -1705,17 +1860,18 @@ function saveSession(profileId) {
 }
 
 // 打开网页 / 切换档案库时：自动选回这个档案库上一次选中的人（档案已被删除则忽略）。
+// 这个人本来就记在会话里，所以不再写一遍，也不算一次「打开」。
 async function restoreLastProfile() {
     const id = state.lastProfileId;
     if (!id) {
-        await useProfileForNatal(null);
+        await useProfileForNatal(null, {save: false});
         return;
     }
     try {
         const profile = await api(`/api/profiles/${id}`);
-        await useProfileForNatal(profile);
+        await useProfileForNatal(profile, {save: false});
     } catch (_) {
-        await useProfileForNatal(null);
+        await useProfileForNatal(null, {save: false});
     }
 }
 
@@ -1731,12 +1887,14 @@ const ICON_CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.
 const ICON_PLUS = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9"/></svg>';
 const ICON_LOCK = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.2"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"/></svg>';
 const ICON_PEN = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 3.5l2 2L6 12H4v-2z"/></svg>';
+const ICON_TRASH = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 4.5h9M6.5 4.5V3h3v1.5M5 4.5l.6 8.5h4.8l.6-8.5"/></svg>';
 
-// mode: "list" | "new" | "rename"
+// mode: "list" | "new" | "rename" | "delete"
 let libraryMenuMode = "list";
 
 function renderLibraryMenu(error = "") {
     const menu = $("libraryMenu");
+    const currentEncrypted = Boolean(state.libraries.find((lib) => lib.name === state.library)?.encrypted);
     const items = state.libraries.map((lib) => {
         const current = lib.name === state.library;
         return `
@@ -1759,8 +1917,22 @@ function renderLibraryMenu(error = "") {
                 <span class="lm-check">${ICON_PEN}</span><span class="lm-name">重命名当前档案库</span>
             </button>
             <button type="button" class="lm-item lm-action" role="menuitem" data-act="security">
-                <span class="lm-check">${ICON_LOCK}</span><span class="lm-name">当前档案库加密…</span>
+                <span class="lm-check">${ICON_LOCK}</span><span class="lm-name">${currentEncrypted ? "加密设置（取消加密 / 改密码）…" : "加密当前档案库…"}</span>
+            </button>
+            <button type="button" class="lm-item lm-action lm-danger" role="menuitem" data-act="delete">
+                <span class="lm-check">${ICON_TRASH}</span><span class="lm-name">删除档案库…</span>
             </button>`;
+    } else if (libraryMenuMode === "delete") {
+        // 删除：可以选任何一个档案库（包括锁定的，例如忘了密码），要再输入一次名称确认。
+        const options = state.libraries.map((lib) =>
+            `<option value="${escapeHtml(lib.name)}"${lib.name === state.library ? " selected" : ""}>${escapeHtml(lib.name)}${lib.count == null ? "" : `（${lib.count} 人）`}</option>`).join("");
+        foot = `
+            <form class="lm-form lm-delete-form" novalidate>
+                <select aria-label="要删除的档案库">${options}</select>
+                <input type="text" maxlength="30" autocomplete="off" spellcheck="false" placeholder="再输入一次名称确认">
+                <button type="submit" class="danger">删除</button>
+            </form>
+            <p class="lm-hint">文件会移到 user_data/deleted_libraries/ 文件夹，需要时可以手动找回。</p>`;
     } else {
         const value = libraryMenuMode === "rename" ? state.library : "";
         foot = `
@@ -1846,6 +2018,27 @@ async function submitLibraryForm(name) {
     }
 }
 
+async function deleteLibrary(name, confirmText) {
+    if (!name) return;
+    if (confirmText.trim() !== name) {
+        renderLibraryMenu(`请输入「${name}」确认删除`);
+        const form = $("libraryMenu").querySelector(".lm-delete-form");
+        if (form) { form.querySelector("select").value = name; form.querySelector("input").focus(); }
+        return;
+    }
+    try {
+        showError("");
+        const data = await api("/api/libraries/delete", {method: "POST", body: JSON.stringify({name, confirm: confirmText.trim()})});
+        closeLibraryMenu();
+        await applyLibraryPayload(data);
+        setStatus(`已删除档案库「${name}」`);
+        showNotice(`档案库「${name}」已删除，文件移到了 user_data/deleted_libraries/${data.moved_to || ""}，需要时可以手动找回。`);
+    } catch (error) {
+        if (error.locked) { closeLibraryMenu(false); return; }   // 删除后剩下的库是锁定的：解锁窗口已经弹出
+        renderLibraryMenu(error.message);
+    }
+}
+
 async function switchLibrary(name) {
     closeLibraryMenu();
     if (name === state.library) return;
@@ -1883,6 +2076,10 @@ function bindLibraryMenu() {
     });
     menu.addEventListener("submit", (event) => {
         event.preventDefault();
+        if (libraryMenuMode === "delete") {
+            deleteLibrary(event.target.querySelector("select").value, event.target.querySelector("input").value);
+            return;
+        }
         submitLibraryForm(event.target.querySelector("input").value);
     });
     menu.addEventListener("keydown", (event) => {
@@ -2354,9 +2551,16 @@ function renderProfileList() {
                 <span class="chips">${tags}</span>
                 ${sortText ? `<span class="profile-row-sort${item.sort_value == null || item.sort_value === "" ? " empty" : ""}">${escapeHtml(sortText)}</span>` : ""}
                 <span class="profile-row-birth">${escapeHtml(birthLabel(item.birth_time, item.calendar))}</span>
+                <button type="button" class="profile-row-del" title="删除这份档案" aria-label="删除「${escapeHtml(item.display_name)}」的档案">${ICON_TRASH}</button>
             </div>
             ${match}
         `;
+        const del = row.querySelector(".profile-row-del");
+        del.addEventListener("click", (event) => {
+            event.stopPropagation();          // 不要同时触发「选中这一行」
+            deleteProfileFromList(item);
+        });
+        del.addEventListener("keydown", (event) => event.stopPropagation());
 
         const open = async () => {
             try {
@@ -2954,6 +3158,20 @@ async function saveActiveProfile() {
     }
 }
 
+// 在「选择人物」列表里直接删除某一份档案（不必先选中、再打开编辑窗口）。
+async function deleteProfileFromList(item) {
+    if (!confirm(`确定删除「${item.display_name}」的档案？删除后无法恢复。`)) return;
+    try {
+        showError("");
+        await api(`/api/profiles/${item.id}`, {method: "DELETE"});
+        if (item.id === state.activeProfileId) await useProfileForNatal(null);
+        await Promise.all([refreshProfiles(), refreshTagOptions()]);
+        setStatus(`已删除「${item.display_name}」`);
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
 async function deleteActiveProfile() {
     if (!state.activeProfileId) return;
     if (!confirm(`确定删除「${state.activeProfile?.display_name || ""}」的档案？删除后无法恢复。`)) return;
@@ -3481,6 +3699,11 @@ function bindFieldManager() {
 let unlockTarget = null;
 
 function openUnlockDialog(info = {}) {
+    // 隐藏着的体系不弹窗（不抢当前体系的焦点），等被切换到时再弹。
+    if (!frameActive()) {
+        pendingUnlockInfo = info;
+        return;
+    }
     const dialog = $("unlockDialog");
     unlockTarget = info.library || state.library || null;
     $("unlockTitle").textContent = unlockTarget ? `档案库「${unlockTarget}」已加密` : "档案库已加密";
@@ -3491,6 +3714,8 @@ function openUnlockDialog(info = {}) {
     $("unlockSwitch").classList.toggle("hidden", !others.length);
     if (dialog.open) return;
     $("unlockPassword").value = "";
+    $("unlockDecrypt").checked = false;
+    $("unlockBtn").textContent = "解锁";
     $("unlockMsg").textContent = "";
     $("unlockMsg").classList.add("hidden");
     dialog.showModal();
@@ -3507,12 +3732,18 @@ function bindUnlockDialog() {
     if (dialog.dataset.bound) return;
     dialog.dataset.bound = "1";
     dialog.addEventListener("cancel", (event) => event.preventDefault());   // 不解锁（或不换库）就不能关
+    $("unlockDecrypt").addEventListener("change", () => {
+        $("unlockBtn").textContent = $("unlockDecrypt").checked ? "解锁并取消加密" : "解锁";
+    });
     $("unlockForm").addEventListener("submit", async (event) => {
         event.preventDefault();
         const button = $("unlockBtn");
+        const decrypt = $("unlockDecrypt").checked;
+        if (decrypt && !confirm(`取消加密后，「${unlockTarget}」会以明文保存在磁盘上，任何能打开这台电脑文件的人都能读取。确定？`)) return;
         button.disabled = true;
         try {
-            await api("/api/security/unlock", {method: "POST",
+            // 取消加密本身就会核对密码：密码对了直接变成普通档案库，不需要先解锁。
+            await api(decrypt ? "/api/security/disable" : "/api/security/unlock", {method: "POST",
                 body: JSON.stringify({library: unlockTarget, password: $("unlockPassword").value})});
             location.reload();
         } catch (error) {
@@ -3584,8 +3815,17 @@ function renderSecurityDialog() {
         });
         return;
     }
+    // 「取消加密」直接展开放在最前面：使用者最常来这里就是为了不想每次输密码。
     body.innerHTML = `
         <p class="security-state on">「${name}」已加密 · ${s.unlocked ? "已解锁" : "已锁定"}</p>
+        <section class="security-section">
+            <h3>取消加密</h3>
+            <p class="muted">取消后，打开这个档案库不再需要密码，文件以普通 SQLite 格式保存在磁盘上。档案内容不变。</p>
+            <form id="securityDisableForm" class="stack" novalidate>
+                ${securityField("secOff", "当前密码", "current-password")}
+                <div class="button-row"><button type="submit" class="danger">取消加密</button></div>
+            </form>
+        </section>
         <div class="button-row"><button id="secLockBtn" type="button">立即锁定</button></div>
         <details class="fold nested">
             <summary>更改密码</summary>
@@ -3594,13 +3834,6 @@ function renderSecurityDialog() {
                 ${securityField("secNew", "新密码（至少 6 个字符）")}
                 ${securityField("secNew2", "再输入一次新密码")}
                 <div class="button-row"><button type="submit" class="accent-btn">更改密码</button></div>
-            </form>
-        </details>
-        <details class="fold nested">
-            <summary>取消加密</summary>
-            <form id="securityDisableForm" class="stack fold-body" novalidate>
-                ${securityField("secOff", "当前密码", "current-password")}
-                <div class="button-row"><button type="submit" class="danger">取消加密</button></div>
             </form>
         </details>`;
     $("secLockBtn").addEventListener("click", async () => {
@@ -3638,6 +3871,7 @@ async function securityAction(url, payload, message) {
 // ================= 启动 =================
 
 async function init() {
+    bindEmbedding();
     try {
         setStatus("初始化中");
         const systemId = document.body.dataset.system;
@@ -3712,6 +3946,8 @@ async function init() {
     } catch (error) {
         showError(error.message);
         setStatus("初始化失败");
+    } finally {
+        resolveInitDone();
     }
 }
 

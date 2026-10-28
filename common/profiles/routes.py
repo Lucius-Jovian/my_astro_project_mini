@@ -179,6 +179,33 @@ def rename_library():
         return fail(f"改名失败：{exc}", 500)
 
 
+@bp.post("/api/libraries/delete")
+def delete_library():
+    """删除一个档案库（移到 user_data/deleted_libraries/，可以手动找回）。
+
+    请求：{"name": 档案库名, "confirm": 再输入一次档案库名}。两者必须一致，防止误删。
+    返回删除后的当前档案库数据（同切换档案库）；新的当前库锁定时返回 423。
+    """
+    try:
+        payload = request.get_json(force=True) or {}
+        name = libraries._require(payload.get("name"))
+        if str(payload.get("confirm") or "").strip() != name:
+            raise ValueError(f"请输入档案库名称「{name}」确认删除。")
+        moved = libraries.delete(name)
+        store.forget_library(name)
+        store.save_session({"library": libraries.current_name()})
+        current_app.logger.info("Library %s moved to %s", name, moved)
+        try:
+            return ok({**library_payload(), "deleted": name, "moved_to": moved.name})
+        except LockedError as exc:
+            return locked_response(exc)
+    except ValueError as exc:
+        return fail(exc, 400)
+    except OSError as exc:
+        current_app.logger.exception("Deleting library failed")
+        return fail(f"删除失败：{exc}（文件可能正被其他程序占用）", 500)
+
+
 @bp.post("/api/session")
 def update_session():
     # 记住当前选中的档案（下次打开网页时自动选回来），以及当前档案库「选择人物」列表的排序。

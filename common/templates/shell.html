@@ -18,7 +18,7 @@
         {# 占星体系切换：systems/ 下有几个体系就显示几个；切换时保留当前档案库和选中的人物 #}
         <nav class="system-switch segmented compact" aria-label="占星体系">
             {% for s in systems %}
-            <a href="{{ s.url }}" class="{{ 'active' if s.id == current_system else '' }}"{% if s.id == current_system %} aria-current="page"{% endif %}>{{ s.title }}</a>
+            <a href="{{ s.url }}" data-system="{{ s.id }}" class="{{ 'active' if s.id == current_system else '' }}"{% if s.id == current_system %} aria-current="page"{% endif %}>{{ s.title }}</a>
             {% endfor %}
         </nav>
     </div>
@@ -433,6 +433,11 @@
         <div class="modal-body stack">
             <p id="unlockMsg" class="dialog-msg hidden"></p>
             <input id="unlockPassword" type="password" autocomplete="current-password" aria-label="密码" placeholder="密码">
+            {# 每次打开都要输密码嫌麻烦：勾上后解锁的同时取消加密，以后打开不再需要密码 #}
+            <label class="checkbox-row unlock-decrypt">
+                <input id="unlockDecrypt" type="checkbox">
+                解锁并取消加密（以后打开不再需要密码）
+            </label>
             <div id="unlockSwitch" class="unlock-switch hidden">
                 <span class="field-label">或改用其他档案库</span>
                 <div class="unlock-switch-row">
