@@ -59,6 +59,16 @@ def update_varga():
     return _save(bridge.save_varga, request.get_json(force=True) or {}, "varga settings")
 
 
+@bp.post("/api/aspects")
+def update_aspects():
+    return _save(bridge.save_aspects, request.get_json(force=True) or {}, "aspect settings")
+
+
+@bp.post("/api/yogas")
+def update_yogas():
+    return _save(bridge.save_yogas, request.get_json(force=True) or {}, "yoga settings")
+
+
 @bp.post("/api/bhava")
 def bhava_houses():
     try:

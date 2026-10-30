@@ -31,6 +31,8 @@
     --c-cusp: #9cb0c0;
     --c-asc: #dc9a91;
     --c-retro: #e5776c;
+    --c-transit: #9fc4b7;
+    --c-transit-deg: #8aa79d;
     --hover: rgba(184, 166, 150, 0.14);
     --pop-shadow: 0 14px 36px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
 }

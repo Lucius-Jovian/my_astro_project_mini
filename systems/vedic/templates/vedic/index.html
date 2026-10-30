@@ -27,7 +27,6 @@
                 <details class="fold nested" id="foldVarga">
                     <summary>分盘 <span id="vargaMeta" class="fold-meta"></span></summary>
                     <div class="fold-body">
-                        <label>Rashi 第一宫<select id="rashiLagna" title="转宫：只旋转 Rashi 星盘，Asc 仍画在它真正所在的星座，结果表不变"></select></label>
                         <label>Bhava 宫位制<select id="bhavaHouseSystem" title="Bhava 盘自己的宫位制，与上面的「宫位制」互不影响"></select></label>
                         <div class="point-entries varga-entries">
                             <button id="openVargaMethodsBtn" type="button" class="point-entry">
@@ -36,6 +35,15 @@
                                 <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
                             </button>
                         </div>
+                    </div>
+                </details>
+
+                <details class="fold nested" id="foldAspects">
+                    <summary>相位 <span id="aspectMeta" class="fold-meta"></span></summary>
+                    <div class="fold-body">
+                        <p class="muted aspect-note">所有行星看第 7 个星座，火星另看第 4、8 个，木星另看第 5、9 个，土星另看第 3、10 个。罗睺、计都是否投射相位由下面决定。星盘的点击高亮和 Yoga 都按这里计算。</p>
+                        <label class="checkbox-row"><input id="aspectRa" type="checkbox"> 罗睺投射第 5、7、9 个星座的相位</label>
+                        <label class="checkbox-row"><input id="aspectKe" type="checkbox"> 计都投射第 5、7、9 个星座的相位</label>
                     </div>
                 </details>
 
@@ -49,9 +57,16 @@
 {% endblock %}
 
 {% block chart_head %}
-                <div class="segmented compact" role="radiogroup" aria-label="星盘样式">
-                    <label><input type="radio" name="chartStyle" value="north" checked><span>北印度</span></label>
-                    <label><input type="radio" name="chartStyle" value="south"><span>南印度</span></label>
+                <div class="chart-tools">
+                    {# 转宫：只在 Rashi 和 Gochara 显示；只转星盘，Asc 仍画在真实星座，结果表不变 #}
+                    <label id="lagnaPick" class="lagna-pick" title="转宫：以哪个星座为第一宫。只旋转星盘，Asc 仍画在它真正所在的星座，结果表不变">
+                        <span>第一宫</span>
+                        <select id="rashiLagna" aria-label="Rashi 第一宫（转宫）"></select>
+                    </label>
+                    <div class="segmented compact" role="radiogroup" aria-label="星盘样式">
+                        <label><input type="radio" name="chartStyle" value="north" checked><span>北印度</span></label>
+                        <label><input type="radio" name="chartStyle" value="south"><span>南印度</span></label>
+                    </div>
                 </div>
 {% endblock %}
 
@@ -62,6 +77,7 @@
                 <button type="button" role="tab" data-tab="tabKp1234" data-module="kp_house_sigs">KP 宫位 1234</button>
                 <button type="button" role="tab" data-tab="tabRuling" data-module="kp_ruling">KP 主宰星</button>
                 <button type="button" role="tab" data-tab="tabDasha" data-module="dasha">Dasha</button>
+                <button type="button" role="tab" data-tab="tabYoga">Yoga</button>
 {% endblock %}
 
 {% block result_panels %}
@@ -71,6 +87,7 @@
             <div class="tab-panel hidden" id="tabKp1234"><div id="kp4"></div></div>
             <div class="tab-panel hidden" id="tabRuling"><div id="kp5"></div></div>
             <div class="tab-panel hidden" id="tabDasha"><div id="dashaResult"></div></div>
+            <div class="tab-panel hidden" id="tabYoga"><div id="yogaResult"></div></div>
 {% endblock %}
 
 {% block dialogs %}
@@ -91,10 +108,62 @@
         <button type="button" class="accent-btn" data-close>完成</button>
     </div>
 </dialog>
+
+<!-- 管理 Yoga：启用 / 停用、新建、修改、删除；改动立即保存 -->
+<dialog id="yogaDialog" class="modal yoga-modal" aria-labelledby="yogaDialogTitle">
+    <div class="modal-head">
+        <h2 id="yogaDialogTitle">管理 Yoga</h2>
+        <span id="yogaDialogMeta" class="muted"></span>
+        <button type="button" class="icon-btn" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+        <p class="dialog-msg hidden" data-dialog-msg></p>
+        <div id="yogaListView">
+            <div class="yoga-toolbar">
+                <input id="yogaSearch" type="search" placeholder="搜索名称、说明或公式" autocomplete="off">
+                <select id="yogaCatFilter" aria-label="分类"></select>
+                <button id="yogaNewBtn" type="button" class="accent-btn small-btn">＋ 新建 Yoga</button>
+            </div>
+            <div id="yogaManageList" class="yoga-manage-list"></div>
+        </div>
+        <form id="yogaEditor" class="yoga-editor hidden" novalidate>
+            <div class="grid-2">
+                <label>名称<input id="yeName" type="text" maxlength="80" placeholder="如 Gaja Kesari"></label>
+                <label>中文名<input id="yeCn" type="text" maxlength="80" placeholder="如 象狮"></label>
+            </div>
+            <label>分类<input id="yeCat" type="text" maxlength="40" list="yogaCatList" placeholder="选一个分类，或输入新的"></label>
+            <datalist id="yogaCatList"></datalist>
+            <label>条件公式<textarea id="yeRule" rows="3" spellcheck="false" maxlength="2000" placeholder="如 house(Ju, Mo) in KENDRA"></textarea></label>
+            <p id="yeCheck" class="yoga-check"></p>
+            <label>条件说明<input id="yeDesc" type="text" maxlength="400"></label>
+            <div class="grid-2">
+                <label>主要含义<input id="yeEffect" type="text" maxlength="400"></label>
+                <label>出处<input id="yeSrc" type="text" maxlength="120"></label>
+            </div>
+            <div class="button-row yoga-editor-actions">
+                <button id="yeCancel" type="button">返回列表</button>
+                <button id="yeRestore" type="button" class="hidden">恢复成默认写法</button>
+                <button id="yeSave" type="submit" class="accent-btn">保存</button>
+            </div>
+            <details class="fold nested" id="foldYogaRef">
+                <summary>公式写法（函数和常数一览）</summary>
+                <div class="fold-body"><div id="yogaRef" class="yoga-ref"></div></div>
+            </details>
+        </form>
+    </div>
+    <div class="modal-foot">
+        <button id="yogaRestoreAllBtn" type="button" class="small-btn" title="恢复删掉的默认 Yoga，并把改过的默认 Yoga 改回原样（自定义的不受影响）">恢复全部默认</button>
+        <span class="spacer"></span>
+        <button type="button" class="accent-btn" data-close>完成</button>
+    </div>
+</dialog>
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('vedic.static', filename='vargas.js') }}"></script>
+<script src="{{ url_for('vedic.static', filename='yoga_engine.js') }}"></script>
+<script src="{{ url_for('vedic.static', filename='yogas_default.js') }}"></script>
 <script src="{{ url_for('vedic.static', filename='chart.js') }}"></script>
 <script src="{{ url_for('vedic.static', filename='vedic.js') }}"></script>
+<script src="{{ url_for('vedic.static', filename='yoga.js') }}"></script>
 {% endblock %}

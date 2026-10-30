@@ -71,11 +71,14 @@ const SYSTEM_HOOKS = {
     //   derive      可以直接返回结果，也可以返回 Promise（需要向后端要数据时）；只在点到这个分盘时才调用
     //   signature   这个分盘自己的设置（如算法）写成的字符串；变了就重新换算
     //   bar         false = 不放在星盘上方的按钮条里，只出现在 viewMenu 的下拉菜单里
+    //   form        "transit" = 左侧表单和「排盘」用过境盘（Gochara）；derive 另外收到 {transit: 过境结果}
+    //   order       按钮条上的先后（数字小的在前，本命 / 过境固定在最前）
     derivedViews: {},
     viewLabels: {},                     // 改写本命 / 过境两个按钮的名称：{natal: "...", transit: "..."}
     // 按钮条右边的下拉菜单（分盘多时用）：{label, items: [{value: 视图键, label, note?, sub?, title?}]}；null = 不要
     viewMenu: null,
     viewCaption(view, results) { return ""; },   // 星盘上方的一行说明（例如分盘名称和算法）
+    onDerivedReady(view) {},            // 一张要等后端的分盘（如 Bhava）刚算好、已经重画
 };
 let SYSTEM = {...SYSTEM_HOOKS};
 
@@ -396,9 +399,11 @@ function formComplete() {
     );
 }
 
-function collectPayload() {
+// input = null：用左侧表单；否则用某张盘保存的输入（readForm 的格式），
+// 例如 Gochara 盘左侧显示过境的表单，同时还要在后台按档案算本命盘。
+function collectPayload(input = null) {
     return {
-        birth: {
+        birth: input ? birthFromInput(input) : {
             local_time_str: getLocalTime(),
             timezone_str: $("timezone").value.trim(),
             latitude: Number($("latitude").value),
@@ -575,15 +580,24 @@ function renderAllResults() {
 function renderChart() {
     const view = state.view;
     const box = $("chartBox");
-    const emptyText = chartKind() === "natal" && !state.activeProfile ? "选择人物后显示本命盘" : "排盘后显示星盘";
-    const base = state.charts[chartKind()].results;
     const derived = SYSTEM.derivedViews[view];
-    if (!base || !derived) {
+    const needsNatal = view !== "transit";
+    const emptyText = needsNatal && !state.activeProfile ? "选择人物后显示本命盘" : "排盘后显示星盘";
+    if (!derived) {
+        const base = state.charts[chartKind()].results;
         SYSTEM.renderChart(box, base, {emptyText, view});
         renderChartCaption(base);
         return;
     }
-    const entry = derivedEntry(view, base);
+    // 分盘都从本命盘换算；form 为 transit 的分盘（如 Gochara）另外还要过境盘。
+    const base = state.charts.natal.results;
+    const transit = derived.form === "transit" ? state.charts.transit.results : undefined;
+    if (!base || transit === null) {
+        SYSTEM.renderChart(box, null, {emptyText, view});
+        renderChartCaption(null);
+        return;
+    }
+    const entry = derivedEntry(view, base, transit);
     if (entry.results) {
         SYSTEM.renderChart(box, entry.results, {emptyText, view});
     } else {
@@ -805,7 +819,7 @@ function baseRawSections(results) {
 let rawView = "planets";
 
 function rawSectionsNow() {
-    const results = state.charts[chartKind()].results;
+    const results = state.charts[resultsKind()].results;
     if (!results) return [];
     return SYSTEM.rawSections(results).filter((sec) => sec.tables.some((t) => t.data && Object.keys(t.data).length));
 }
@@ -813,7 +827,7 @@ function rawSectionsNow() {
 function openRawDialog() {
     const sections = rawSectionsNow();
     $("rawTitleMeta").textContent = sections.length
-        ? `${chartKind() === "transit" ? "过境盘" : "本命盘"} · ${localTimeText(state.charts[chartKind()].results.context?.local_dt)}`
+        ? `${resultsKind() === "transit" ? "过境盘" : "本命盘"} · ${localTimeText(state.charts[resultsKind()].results.context?.local_dt)}`
         : "";
     if (!sections.some((s) => s.key === rawView)) rawView = sections[0]?.key || "planets";
     renderRawDialog(sections);
@@ -911,7 +925,7 @@ function updateTabVisibility() {
     }
 }
 
-// 排盘：计算当前视图对应的那张盘（本命 / 分盘 → 本命盘；过境 → 过境盘）。
+// 排盘：计算左侧表单对应的那张盘（本命 / 分盘 → 本命盘；过境、Gochara → 过境盘）。
 async function calculateFull() {
     const kind = chartKind();
     if (kind === "natal" && !state.activeProfile) {
@@ -926,9 +940,13 @@ async function calculateFull() {
         return;
     }
 
-    const token = ++state.requestToken;
-    const payload = collectPayload();
-    const input = readForm();
+    await calculateChart(kind, collectPayload(), readForm());
+}
+
+// 真正发请求的部分。每张盘各自计数：同时算本命和过境（Gochara）时，互不作废对方的结果。
+async function calculateChart(kind, payload, input) {
+    const chart = state.charts[kind];
+    const token = chart.token = (chart.token || 0) + 1;
     clearPageError();
     setStatus("计算中");
 
@@ -938,9 +956,8 @@ async function calculateFull() {
             body: JSON.stringify(payload),
         });
 
-        if (token !== state.requestToken) return;
+        if (token !== chart.token) return;
 
-        const chart = state.charts[kind];
         chart.results = result;
         chart.input = input;
         chart.payload = payload;
@@ -950,10 +967,28 @@ async function calculateFull() {
         renderView();
         setStatus("已更新");
     } catch (error) {
-        if (token !== state.requestToken) return;
+        if (token !== chart.token) return;
         showError(error.message);
         setStatus("计算失败");
     }
+}
+
+// 不在左侧表单里的那张盘（Gochara 时的本命盘）：用它自己保存的输入在后台计算。
+async function calculateStored(kind) {
+    const input = state.charts[kind].input;
+    if (!input) return;
+    await calculateChart(kind, collectPayload(input), input);
+}
+
+function birthFromInput(input) {
+    const nums = Object.fromEntries(DT_PARTS.map((p, i) => [p, Number(input.parts?.[i])]));
+    return {
+        local_time_str: formatDtParts(nums),
+        timezone_str: String(input.timezone || "").trim(),
+        latitude: Number(input.latitude),
+        longitude: Number(input.longitude),
+        calendar: input.calendar === "j" ? "j" : "g",
+    };
 }
 
 // 改完参数需要点「排盘」才会重新计算（全量计算只需几毫秒，不做局部增量计算）。
@@ -1643,25 +1678,33 @@ function norm360(x) {
     return ((Number(x) % 360) + 360) % 360;
 }
 
+// 左侧表单（时间与地点、档案 / 过境面板）和「排盘」按钮对应哪张盘：过境，以及声明 form: "transit" 的分盘
+// （如 Gochara）用过境盘；其余用本命盘。
 function chartKind(view = state.view) {
+    return view === "transit" || SYSTEM.derivedViews[view]?.form === "transit" ? "transit" : "natal";
+}
+
+// 右下角结果区显示哪张盘的数据：只有 Transit 显示过境盘，其余（包括 Gochara）都显示本命盘。
+function resultsKind(view = state.view) {
     return view === "transit" ? "transit" : "natal";
 }
 
 // 分盘的数据：点到这个分盘时才换算（derive），结果按「本命结果 + 分盘自己的设置」缓存。
 // derive 返回 Promise 时先显示「计算中…」，算好后如果还停在这个分盘上就重画一次。
 // 所以分盘再多，也只有真正点开的那几张会被计算，平时不占任何时间。
-function derivedEntry(view, base) {
+function derivedEntry(view, base, transit = undefined) {
     const derived = SYSTEM.derivedViews[view];
     const sig = derived.signature ? String(derived.signature()) : "";
     const cached = state.derived[view];
     // 出错的结果显示过一次后不再沿用：下次点到这张盘时重试（例如网络一时不通）。
-    if (cached && cached.source === base && cached.sig === sig && !(cached.error && cached.errorShown)) return cached;
+    if (cached && cached.source === base && cached.transit === transit && cached.sig === sig &&
+        !(cached.error && cached.errorShown)) return cached;
 
-    const entry = {source: base, sig, results: null, error: null};
+    const entry = {source: base, transit, sig, results: null, error: null};
     state.derived[view] = entry;
     let output;
     try {
-        output = derived.derive(base, {payload: state.charts[chartKind(view)].payload});
+        output = derived.derive(base, {payload: state.charts.natal.payload, transit});
     } catch (error) {
         entry.error = error.message || String(error);
         return entry;
@@ -1671,7 +1714,10 @@ function derivedEntry(view, base) {
             .then((results) => { entry.results = results; })
             .catch((error) => { entry.error = error.message || String(error); })
             .finally(() => {
-                if (state.derived[view] === entry && state.view === view) renderChart();
+                if (state.derived[view] === entry && state.view === view) {
+                    renderChart();
+                    SYSTEM.onDerivedReady(view);
+                }
             });
     } else {
         entry.results = output;
@@ -1685,7 +1731,7 @@ function viewLabel(view) {
 }
 
 function renderView() {
-    const chart = state.charts[chartKind()];
+    const chart = state.charts[resultsKind()];
     state.results = chart.results || {};
     renderAllResults();
     if (chartKind() === "transit") renderTransitCard();
@@ -1698,7 +1744,9 @@ function renderViewButtons() {
     box.innerHTML = "";
     const bar = [
         ...Object.keys(BASE_VIEWS),
-        ...Object.entries(SYSTEM.derivedViews).filter(([, v]) => v.bar !== false).map(([k]) => k),
+        ...Object.entries(SYSTEM.derivedViews).filter(([, v]) => v.bar !== false)
+            .map(([k, v], i) => ({k, order: Number.isFinite(v.order) ? v.order : 1000 + i}))
+            .sort((x, y) => x.order - y.order).map((x) => x.k),
     ];
     for (const value of bar) {
         const item = document.createElement("label");
@@ -1876,10 +1924,18 @@ function currentSignature() {
 async function ensureComputed() {
     const kind = chartKind();
     const chart = state.charts[kind];
-    if (kind === "natal" && !state.activeProfile) return;
-    if (!chart.results || chart.signature !== currentSignature()) {
-        await calculateFull();
+    const signature = currentSignature();
+    const jobs = [];
+    if (!(kind === "natal" && !state.activeProfile) && (!chart.results || chart.signature !== signature)) {
+        jobs.push(calculateFull());
     }
+    // Gochara：左侧是过境的表单，本命盘按档案在后台补算（或按新的计算设置重算）。
+    const natal = state.charts.natal;
+    if (kind === "transit" && state.view !== "transit" && state.activeProfile && natal.input &&
+        (!natal.results || natal.signature !== signature)) {
+        jobs.push(calculateStored("natal"));
+    }
+    await Promise.all(jobs);
 }
 
 async function switchView(view) {
@@ -2007,6 +2063,10 @@ async function useProfileForNatal(profile, {calculate = true, save = true} = {})
         if (profile && calculate) await calculateFull();
     } else {
         updateViewUI();
+        if (state.view !== "transit") {          // Gochara：表单是过境的，本命盘在后台换成这个人
+            renderView();
+            if (profile && calculate) await ensureComputed();
+        }
     }
 }
 
@@ -2442,7 +2502,7 @@ function renderActiveProfileCard() {
 
 // 「档案资料」标签页：只在本命 / 分盘视图、且选中了人物时出现。
 function updateProfileTab() {
-    const show = chartKind() === "natal" && Boolean(state.activeProfile);
+    const show = resultsKind() === "natal" && Boolean(state.activeProfile);
     const button = document.querySelector("#resultTabs [data-profile-tab]");
     button.classList.toggle("hidden", !show);
     if (!show && button.classList.contains("active")) {

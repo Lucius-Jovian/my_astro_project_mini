@@ -95,7 +95,96 @@ DEFAULT_SYSTEM_SETTINGS = {
         # 有哪些分盘、有哪些算法都登记在 static/vargas.js，这里只检查名称的写法。
         "methods": {},
     },
+    # 星盘相位：罗睺、计都是否投射第 5、7、9 个星座的相位（星盘点击高亮和 Yoga 的相位判断都按这里）。
+    "aspects": {"Ra": True, "Ke": True},
+    # Yoga：默认清单在 static/yogas_default.js；这里只存使用者的改动。
+    #   disabled  停用的 Yoga（id 列表）
+    #   removed   删掉的默认 Yoga（id 列表；可以在「管理 Yoga」里恢复）
+    #   custom    自定义的 Yoga，以及改过的默认 Yoga（id 与默认的相同即覆盖默认的那一条）
+    "yogas": {"disabled": [], "removed": [], "custom": []},
 }
+
+YOGA_ID_RE = re.compile(r"^[A-Za-z0-9_.-]{1,60}$")
+YOGA_TEXT_LIMITS = {"name": 80, "cn": 80, "cat": 40, "rule": 2000, "desc": 400, "effect": 400, "src": 120}
+YOGA_MAX_CUSTOM = 500
+
+
+def _clean_aspects(raw, *, strict):
+    raw = raw if isinstance(raw, dict) else {}
+    clean = {}
+    for key, value in raw.items():
+        if key in ("Ra", "Ke") and isinstance(value, bool):
+            clean[key] = value
+        elif strict:
+            raise ValueError("相位设置只能是 Ra / Ke: true / false。")
+    return clean
+
+
+def _clean_id_list(value, what, *, strict):
+    if not isinstance(value, list):
+        if strict:
+            raise ValueError(f"{what}必须是列表。")
+        return []
+    out = []
+    for item in value:
+        if isinstance(item, str) and YOGA_ID_RE.match(item):
+            if item not in out:
+                out.append(item)
+        elif strict:
+            raise ValueError(f"{what}里的 id 不合法：{item!r}")
+    return out[:2000]
+
+
+def _clean_yoga(item, *, strict):
+    if not isinstance(item, dict) or not isinstance(item.get("id"), str) or not YOGA_ID_RE.match(item["id"]):
+        if strict:
+            raise ValueError("自定义 Yoga 缺少合法的 id。")
+        return None
+    clean = {"id": item["id"]}
+    for key, limit in YOGA_TEXT_LIMITS.items():
+        value = item.get(key, "")
+        if not isinstance(value, str):
+            if strict:
+                raise ValueError(f"Yoga「{item['id']}」的 {key} 必须是文字。")
+            value = ""
+        if len(value) > limit:
+            if strict:
+                raise ValueError(f"Yoga「{item['id']}」的 {key} 太长（最多 {limit} 个字符）。")
+            value = value[:limit]
+        clean[key] = value
+    if not clean["rule"].strip():
+        if strict:
+            raise ValueError(f"Yoga「{item['id']}」没有填写条件公式。")
+        return None
+    return clean
+
+
+def _clean_yogas(raw, *, strict):
+    """Yoga 设置只检查格式（公式写得对不对由页面上的引擎检查：写错的那一条只是算不出来，不影响别的）。"""
+    raw = raw if isinstance(raw, dict) else {}
+    clean = {}
+    for key, value in raw.items():
+        if key in ("disabled", "removed"):
+            clean[key] = _clean_id_list(value, "停用 / 删除的 Yoga ", strict=strict)
+        elif key == "custom":
+            if not isinstance(value, list):
+                if strict:
+                    raise ValueError("自定义 Yoga 必须是列表。")
+                continue
+            if len(value) > YOGA_MAX_CUSTOM:
+                if strict:
+                    raise ValueError(f"自定义 Yoga 最多 {YOGA_MAX_CUSTOM} 条。")
+                value = value[:YOGA_MAX_CUSTOM]
+            items, seen = [], set()
+            for item in value:
+                cleaned = _clean_yoga(item, strict=strict)
+                if cleaned and cleaned["id"] not in seen:
+                    seen.add(cleaned["id"])
+                    items.append(cleaned)
+            clean[key] = items
+        elif strict:
+            raise ValueError(f"未知的 Yoga 设置：{key}")
+    return clean
 
 VARGA_ID_RE = re.compile(r"^D\d{1,3}$")
 VARGA_METHOD_RE = re.compile(r"^[a-z0-9_-]{1,40}$")
@@ -209,6 +298,8 @@ def normalize_system_settings(section):
     if section.get("chart_style") not in CHART_STYLES:
         section["chart_style"] = "north"
     section["varga"] = {**DEFAULT_SYSTEM_SETTINGS["varga"], **_clean_varga(section.get("varga"), strict=False)}
+    section["aspects"] = {**DEFAULT_SYSTEM_SETTINGS["aspects"], **_clean_aspects(section.get("aspects"), strict=False)}
+    section["yogas"] = {**DEFAULT_SYSTEM_SETTINGS["yogas"], **_clean_yogas(section.get("yogas"), strict=False)}
     return section
 
 
@@ -233,6 +324,21 @@ def save_varga(store, updates):
     if not clean:
         raise ValueError("没有要保存的分盘设置。")
     return dict(store.write(_keys("varga"), clean))
+
+
+def save_aspects(store, updates):
+    clean = _clean_aspects(updates, strict=True)
+    if not clean:
+        raise ValueError("没有要保存的相位设置。")
+    return dict(store.write(_keys("aspects"), clean))
+
+
+def save_yogas(store, updates):
+    """Yoga 设置（停用、删除、自定义），传来的几项整项替换。"""
+    clean = _clean_yogas(updates, strict=True)
+    if not clean:
+        raise ValueError("没有要保存的 Yoga 设置。")
+    return dict(store.write(_keys("yogas"), clean))
 
 
 def save_chart_style(store, value):

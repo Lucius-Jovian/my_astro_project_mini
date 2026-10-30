@@ -4,7 +4,8 @@
   astro/       本体系专用的计算（KP、Vimshottari Dasha）和数据表 data/*.csv
   bridge.py    设置的默认值与校验、排盘计算的组织
   routes.py    页面和接口（/vedic/、/vedic/api/...）
-  static/      vedic.js（本体系的前端逻辑）、chart.js（南北印度盘）、vedic.css
+  static/      vedic.js（本体系的前端逻辑）、chart.js（南北印度盘，含 Gochara 外圈）、vargas.js（分盘）、
+               yoga_engine.js / yogas_default.js / yoga.js（Yoga 引擎、默认清单、标签页与管理浮窗）、vedic.css
   templates/   vedic/index.html（页面）
 """
 

@@ -136,24 +136,31 @@
 - **宫位制**、**月交点**（平交点或真交点）。
 - **KP**：勾选「启用 KP」后计算 KP 行星、KP 宫位、KP 行星 ABCD、KP 宫位 1234 和 KP 主宰星，对应的标签页一起出现。KP 卜卦也在这一栏，KS-N 签号 1 到 249，CIL-N 签号 1 到 2193。卜卦只在启用 KP 时起作用。
 - **分盘**：见下面的「分盘」一节。
+- **相位**：罗睺、计都是否投射第 5、7、9 个星座的相位，两项分开设置，默认都投射。星盘的点击高亮、Gochara 和 Yoga 里的相位都按这里计算。
 - **Dasha**：见下面的「Dasha」一节。
 
 ### 星盘
 
 - 星盘右上角切换北印度和南印度样式。
+- 星盘右上角的「第一宫」用来转宫，只在 Rashi 和 Gochara 时出现。默认「跟随上升点」。选一个星座后，星盘以这个星座为第一宫：北印度盘整个旋转，南印度盘的斜线移到这个星座。Asc 仍然画在它真正所在的星座里，星盘上方会提示转宫到了哪个星座、上升点实际在哪个星座。转宫只改变星盘，结果表和 Yoga 不变。转过宫时，这个下拉框有一圈红框提醒。
 - 每个格子代表一个星座，度数是星座内度数。北印度盘最上方的菱形是上升星座。南印度盘星座位置固定，上升星座的格子左上角有一道斜线。
 - 行星用两字母代码：Su 太阳、Mo 月亮、Me 水星、Ve 金星、Ma 火星、Ju 木星、Sa 土星、Ra 罗睺、Ke 计都。代码下有红线表示逆行。
 - Asc 是上升点。非整宫制下，H1 到 H12 是各宫宫头，连同度数放进它所在的星座。H1 与上升点相同时只画 H1，不同时（如 Equal/MC 宫制）另外画出 Asc。
-- 点一颗行星，高亮它投射相位的星座；点星座数字，高亮向这个星座投射相位的行星。相位按 Parashari 星座相位计算：所有行星看第 7 个星座，火星另看第 4、8 个，木星和罗睺、计都另看第 5、9 个，土星另看第 3、10 个。
+- 点一颗行星，高亮它投射相位的星座；点星座数字，高亮向这个星座投射相位的行星。相位按 Parashari 星座相位计算：所有行星看第 7 个星座，火星另看第 4、8 个，木星另看第 5、9 个，土星另看第 3、10 个；罗睺、计都默认另看第 5、9 个，可以在计算设置的「相位」里关掉。
 
 ### 分盘
 
-星盘左上角是常用的几张盘：**Rashi**（本命）、**Transit**（过境）、**Moon**、**Bhava**、**D9**。其余分盘在旁边的「分盘」下拉菜单里，菜单里列出 BPHS 的全部 16 张分盘，每张写着编号、梵文名和主要看什么。当前看的是菜单里的某张盘时，菜单按钮显示它的编号。星盘上方有一行小字，写明当前这张盘的名称和所用算法。
+星盘左上角是常用的几张盘：**Rashi**（本命）、**Transit**（过境）、**Moon**、**Bhava**、**D9**、**Gochara**。其余分盘在旁边的「分盘」下拉菜单里，菜单里列出 BPHS 的全部 16 张分盘，每张写着编号、梵文名和主要看什么。当前看的是菜单里的某张盘时，菜单按钮显示它的编号。星盘上方有一行小字，写明当前这张盘的名称和所用算法。
 
 - 分盘只在点到时才计算，算好后保留，直到本命盘重新计算，或这张分盘的设置改了。分盘再多也不会拖慢页面。
-- 分盘只改变星盘。下方的结果表始终是本命盘的数据，切到 Transit 时才换成过境盘的数据。
+- 分盘只改变星盘。下方的结果表始终是本命盘的数据，切到 Transit 时才换成过境盘的数据。Yoga 标签页例外，它跟着星盘走（见下面的「Yoga」一节）。
 - **Moon**：行星位置不变，以月亮所在星座为第一宫。
 - **D 盘**：每个点（行星、罗睺、计都、上升点）按所选算法换算到分盘里。格内度数是它在这一份里走过的进度（换算到 0° 到 30°）。分盘不画宫头。
+- **Gochara**：Rashi 外面多一圈，放过境的行星和上升点。外圈的每一段紧贴里面同一个星座的格子，所以外圈的星座永远就是本命盘的星座，外圈没有宫位。北印度盘外圈每边三段，四个角沿对角线分给相邻两段；南印度盘外圈每边中间两段是梯形，四个角落归角上的那个星座。
+  - 显示 Gochara 时，左侧换成过境的面板和过境的时间与地点（与 Transit 共用同一个时刻）。改时间、时间步进、「更新到现在」都会立刻重排外圈。改地点只影响过境上升点本身，不影响外圈的排法。右下角的结果区仍是 Rashi 的内容。
+  - 点本命或过境的行星：它所在那一层的星座高亮，它投射相位的星座里外两层都高亮。
+  - 点星座数字或外圈的空白处（外圈与里面是同一个星座）：这个星座里外两层都高亮，里外两层向它投射相位的行星都标出来。
+  - 过境的行星用青绿色，本命的行星用白色。转宫对 Gochara 同样有效（里面那张就是 Rashi，外圈跟着一起转）。
 - **Bhava**：一个格子就是一个宫位，不再是一个星座。第 n 宫是从第 n 宫宫头到第 n+1 宫宫头的范围；Sripati 宫位制的宫头就是每一宫的起点（Sandhi）。格子的摆法与 Rashi 相同，第 1 宫放在上升星座的位置，格内数字照常是星座数字。点的度数照常是它在真实星座里的度数，宫头度数不画。鼠标停在点上会显示它在第几宫。相位按宫位数。
 
 BPHS 的 16 张分盘和默认算法：
@@ -181,11 +188,88 @@ BPHS 的 16 张分盘和默认算法：
 
 ### 分盘设置
 
-在左侧「计算设置」的「分盘」折叠栏里，改了立即生效并保存。
+在左侧「计算设置」的「分盘」折叠栏里，改了立即生效并保存。转宫不在这里，在星盘右上角（见上面的「星盘」一节）。
 
-- **Rashi 第一宫**：默认「跟随上升点」。选一个星座后，Rashi 盘以这个星座为第一宫（转宫），北印度盘整个旋转，南印度盘的斜线移到这个星座。Asc 仍然画在它真正所在的星座里。星盘上方会提示转宫到了哪个星座、上升点实际在哪个星座。转宫只改变 Rashi 星盘，结果表不变，Transit 也不转。
 - **Bhava 宫位制**：Bhava 盘用的宫位制，默认 Sripati，可选的宫位制与上面的「宫位制」相同，两者互不影响。Bhava 宫位制与「宫位制」不同时，点开 Bhava 盘时会另外向后端要一次宫头（KP 卜卦开着时同样按签号定上升点）。
 - **分盘算法**：点开后每张分盘一行，选用哪一种算法，下面写着这种算法的规则和出处。只有一种算法的分盘不能选择。「全部恢复默认」把所有分盘改回默认算法。折叠栏右侧会显示有几张分盘没有用默认算法。
+
+### Yoga
+
+结果区的「Yoga」标签页列出当前这张盘上成立的 Yoga，按分类分组。默认带 267 条，可以停用、修改、删除，也可以自己新建。
+
+#### 算哪张盘
+
+Yoga 跟着星盘走：Rashi 和 Gochara 算本命盘，Transit 算过境盘，Moon 以月亮所在星座为第一宫，Bhava 按宫位（一个格子一个宫），各个 D 盘按当前的分盘算法换算后的位置。标签页顶部写着现在算的是哪张盘。
+
+- 宫位一律按格子数：一般的盘是整宫制（星座就是宫位），Bhava 盘按 Bhava 宫位。左侧的「宫位制」不影响 Yoga。
+- 入庙、擢升等尊贵按点真实所在的星座判断。逆行、燃烧、日生夜生、月亮上弦下弦按本命盘（Transit 时按过境盘）的真实位置判断，在分盘里也一样。
+- 相位按计算设置里的「相位」（罗睺、计都是否投射相位）。
+- 只在 Yoga 标签页正显示时才计算。同一张盘、同一套设置只算一次，换盘或改设置后才重算。
+
+#### 查看
+
+- 每条显示名称、中文名、主要含义、条件说明和出处。鼠标停在一条上会显示它的公式。
+- 勾选「显示不成立的」可以看到全部检测过的 Yoga（不成立的颜色淡一些）。
+- 每个分类可以折叠，折叠与否会记住。「宫主落宫」一类默认折叠。
+- 公式写错的 Yoga 会标出错误原因，不影响别的 Yoga。
+
+#### 默认 Yoga（267 条）
+
+| 分类 | 条数 | 内容 |
+|---|---|---|
+| 五大人物 | 5 | Ruchaka、Bhadra、Hamsa、Malavya、Sasa |
+| 月亮 | 10 | Sunapha、Anapha、Durudhara、Kemadruma 及其解除、Chandra Adhi、Gaja Kesari、Chandra Mangala、Shakata、Vasumati |
+| 太阳 | 4 | Vesi、Vosi、Ubhayachari、Budha Aditya |
+| 王者 | 13 | 角宫主与三方宫主的关联 10 组、Dharma Karmadhipati、Yogakaraka、Lakshmi |
+| 财富 | 12 | 第 1、2、5、9、11 宫主之间的关联 10 组、Kalanidhi、Khadga |
+| 入弱解除 | 7 | 七曜各一条 Neecha Bhanga |
+| 逆转 | 3 | Harsha、Sarala、Vimala |
+| 宫主互换 | 3 | Maha、Khala、Dainya Parivartana |
+| 其他名 Yoga | 15 | Shubha / Papa Kartari、Lagna Adhi、Amala、Saraswati、Parvata、Kahala、Chamara、Shankha、Bheri、Sreenatha、Chatussagara、Guru Mangala、Duryoga、Daridra |
+| 那跋娑 | 32 | BPHS 第 12 章的全部 Nabhasa：Ashraya 3、Dala 2、Akriti 20、Sankhya 7 |
+| 凶象 | 9 | Kuja Dosha（Lagna、月亮起各一）、Kala Sarpa、日食、月食、Guru Chandala、Angaraka、Visha、Shrapit |
+| 同宫 | 10 | 九曜和上升点各一条 Vargottama（D1 与 D9 同一星座） |
+| 宫主落宫 | 144 | 第 1 到 12 宫主分别落在第 1 到 12 宫 |
+
+同一个 Yoga 各家定义常有出入，默认清单取较常见、可以明确判断的一种，每条都写了出处（BPHS、Phaladeepika、Saravali；「现代」表示近现代常用、古籍里没有统一定义）。需要别的定义时直接改公式。
+
+#### 管理 Yoga
+
+点 Yoga 标签页右上角的「管理 Yoga…」，或某一条右边的「编辑」。
+
+- 列表里勾选或取消勾选，即启用或停用一条 Yoga。可以按名称、说明、公式搜索，或按分类筛选。
+- 「删除」：自定义的 Yoga 删除后不能恢复；默认的 Yoga 删掉后可以用「恢复全部默认」找回。
+- 「编辑」或「新建 Yoga」：填写名称、中文名、分类、条件公式、条件说明、主要含义、出处。写公式时下面会立即提示写法对不对，以及在当前这张盘上成立与否。
+- 改过的默认 Yoga 标着「已修改」，编辑时可以「恢复成默认写法」。
+- 「恢复全部默认」：删掉的默认 Yoga 回来，改过的默认 Yoga 改回原样，所有默认 Yoga 重新启用。自定义的 Yoga 不受影响。
+- 所有改动立即保存在 `settings.json`，会随「导入 / 导出设置」一起导出导入。
+
+#### 公式写法
+
+一条 Yoga 就是一个判断成立或不成立的公式，例如：
+
+```
+house(Ju, Mo) in KENDRA                      木星在月亮起的角宫（Gaja Kesari）
+assoc(lord(9), lord(10))                     第 9、10 宫主有关联
+debilitated(Sa) and house(Sa) in KENDRA      土星入弱并在角宫
+all_in(P7, run(1, 7))                        七曜全在第 1 到第 7 宫（Nauka）
+```
+
+- 行星写代号：`Su Mo Ma Me Ju Ve Sa Ra Ke`。`Asc` 是上升点，`Lagna` 是这张盘的第一宫（Moon 盘就是月亮所在的星座）。
+- 宫位从 1 数起；星座 1 是白羊，12 是双鱼。列表写成 `[1, 4, 7, 10]`。
+- 运算：`and`、`or`、`not`（也可以写「且」「或」「非」）；`==`、`!=`、`<`、`<=`、`>`、`>=`；`in`、`not in`（在不在列表里）；`+`、`-`（数字加减，列表合并或去掉某几项）；括号。中文的全角括号和逗号也可以用。
+- 常数：`KENDRA`（1、4、7、10）、`TRIKONA`（1、5、9）、`DUSTHANA`（6、8、12）、`UPACHAYA`（3、6、10、11）、`PANAPHARA`、`APOKLIMA`、`MOVABLE` / `FIXED` / `DUAL`（动定变星座）、`P9`（九曜）、`P7`（七曜）、`P5`（火水木金土）、`NB` / `NM`（天然吉星、凶星的固定写法）。
+- 函数分几类（完整的写法和说明在编辑窗口的「公式写法」里，从程序里直接生成，始终和实际支持的一致）：
+  - 位置：`house(P[, 从])`、`sign(P)`、`deg(P)`、`lon(P)`、`in_house(n[, 从])`、`houses_of(列表[, 从])`、`all_in` / `any_in` / `count_in(列表, 宫位[, 从])`、`all_in_signs(列表, 星座)`、`signs_occupied(列表)`、`run(起, 个数)`、`all_between(列表, A, B)`
+  - 宫主：`lord(n[, 从])`、`lords_of(P)`、`signlord(P)`、`exlord(P)`、`deblord(P)`、`yogakaraka(P)`、`parivartana(宫位列表, 宫位列表)`
+  - 关系：`conj(A, B, ...)`、`aspect(A, B)`、`aspect_house(A, n)`、`aspected_by(P)`、`exchange(A, B)`、`assoc(A, B)`、`friend(A, B)`、`enemy(A, B)`
+  - 尊贵与状态：`own(P)`、`exalted(P)`、`debilitated(P)`、`mt(P)`、`strong(P)`、`exsign(P)`、`friend_sign(P)`、`enemy_sign(P)`、`retro(P)`、`combust(P)`、`benefic(P)`、`malefic(P)`、`benefics()`、`malefics()`、`waxing()`、`day()`
+  - 分盘：`dsign(P, n)`（P 在 Dn 的星座，按当前的分盘算法）
+  - 列表：`count`、`unique`、`inter`、`subset`
+
+#### 性能
+
+公式在第一次用到时编译成普通的 JavaScript 函数（全部 267 条一共几毫秒，而且是在浏览器空闲时提前做好），之后每张盘只是查表和比较。实测一张盘算完全部 267 条约 0.2 毫秒；同样的规则直接手写成程序约快 3 倍，也就是省下不到 0.1 毫秒。低端电脑按慢 10 倍估计，一张盘也在 2 毫秒左右，远低于一帧（16 毫秒），所以默认 Yoga 和自定义 Yoga 共用这一套引擎。
 
 ### Dasha
 
@@ -225,7 +309,7 @@ BPHS 的 16 张分盘和默认算法：
 
 ### 结果表
 
-- 星盘下方的标签页（默认顺序）：行星、宫位、值日星 · 行星时、KP 行星、KP 宫位、KP 行星 ABCD、KP 宫位 1234、KP 主宰星、Dasha、档案资料。KP 的五个标签页只在启用 KP 时出现，档案资料只在选中人物后出现。顺序可以在「工具」里调整。
+- 星盘下方的标签页（默认顺序）：行星、宫位、值日星 · 行星时、KP 行星、KP 宫位、KP 行星 ABCD、KP 宫位 1234、KP 主宰星、Dasha、Yoga、档案资料。KP 的五个标签页只在启用 KP 时出现，档案资料只在选中人物后出现。顺序可以在「工具」里调整。
 - 黄经写成中文星座加星座内度分秒；宫位写「第 N 宫」；星宿写梵文名加中文宿名。
 - **行星**：黄经、星宿、宿主星、Pada、顺行或逆行。**宫位**：黄经、星宿、宿主星、Pada。
 - **KP 行星、KP 宫位**：黄经、星宿、星座主、宿主星、子主星、子子主星、Pada。子主星和子子主星查 `systems/vedic/astro/data/sub-sub.csv`，其他都由程序按黄经直接计算。
@@ -305,7 +389,7 @@ BPHS 的 16 张分盘和默认算法：
 ```
 app.py              启动入口
 common/             共用区：天文基础（星历、宫位、日出日落）、人物档案（前后端）、设置、页面外壳
-systems/vedic/      印度占星（KP、Dasha、南北印度盘、分盘）
+systems/vedic/      印度占星（KP、Dasha、南北印度盘、分盘、Gochara、Yoga）
 systems/western/    西方占星（小行星、恒星、Lot、相位、圆形星盘）
 tools/              导出单个体系、旧数据迁移
 user_data/          设置和档案库（不属于代码，备份时连同它一起备份）
@@ -320,10 +404,12 @@ user_data/          设置和档案库（不属于代码，备份时连同它一
 体系的前端用 `registerSystem({...})` 挂进共用页面。和星盘视图有关的挂接点：
 
 - `viewLabels`：改写本命、过境两个按钮的名称（印度占星改成 Rashi、Transit）。
-- `derivedViews`：从本命盘换算出来的分盘，`{键: {label, derive, signature, bar}}`。
-  - `derive(本命结果, {payload})` 只在点到这张盘时才调用。可以直接返回结果，也可以返回 Promise（需要向后端要数据时，例如 Bhava 盘）。返回 Promise 时先显示「计算中…」。
+- `derivedViews`：从本命盘换算出来的分盘，`{键: {label, derive, signature, bar, order, form}}`。
+  - `derive(本命结果, {payload, transit})` 只在点到这张盘时才调用。可以直接返回结果，也可以返回 Promise（需要向后端要数据时，例如 Bhava 盘）。返回 Promise 时先显示「计算中…」。
   - `signature()` 返回这张分盘自己的设置（如算法名）。它变了，缓存就失效，下次显示时重新换算。
-  - `bar: false` 表示不放在按钮条上，只出现在下拉菜单里。
+  - `bar: false` 表示不放在按钮条上，只出现在下拉菜单里。`order` 决定按钮条上的先后（印度占星在 `vedic.js` 的 `BAR_ORDER` 里改）。
+  - `form: "transit"` 表示左侧表单和「排盘」用过境盘，`derive` 另外收到过境结果（Gochara 用）。这时右下角结果区仍显示本命盘。
+- `onDerivedReady(视图)`：一张要等后端的分盘刚算好、已经重画（印度占星用它在 Bhava 盘算好后刷新 Yoga）。
 - `viewMenu`：按钮条右边的下拉菜单，`{label, items: [{value, label, note, sub, title}]}`。分盘再多，页面上也只多一个按钮。
 - `viewCaption(视图, 结果)`：星盘上方的一行说明。
 
@@ -337,13 +423,21 @@ user_data/          设置和档案库（不属于代码，备份时连同它一
 - 加一张分盘（例如 D5、D81、D108）：在 `VARGAS` 里按同样的格式加一项。
 - 也可以在另一个文件里调用 `VedicVargas.addMethod(分盘, 键, 算法)` 或 `VedicVargas.register(分盘)`，这个文件要在 `vargas.js` 之后、`vedic.js` 之前加载。
 - 每张分盘的第一种算法是默认算法。设置里保存的算法被删掉时，自动退回默认算法。
-- 想把另一张 D 盘放到按钮条上，改 `systems/vedic/static/vedic.js` 里的 `PINNED_VARGAS`。
+- 想把另一张 D 盘放到按钮条上，改 `systems/vedic/static/vedic.js` 里的 `PINNED_VARGAS`（顺序在 `BAR_ORDER`）。
+
+### Yoga 的文件
+
+- `systems/vedic/static/yoga_engine.js`：公式的解析、编译和计算，以及全部函数和常数（每个都带中文说明，编辑窗口里的「公式写法」由它生成）。要加一个新函数，在 `FUNCTIONS` 里加一项即可。
+- `systems/vedic/static/yogas_default.js`：默认 Yoga 清单和分类。每条有固定的 `id`，`settings.json` 里的停用、删除、修改都按 `id` 记录，所以以后改默认清单时不要改已有的 `id`。
+- `systems/vedic/static/yoga.js`：Yoga 标签页和「管理 Yoga」浮窗。
 
 ### 印度占星的接口（/vedic/api/）
 
 - `POST /chart/full`：排盘。
 - `POST /bhava`：Bhava 盘的宫头。请求与 `/chart/full` 相同，另加 `house_system`。
 - `POST /varga`：保存分盘设置（`rashi_lagna`、`bhava_house_system`、`methods`）。
+- `POST /aspects`：保存相位设置（`{"Ra": true, "Ke": false}`）。
+- `POST /yogas`：保存 Yoga 设置（`disabled`、`removed`、`custom`，传来的几项整项替换）。后端只检查格式，公式由页面上的引擎检查。
 - `POST /calc-defaults`、`POST /chart-style`、`POST /dasha/expand`。
 
 分盘设置保存在 `settings.json` 的 `systems.vedic.varga`：
@@ -357,3 +451,17 @@ user_data/          设置和档案库（不属于代码，备份时连同它一
 ```
 
 `rashi_lagna` 是 `"asc"`（跟随上升点）或 0 到 11（白羊到双鱼）；`methods` 里只写没有用默认算法的分盘。
+
+相位和 Yoga 设置保存在 `systems.vedic.aspects` 和 `systems.vedic.yogas`：
+
+```json
+"aspects": {"Ra": true, "Ke": true},
+"yogas": {
+  "disabled": ["bhava.1_1"],
+  "removed": ["dosha.shrapit"],
+  "custom": [{"id": "u.xxxx", "name": "...", "cn": "", "cat": "custom", "rule": "house(Ju) in KENDRA",
+              "desc": "", "effect": "", "src": ""}]
+}
+```
+
+`custom` 里 `id` 与某条默认 Yoga 相同的，表示改过的默认 Yoga。

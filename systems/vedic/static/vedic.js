@@ -4,7 +4,8 @@
  * 这里只放本体系自己的东西，通过 registerSystem({...}) 挂进去：
  *   - 计算设置里的「启用 KP」（含 KP 卜卦）、Dasha 设置（起算行星、年长度）；改了就写回 settings.json
  *   - KP 星主表、象征宫位 / 象征星、主宰星、Dasha（多种大运体系）的结果标签页
- *   - 分盘：Moon、Bhava、BPHS 的 16 张 D 盘（规则和算法登记在 vargas.js），Rashi 转宫
+ *   - 分盘：Moon、Bhava、Gochara（Rashi 外加一圈过境）、BPHS 的 16 张 D 盘（规则和算法登记在 vargas.js），Rashi 转宫
+ *   - 相位设置（罗睺、计都是否投射相位）；Yoga 标签页和管理浮窗在 yoga.js
  *   - 南北印度盘（chart.js 提供 AstroChart）
  * 本体系的接口都在 /vedic/api/ 下，用 systemApi("/...") 拼地址。
  */
@@ -93,7 +94,7 @@ function setKpEnabled(on) {
     updateTabVisibility();
     renderModuleResults();
     saveVedicCalc({kp_enabled: on});
-    if (state.charts[chartKind()].results) calculateFull();
+    if (state.charts[chartKind()].results) ensureComputed();     // Gochara 时本命、过境两张盘都要按新设置重算
 }
 
 // 计算设置里本体系自己的选项（启用 KP、卜卦、大运）一改就写回 settings.json，下次打开沿用。
@@ -329,7 +330,9 @@ function saveVarga(changes) {
         .then(() => api(systemApi("/varga"), {method: "POST", body: JSON.stringify(changes)}))
         .catch((error) => showError(`分盘设置没能保存：${error.message}`));
     updateVargaMeta();
+    $("lagnaPick").classList.toggle("is-rotated", rashiLagna() !== null);
     renderChart();          // 正在看的盘受影响时立即重画（别的分盘等点到时再按新设置换算）
+    yogaSettingsChanged();  // 分盘算法、Bhava 宫位制会影响对应分盘的 Yoga
 }
 
 // Moon：行星位置不变，以月亮所在星座为第一宫；不画宫头。
@@ -417,10 +420,22 @@ function buildBhavaChart(natal, houses) {
     };
 }
 
+// 按钮条的顺序：Rashi、Transit 固定在最前，后面按这里的数字从小到大。想调整顺序，只改这几个数字。
+const BAR_ORDER = {moon: 10, bhava: 20, D9: 30, gochara: 40};
+
+/*
+ * Gochara：Rashi 外面加一圈过境。左侧的时间与地点是过境的（form: "transit"），右下角结果区仍是 Rashi。
+ * 外圈的星座就是本命盘的星座，所以过境的地点只影响过境上升点本身，不影响外圈怎么排。
+ */
+function deriveGochara(natal, {transit}) {
+    return {natal, transit};
+}
+
 function buildDerivedViews() {
     const views = {
-        moon: {label: "Moon", derive: deriveMoonChart},
-        bhava: {label: "Bhava", derive: deriveBhava, signature: () => bhavaHouseSystem()},
+        moon: {label: "Moon", derive: deriveMoonChart, order: BAR_ORDER.moon},
+        bhava: {label: "Bhava", derive: deriveBhava, signature: () => bhavaHouseSystem(), order: BAR_ORDER.bhava},
+        gochara: {label: "Gochara", derive: deriveGochara, form: "transit", order: BAR_ORDER.gochara},
     };
     for (const varga of VedicVargas.list()) {
         if (varga.view === "natal") continue;          // D1 就是 Rashi 本身
@@ -429,6 +444,7 @@ function buildDerivedViews() {
             derive: deriveVarga(varga.id),
             signature: () => vargaMethod(varga.id),
             bar: PINNED_VARGAS.includes(varga.id),
+            order: BAR_ORDER[varga.id],
         };
     }
     return views;
@@ -444,13 +460,21 @@ function buildViewMenu() {
     };
 }
 
+function rotationNote(natal) {
+    const lagna = rashiLagna();
+    if (lagna === null) return "";
+    const asc = natal?.house_result?.axes?.Asc;
+    const real = asc ? `，上升点实际在${SIGN_LIST[signIndex(asc.lon)]}` : "";
+    return `转宫：以${SIGN_LIST[lagna]}为第一宫${real}`;
+}
+
 function vargaCaption(view, results) {
-    if (view === "natal") {
-        const lagna = rashiLagna();
-        if (lagna === null) return "";
-        const asc = results?.house_result?.axes?.Asc;
-        const real = asc ? `，上升点实际在${SIGN_LIST[signIndex(asc.lon)]}` : "";
-        return `转宫：以${SIGN_LIST[lagna]}为第一宫${real}`;
+    if (view === "natal") return rotationNote(results);
+    if (view === "gochara") {
+        const when = results?.transit?.context?.local_dt;
+        const text = `Gochara · 内圈 Rashi，外圈过境${when ? `（${localTimeText(when)}）` : ""}`;
+        const rot = rotationNote(results?.natal);
+        return rot ? `${text} · ${rot}` : text;
     }
     if (view === "moon") return "Moon · 以月亮所在星座为第一宫";
     if (view === "bhava") return `Bhava · ${bhavaHouseSystem()} 宫位制 · 一个格子是一个宫位`;
@@ -463,11 +487,7 @@ function vargaCaption(view, results) {
 // ---------- 计算设置 → 分盘 ----------
 
 function updateVargaMeta() {
-    const lagna = rashiLagna();
-    const parts = [];
-    if (lagna !== null) parts.push(`转宫 ${SIGN_LIST[lagna]}`);
-    parts.push(`Bhava ${bhavaHouseSystem()}`);
-    $("vargaMeta").textContent = parts.join(" · ");
+    $("vargaMeta").textContent = `Bhava ${bhavaHouseSystem()}`;
     const vargas = VedicVargas.list().filter((v) => v.view !== "natal");
     const changed = vargas.filter((v) => vargaMethod(v.id) !== VedicVargas.defaultMethod(v.id)).length;
     $("vargaMethodCount").textContent = changed ? `${changed} 张非默认` : `${vargas.length} 张`;
@@ -521,10 +541,12 @@ function renderVargaDialog() {
 
 function bindVargaSettings() {
     fillVargaSelects();
+    // 转宫在星盘上方（Rashi、Gochara 时显示），设置仍存在 varga.rashi_lagna。
     $("rashiLagna").addEventListener("change", () => {
         const v = $("rashiLagna").value;
         saveVarga({rashi_lagna: v === "asc" ? "asc" : Number(v)});
     });
+    $("lagnaPick").classList.toggle("is-rotated", rashiLagna() !== null);
     $("bhavaHouseSystem").addEventListener("change", () => saveVarga({bhava_house_system: $("bhavaHouseSystem").value}));
     $("openVargaMethodsBtn").addEventListener("click", () => {
         renderVargaDialog();
@@ -534,6 +556,49 @@ function bindVargaSettings() {
         saveVarga({methods: {}});
         renderVargaDialog();
     });
+}
+
+// ---------- 计算设置 → 相位（罗睺、计都是否投射相位） ----------
+
+function aspectSettings() {
+    state.settings.aspects = state.settings.aspects || {Ra: true, Ke: true};
+    return state.settings.aspects;
+}
+
+// 星盘和 Yoga 共用的相位表：默认的 Parashari 星座相位，再按设置关掉罗睺 / 计都的相位。
+function vedicAspects() {
+    const table = {...AstroChart.DEFAULT_ASPECTS};
+    const cfg = aspectSettings();
+    if (cfg.Ra === false) table.Ra = [];
+    if (cfg.Ke === false) table.Ke = [];
+    return table;
+}
+
+function updateAspectMeta() {
+    const cfg = aspectSettings();
+    const on = ["Ra", "Ke"].filter((k) => cfg[k] !== false).map((k) => (k === "Ra" ? "罗睺" : "计都"));
+    $("aspectMeta").textContent = on.length ? `${on.join("、")}投射相位` : "罗计不投射相位";
+}
+
+function bindAspectSettings() {
+    const cfg = aspectSettings();
+    $("aspectRa").checked = cfg.Ra !== false;
+    $("aspectKe").checked = cfg.Ke !== false;
+    updateAspectMeta();
+    let chain = Promise.resolve();
+    for (const [id, key] of [["aspectRa", "Ra"], ["aspectKe", "Ke"]]) {
+        $(id).addEventListener("change", () => {
+            const changes = {[key]: $(id).checked};
+            Object.assign(aspectSettings(), changes);
+            updateAspectMeta();
+            AstroChart.clearSelection();
+            renderChart();
+            yogaSettingsChanged();
+            chain = chain
+                .then(() => api(systemApi("/aspects"), {method: "POST", body: JSON.stringify(changes)}))
+                .catch((error) => showError(`相位设置没能保存：${error.message}`));
+        });
+    }
 }
 
 // ---------- 结果表 ----------
@@ -660,6 +725,8 @@ registerSystem({
         updateKpUI();
         bindChartStyle();
         bindVargaSettings();
+        bindAspectSettings();
+        bindYoga();
     },
     applyDefaults(calc) {
         $("kpEnabled").checked = calc.kp_enabled !== false;
@@ -682,19 +749,30 @@ registerSystem({
         state.chartModules[kind] = {...(result.modules || {})};
     },
     renderResults() {
-        state.computedModules = state.chartModules[chartKind()] || {};
+        state.computedModules = state.chartModules[resultsKind()] || {};
         renderModuleResults();
+        scheduleYogaRender();
+    },
+    onDerivedReady() {
+        scheduleYogaRender();          // Bhava 盘要等后端，算好后 Yoga 再按它算一次
     },
     renderPlanetTab: renderVedicPlanets,
     planetName: (code) => escapeHtml(code || "—"),
     renderHouseTab: renderVedicHouses,
     renderChart(container, results, {emptyText, view}) {
-        // Rashi 转宫：只换第一宫所在的星座，点仍放在真实星座里（Asc 也一样）；结果表不受影响。
-        const lagna = rashiLagna();
-        const data = view === "natal" && results && lagna !== null
-            ? {...results, chart_meta: {...(results.chart_meta || {}), lagna_sign: lagna}}
-            : results;
-        AstroChart.render(container, data, {style: state.chartStyle, emptyText});
+        // 转宫只用于 Rashi 和 Gochara（里面那张就是 Rashi）；星盘上方的「第一宫」也只在这两种盘显示。
+        $("lagnaPick").hidden = !(view === "natal" || view === "gochara");
+        const rotate = (natal) => {
+            const lagna = rashiLagna();
+            return natal && lagna !== null ? {...natal, chart_meta: {...(natal.chart_meta || {}), lagna_sign: lagna}} : natal;
+        };
+        const options = {style: state.chartStyle, emptyText, aspects: vedicAspects()};
+        if (view === "gochara") {
+            AstroChart.render(container, rotate(results?.natal), {...options, gochara: results?.transit,
+                emptyText: state.activeProfile ? "排盘后显示 Gochara" : "选择人物后显示 Gochara"});
+        } else {
+            AstroChart.render(container, view === "natal" ? rotate(results) : results, options);
+        }
     },
     onNewChart() {
         AstroChart.clearSelection();

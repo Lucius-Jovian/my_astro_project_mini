@@ -15,8 +15,8 @@
   "session": {
     "library": "卜卦",
     "last_profile": {
-      "本命": 6,
-      "卜卦": 5,
+      "本命": 8,
+      "卜卦": 1,
       "测试专用": 1,
       "婚姻本命盘": 1
     },
@@ -46,7 +46,7 @@
         "sunrise_rsmi": 256,
         "dasha_days_in_year": 365.25,
         "dasha_start_planet": "Mo",
-        "kp_enabled": false,
+        "kp_enabled": true,
         "dasha_system": "vimshottari"
       },
       "modules": {
@@ -58,8 +58,9 @@
         "dasha": true
       },
       "chart_style": "north",
-      "varga": {
-        "rashi_lagna": "asc"
+      "aspects": {
+        "Ra": false,
+        "Ke": false
       }
     },
     "western": {
@@ -657,6 +658,7 @@
         "tabKpAbcd",
         "tabKp1234",
         "tabRuling",
+        "tabYoga",
         "tabProfile"
       ],
       "western": [

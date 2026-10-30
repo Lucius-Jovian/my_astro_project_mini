@@ -18,6 +18,15 @@
  * - 点一颗行星 → 高亮它所在的星座和它投射相位到的星座（正向：它看哪里）。宫头、上升点不可点击。
  * - 点一个星座数字 → 高亮这个星座，以及从别的星座向它投射相位的行星（反向：谁在看它）。
  * - 再点一次或点空白处取消。
+ * - 各行星投射哪几个相位由 options.aspects 给出（印度占星的设置里可以关掉罗睺、计都的相位），默认见 ASPECTS。
+ *
+ * Gochara（options.gochara = 过境盘的排盘结果）：在本命盘（Rashi）外面加一圈，放过境的行星和上升点。
+ * - 外圈每一段紧贴里面同一个星座的格子，所以外圈的星座永远与本命盘一致，外圈没有宫位。
+ * - 北印度盘：外圈每边三段（与里面三个格子对应），四个角按对角线分给相邻两段（与常见软件的画法相同）。
+ *   南印度盘：外圈每边中间两段是梯形，四个角的格子分到整个角落（L 形），角落里的文字排在对角线上的菱形区域里。
+ * - 点本命或过境的行星 → 它所在的那一层的星座高亮，它投射相位的星座里外两层都高亮。
+ * - 点星座数字或外圈空白处（外圈与里面是同一个星座）→ 这个星座里外两层都高亮，
+ *   里外两层向它投射相位的行星都标出来。
  *
  * ───────────────────────── 北印度盘：格内排版 ─────────────────────────
  * 格子分三类（由多边形自动识别，不按格子编号写死）：
@@ -39,6 +48,7 @@
     // ------------------------------------------------------------ 可调参数
 
     // Parashari 星座相位（从所在星座数起的第 n 个星座，所在星座本身算第 1 个）。
+    // 这是默认值；render 的 options.aspects 可以整份替换（例如关掉罗睺 / 计都的相位）。
     const ASPECTS = {
         Su: [7], Mo: [7], Me: [7], Ve: [7],
         Ma: [4, 7, 8],
@@ -212,13 +222,21 @@
         const rankOf = (it) => (Number.isFinite(it.rank) ? it.rank : it.lon % 30);
         items.sort((a, b) => a.sign - b.sign || rankOf(a) - rankOf(b));
         const bySign = Array.from({length: 12}, () => []);
-        items.forEach((it) => bySign[it.sign].push(it));
+        items.forEach((it) => { it.layer = "in"; bySign[it.sign].push(it); });
 
         return {
             bySign,
             wholeSign,
             lagnaSign: Number.isInteger(meta.lagna_sign) ? meta.lagna_sign : (ascLon !== undefined ? signOf(ascLon) : 0),
         };
+    }
+
+    // Gochara 外圈：过境盘的行星和上升点，按真实星座分进 12 段；不画宫头。
+    function buildRingItems(transit) {
+        const {bySign} = buildItems({...transit, chart_meta: {hide_cusps: true}});
+        return bySign.map((list) => list.map((it) => ({
+            ...it, key: `T:${it.key}`, layer: "out", title: `过境 · ${it.title}`,
+        })));
     }
 
     // ------------------------------------------------------------ 相位查询
@@ -231,16 +249,16 @@
     // 一颗行星投射相位到哪些星座：[{sign, n}]
     function aspectsFrom(item) {
         if (item.kind !== "planet") return [];
-        return (ASPECTS[item.code] || []).map((n) => ({sign: nthSign(item.sign, n), n}));
+        return (aspectTable[item.code] || []).map((n) => ({sign: nthSign(item.sign, n), n}));
     }
 
     // 哪些不在本星座的行星向这个星座投射相位：[{item, n}]
     function aspectsTo(data, sign) {
         const found = [];
-        for (const list of data.bySign) {
+        for (const list of allLists(data)) {
             for (const item of list) {
                 if (item.kind !== "planet" || item.sign === sign) continue;
-                for (const n of ASPECTS[item.code] || []) {
+                for (const n of aspectTable[item.code] || []) {
                     if (nthSign(item.sign, n) === sign) found.push({item, n});
                 }
             }
@@ -253,8 +271,16 @@
     // 当前选中：null | {type: "item", key} | {type: "sign", sign}
     let selection = null;
 
+    // 当前使用的相位表（render 时按 options.aspects 设定）。
+    let aspectTable = ASPECTS;
+
+    // 里层（本命）和外圈（Gochara 的过境）所有格子的元素列表。
+    function allLists(data) {
+        return data.ring ? [...data.bySign, ...data.ring] : data.bySign;
+    }
+
     function findItem(data, key) {
-        for (const list of data.bySign) {
+        for (const list of allLists(data)) {
             const found = list.find((it) => it.key === key);
             if (found) return found;
         }
@@ -263,6 +289,7 @@
 
     function applyHighlight(svg, data) {
         let selfSign = null;
+        let selfLayer = null;          // "in" 里层 / "out" 外圈 / "both" 两层（点星座时）
         let aspectSigns = new Set();
         let selectedKey = null;
         let aspectingKeys = new Set();
@@ -271,19 +298,23 @@
             const item = findItem(data, selection.key);
             if (item) {
                 selfSign = item.sign;
+                selfLayer = item.layer;
                 selectedKey = item.key;
                 aspectSigns = new Set(aspectsFrom(item).map((t) => t.sign));
             }
         } else if (selection?.type === "sign") {
             selfSign = selection.sign;
+            selfLayer = "both";
             aspectingKeys = new Set(aspectsTo(data, selection.sign).map((s) => s.item.key));
         }
 
-        svg.querySelectorAll("[data-sign-cell]").forEach((cell) => {
-            const sign = Number(cell.dataset.signCell);
-            cell.classList.toggle("hl-self", sign === selfSign);
+        const mark = (cell, sign, layer) => {
+            const self = sign === selfSign && (selfLayer === "both" || selfLayer === layer);
+            cell.classList.toggle("hl-self", self);
             cell.classList.toggle("hl-aspect", aspectSigns.has(sign) && sign !== selfSign);
-        });
+        };
+        svg.querySelectorAll("[data-sign-cell]").forEach((cell) => mark(cell, Number(cell.dataset.signCell), "in"));
+        svg.querySelectorAll("[data-ring-cell]").forEach((cell) => mark(cell, Number(cell.dataset.ringCell), "out"));
         svg.querySelectorAll("[data-sign-num]").forEach((g) => {
             g.classList.toggle("selected", selection?.type === "sign" && Number(g.dataset.signNum) === selection.sign);
         });
@@ -300,7 +331,8 @@
         const h = LINE_H * size;
         const clickable = item.kind === "planet";
         const g = el("g", {
-            class: `chart-item kind-${item.kind}${clickable ? " clickable" : ""}`, "data-item-key": item.key,
+            class: `chart-item kind-${item.kind} layer-${item.layer || "in"}${clickable ? " clickable" : ""}`,
+            "data-item-key": item.key,
         }, parent);
         el("title", {}, g).textContent = item.title;
         el("rect", {class: "item-hit", x: x - 2, y: y - 1, width: w + 4, height: h + 2, rx: 3}, g);
@@ -746,9 +778,13 @@
 
     function renderNorth(svg, data, onSelect) {
         const S = NORTH_SIZE;
-        svg.setAttribute("viewBox", `-2 -2 ${S + 4} ${S + 4}`);
-        const cellLayer = el("g", {class: "cells"}, svg);
-        const labels = el("g", {class: "labels"}, svg);
+        const T = data.ring ? RING_T : 0;
+        const W = S + 2 * T;
+        svg.setAttribute("viewBox", `-2 -2 ${W + 4} ${W + 4}`);
+        const ringLayer = data.ring ? el("g", {class: "ring"}, svg) : null;
+        const inner = el("g", T ? {transform: `translate(${T},${T})`} : {}, svg);
+        const cellLayer = el("g", {class: "cells"}, inner);
+        const labels = el("g", {class: "labels"}, inner);
 
         const cells = northGeometry(S).map((box, i) => {
             const sign = (data.lagnaSign + i) % 12;
@@ -756,9 +792,13 @@
             const items = data.bySign[sign];
             return {sign, cell, items, layout: items.length ? layoutNorthCell(cell, items) : null};
         });
+        // 外圈第 i 段紧贴里面第 i 个格子（第 i+1 宫），所以是同一个星座。
+        const ring = data.ring
+            ? northRingGeometry(S, T).map((poly, i) => ringCell(poly, poly, (data.lagnaSign + i) % 12, data.ring))
+            : [];
 
-        // 全盘统一字号：各格能撑开的最大字号里取最小，再夹在 [FONT_UNIFORM_MIN, FONT_MAX] 之间。
-        const fits = cells.filter((c) => c.layout).map((c) => c.layout.fit);
+        // 全盘统一字号：各格能撑开的最大字号里取最小，再夹在 [FONT_UNIFORM_MIN, FONT_MAX] 之间（里外两层一起算）。
+        const fits = [...cells, ...ring].filter((c) => c.layout).map((c) => c.layout.fit);
         const uniform = Math.min(FONT_MAX, Math.max(FONT_UNIFORM_MIN, fits.length ? Math.min(...fits) : FONT_MAX));
 
         for (const {sign, cell, items, layout} of cells) {
@@ -767,17 +807,115 @@
                 points: cell.poly.map((p) => p.join(",")).join(" "),
             }, cellLayer);
             drawSignNumber(labels, sign, cell.numPos[0], cell.numPos[1], SIGN_NUM_SIZE, onSelect);
+            drawCellItems(labels, cell, items, layout, uniform, onSelect);
+        }
+        if (ringLayer) drawRing(ringLayer, ring, uniform, onSelect);
+    }
 
-            if (!items.length) continue;
-            if (!layout) {
-                drawFallback(labels, cell, items, onSelect);
-                continue;
-            }
-            const size = Math.min(layout.fit, uniform);
-            const origin = placeNorthCell(cell, layout, size);
-            layout.boxes.forEach((b, k) => {
-                drawItem(labels, items[k], origin[0] + b.x * size, origin[1] + b.y * size, size, onSelect);
+    // 按排法把一个格子里的元素画出来（北印度盘的格子和 Gochara 外圈的每一段共用）。
+    function drawCellItems(parent, cell, items, layout, uniform, onSelect) {
+        if (!items.length) return;
+        if (!layout) {
+            drawFallback(parent, cell, items, onSelect);
+            return;
+        }
+        const size = Math.min(layout.fit, uniform);
+        const origin = placeNorthCell(cell, layout, size);
+        layout.boxes.forEach((b, k) => {
+            drawItem(parent, items[k], origin[0] + b.x * size, origin[1] + b.y * size, size, onSelect);
+        });
+    }
+
+    // ------------------------------------------------------------ Gochara 外圈
+
+    const RING_T = 88;               // 外圈的宽度（viewBox 单位；里面的星盘仍是 560 × 560）。南印度盘要求 > 140 - SOUTH_RING_SLANT
+    const SOUTH_RING_SLANT = 56;     // 南印度盘外圈：角落与中间两段的分界线向角落倾斜多少（让角落多分一些地方）
+
+    // 北印度盘外圈：12 段，顺序与 northGeometry 相同（第 1 宫在上方正中，逆时针）。
+    // 每边按里面星盘的三等分点切三段，四个角沿对角线分给相邻的两段。每一段都是凸四边形。
+    function northRingGeometry(S, T) {
+        const E = S + 2 * T;
+        const a = T + S / 3, b = T + (2 * S) / 3, i0 = T, i1 = T + S;
+        return [
+            [[a, 0], [b, 0], [b, i0], [a, i0]],           // 1 上中
+            [[0, 0], [a, 0], [a, i0], [i0, i0]],          // 2 上左
+            [[0, 0], [i0, i0], [i0, a], [0, a]],          // 3 左上
+            [[0, a], [i0, a], [i0, b], [0, b]],           // 4 左中
+            [[0, b], [i0, b], [i0, i1], [0, E]],          // 5 左下
+            [[0, E], [i0, i1], [a, i1], [a, E]],          // 6 下左
+            [[a, i1], [b, i1], [b, E], [a, E]],           // 7 下中
+            [[b, i1], [i1, i1], [E, E], [b, E]],          // 8 下右
+            [[i1, b], [E, b], [E, E], [i1, i1]],          // 9 右下
+            [[i1, a], [E, a], [E, b], [i1, b]],           // 10 右中
+            [[i1, i0], [E, 0], [E, a], [i1, a]],          // 11 右上
+            [[b, 0], [E, 0], [i1, i0], [b, i0]],          // 12 上右
+        ];
+    }
+
+    /*
+     * 南印度盘外圈：{星座: {poly 画出来的形状, layout 排文字用的凸多边形}}。
+     * 先算上边的三段（左上角、上边第 2、第 3 格），再顺时针旋转 90° 得到另外三边。
+     * 角落的形状是 L 形（不是凸的），文字排在对角线上的菱形里；中间两段是梯形。
+     */
+    function southRingGeometry(C, T) {
+        const E = 4 * C + 2 * T;
+        const X1 = T + C, X2 = T + 2 * C, X3 = T + 3 * C, s = SOUTH_RING_SLANT;
+        const top = [
+            {   // 左上角（双鱼）
+                poly: [[0, 0], [X1 - s, 0], [X1, T], [T, T], [T, X1], [0, X1 - s]],
+                layout: [[0, 0], [X1 - s, 0], [T, T], [0, X1 - s]],
+            },
+            {poly: [[X1 - s, 0], [X2, 0], [X2, T], [X1, T]]},     // 白羊
+            {poly: [[X2, 0], [X3 + s, 0], [X3, T], [X2, T]]},     // 金牛
+        ];
+        const rotate = (pts, k) => pts.map(([x, y]) => {
+            for (let i = 0; i < k; i++) [x, y] = [E - y, x];
+            return [x, y];
+        });
+        const out = {};
+        // 顺时针：上边 双鱼 白羊 金牛；右边 双子 巨蟹 狮子；下边 处女 天秤 天蝎；左边 射手 摩羯 水瓶
+        for (let side = 0; side < 4; side++) {
+            top.forEach((piece, j) => {
+                const sign = (11 + side * 3 + j) % 12;
+                out[sign] = {poly: rotate(piece.poly, side), layout: rotate(piece.layout || piece.poly, side)};
             });
+        }
+        return out;
+    }
+
+    // 外圈的一段：排版用的几何信息 + 这一段里的过境元素及其排法。
+    function ringCell(poly, layoutPoly, sign, ringItems) {
+        const xs = layoutPoly.map((p) => p[0]), ys = layoutPoly.map((p) => p[1]);
+        const cell = {
+            type: "ring", apexDown: false,
+            poly: layoutPoly,
+            planes: halfPlanes(layoutPoly),
+            bounds: [
+                [Math.min(...xs) - 1, Math.min(...ys) - 1], [Math.max(...xs) + 1, Math.min(...ys) - 1],
+                [Math.max(...xs) + 1, Math.max(...ys) + 1], [Math.min(...xs) - 1, Math.max(...ys) + 1],
+            ],
+            group: symmetryGroup(layoutPoly),
+            target: polygonCentroid(layoutPoly),
+        };
+        const items = ringItems[sign];
+        return {sign, poly, cell, items, layout: items.length ? layoutNorthCell(cell, items) : null};
+    }
+
+    // 画外圈：先画每一段（可点：等于点这个星座），再画过境的元素。
+    function drawRing(layer, ring, uniform, onSelect) {
+        const polys = el("g", {class: "ring-cells"}, layer);
+        const labels = el("g", {class: "labels"}, layer);
+        for (const {sign, poly, cell, items, layout} of ring) {
+            const shape = el("polygon", {
+                class: "ring-cell", "data-ring-cell": sign,
+                points: poly.map((p) => p.join(",")).join(" "),
+            }, polys);
+            el("title", {}, shape).textContent = `过境 · ${SIGN_NAMES[sign]}（点一下查看相位）`;
+            shape.addEventListener("click", (event) => {
+                event.stopPropagation();
+                onSelect({type: "sign", sign});
+            });
+            drawCellItems(labels, cell, items, layout, uniform, onSelect);
         }
     }
 
@@ -810,10 +948,20 @@
      */
     function renderSouth(svg, data, onSelect) {
         const W = SOUTH_COL_W;
-        svg.setAttribute("viewBox", `-2 -2 ${W * 4 + 4} ${W * 4 + 4}`);
+        const T = data.ring ? RING_T : 0;
+        const total = W * 4 + 2 * T;
+        svg.setAttribute("viewBox", `-2 -2 ${total + 4} ${total + 4}`);
+        if (data.ring) {
+            const geo = southRingGeometry(W, T);
+            const ring = Array.from({length: 12}, (_, sign) => ringCell(geo[sign].poly, geo[sign].layout, sign, data.ring));
+            const fits = ring.filter((c) => c.layout).map((c) => c.layout.fit);
+            const uniform = Math.min(FONT_MAX, Math.max(FONT_UNIFORM_MIN, fits.length ? Math.min(...fits) : FONT_MAX));
+            drawRing(el("g", {class: "ring"}, svg), ring, uniform, onSelect);
+        }
+        const inner = el("g", T ? {transform: `translate(${T},${T})`} : {}, svg);
 
-        const cells = el("g", {class: "cells"}, svg);
-        const labels = el("g", {class: "labels"}, svg);
+        const cells = el("g", {class: "cells"}, inner);
+        const labels = el("g", {class: "labels"}, inner);
         el("rect", {class: "center-box", x: W, y: W, width: W * 2, height: W * 2}, cells);
 
         // 右上角星座数字占掉的高度：元素列的上下各留出这么多，列居中时就不会碰到数字。
@@ -864,12 +1012,14 @@
             return null;
         }
 
+        aspectTable = options.aspects || ASPECTS;
         const data = buildItems(results);
+        if (options.gochara) data.ring = buildRingItems(options.gochara);
         if (selection?.type === "item" && !findItem(data, selection.key)) selection = null;
 
         const svg = el("svg", {
-            class: `astro-chart ${style}`, xmlns: SVG_NS, role: "img",
-            "aria-label": style === "north" ? "北印度星盘" : "南印度星盘",
+            class: `astro-chart ${style}${data.ring ? " gochara" : ""}`, xmlns: SVG_NS, role: "img",
+            "aria-label": `${style === "north" ? "北印度星盘" : "南印度星盘"}${data.ring ? "（外圈为过境）" : ""}`,
             "font-family": FONT_FAMILY,
         });
         container.append(svg);
@@ -900,6 +1050,7 @@
         render,
         clearSelection,
         // 仅供调试 / 测试：查看某个格子会选出哪种排法。
-        _debug: {northGeometry, prepareNorthCell, layoutNorthCell, placeNorthCell, aspectsTo},
+        _debug: {northGeometry, northRingGeometry, southRingGeometry, prepareNorthCell, layoutNorthCell, placeNorthCell, aspectsTo},
+        DEFAULT_ASPECTS: ASPECTS,
     };
 })();

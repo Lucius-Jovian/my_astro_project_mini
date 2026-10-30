@@ -13,6 +13,27 @@
     user-select: none;
 }
 
+/* Gochara（外面多一圈过境）：viewBox 比普通星盘大约 1/3，显示得也大一些，里面星盘的字不至于变得太小。 */
+.astro-chart.gochara { width: min(100%, 720px, max(320px, calc(100vh - 210px))); }
+
+/* 外圈的每一段：可点（等于点这个星座），着色规则与里面的格子相同。 */
+.astro-chart .ring-cell {
+    fill: transparent;
+    stroke: var(--chart-line);
+    stroke-width: 1.3;
+    stroke-linejoin: round;
+    cursor: pointer;
+    transition: fill 0.15s;
+}
+.astro-chart .ring-cell:hover { fill: var(--hover); }
+.astro-chart .ring-cell.hl-self { fill: var(--hl-self); }
+.astro-chart .ring-cell.hl-aspect { fill: var(--hl-aspect); }
+
+/* 过境（外圈）的元素用另一种颜色，与本命区分。 */
+.astro-chart .layer-out .item-code { fill: var(--c-transit); }
+.astro-chart .layer-out .item-deg { fill: var(--c-transit-deg); }
+.astro-chart .layer-out.kind-asc .item-code { fill: var(--c-asc); opacity: 0.85; }
+
 /* 格子默认透明，只有点击查看相位时才着色。 */
 .astro-chart .sign-cell {
     fill: transparent;
@@ -135,3 +156,90 @@ dialog.modal.varga-modal { width: min(640px, calc(100vw - 32px)); }
     .varga-row { grid-template-columns: 3.2em 1fr; }
     .varga-row select { grid-column: 2; }
 }
+
+/* ---------- 星盘上方：转宫（第一宫）+ 南北印度 ---------- */
+
+.chart-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lagna-pick { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; color: var(--muted); }
+.lagna-pick[hidden] { display: none; }
+.lagna-pick select { width: auto; min-width: 7.5em; height: 32px; margin: 0; padding-top: 0; padding-bottom: 0; font-size: 13px; }
+/* 转了宫：提醒一下，免得忘了自己转过 */
+.lagna-pick.is-rotated select { border-color: var(--c-asc); color: var(--text); }
+
+.aspect-note { margin: 0 0 8px; font-size: 12px; line-height: 1.6; }
+
+/* ---------- Yoga 标签页 ---------- */
+
+.yoga-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; font-size: 13px; }
+.yoga-head .spacer { flex: 1 1 auto; }
+.yoga-scope { font-weight: 650; }
+.yoga-showall { margin: 0; font-size: 12px; }
+.yoga-err-count { color: var(--danger); }
+
+.yoga-group { border-bottom: 1px solid var(--border); }
+.yoga-group > summary {
+    display: flex; justify-content: space-between; gap: 8px;
+    padding: 7px 4px; cursor: pointer; list-style: none;
+    font-size: 13px; font-weight: 650; color: var(--text-2);
+}
+.yoga-group > summary::-webkit-details-marker { display: none; }
+.yoga-group > summary::before { content: "▸"; margin-right: 6px; color: var(--muted); transition: transform 0.15s; display: inline-block; }
+.yoga-group[open] > summary::before { transform: rotate(90deg); }
+.yoga-group > summary > span:first-child { flex: 1 1 auto; }
+
+.yoga-row { padding: 6px 4px 7px 22px; border-top: 1px dashed var(--border); font-size: 13px; }
+.yoga-row.off { opacity: 0.55; }
+.yoga-title { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.yoga-mark { width: 12px; margin-left: -16px; font-size: 10px; color: var(--c-asc); }
+.yoga-row.off .yoga-mark { color: var(--muted); }
+.yoga-row.error .yoga-mark { color: var(--danger); font-weight: 700; }
+.yoga-cn { color: var(--text-2); }
+.yoga-effect { color: var(--c-transit); font-size: 12px; }
+.yoga-desc { margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.yoga-src { margin-left: 8px; font-size: 11px; color: var(--muted); opacity: 0.8; }
+.yoga-badge { padding: 0 6px; border-radius: 999px; background: var(--accent-soft); color: var(--text-2); font-size: 11px; }
+.yoga-error { color: var(--danger); }
+.yoga-edit-link {
+    margin-left: auto; padding: 0 6px; height: auto; border: 0; background: transparent;
+    font-size: 12px; color: var(--muted); opacity: 0; transition: opacity 0.12s;
+}
+.yoga-row:hover .yoga-edit-link, .yoga-edit-link:focus-visible { opacity: 1; }
+.yoga-edit-link:hover { color: var(--text); }
+.yoga-none { margin: 12px 4px; }
+.yoga-foot { margin: 10px 4px 0; font-size: 11.5px; }
+
+/* ---------- 管理 Yoga 浮窗 ---------- */
+
+dialog.modal.yoga-modal { width: min(900px, calc(100vw - 32px)); height: min(820px, calc(100vh - 48px)); }
+.yoga-toolbar { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.yoga-toolbar input[type="search"] { flex: 1 1 220px; margin: 0; }
+.yoga-toolbar select { width: auto; margin: 0; }
+.yoga-manage-list { display: grid; gap: 0; }
+.ym-row {
+    display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto auto;
+    align-items: center; column-gap: 10px;
+    padding: 7px 4px; border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.ym-row.disabled .ym-main { opacity: 0.5; }
+.ym-rule { font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ym-cat { font-size: 12px; white-space: nowrap; }
+.ym-row .small-btn { margin: 0; }
+@media (max-width: 640px) {
+    .ym-row { grid-template-columns: 20px minmax(0, 1fr) auto auto; }
+    .ym-cat { display: none; }
+}
+
+.yoga-editor { display: flex; flex-direction: column; gap: 6px; }
+.yoga-editor.hidden { display: none; }
+.yoga-editor textarea { font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; resize: vertical; }
+.yoga-check { min-height: 1.4em; margin: 0; font-size: 12.5px; }
+.yoga-check.ok { color: var(--c-transit); }
+.yoga-check.bad { color: var(--danger); }
+.yoga-editor-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.yoga-ref { font-size: 12.5px; line-height: 1.7; }
+.yoga-ref p { margin: 0 0 6px; }
+.yoga-ref h4 { margin: 10px 0 4px; font-size: 13px; }
+.yoga-ref code { background: var(--subtle); padding: 0 4px; border-radius: 3px; font-size: 12px; }
+.yoga-ref-table { border-collapse: collapse; width: 100%; }
+.yoga-ref-table td { padding: 3px 8px 3px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+.yoga-ref-table td:first-child { white-space: nowrap; }
