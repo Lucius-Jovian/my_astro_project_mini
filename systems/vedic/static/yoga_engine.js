@@ -44,9 +44,9 @@
     const ENEMIES = {
         Su: ["Ve", "Sa"], Mo: [], Ma: ["Me"], Me: ["Mo"], Ju: ["Me", "Ve"], Ve: ["Su", "Mo"], Sa: ["Su", "Mo", "Ma"],
     };
-    // 燃烧（Combust）的度数（BPHS / Surya Siddhanta 常用值）；水星、金星逆行时更小
-    const COMBUST = {Mo: 12, Ma: 17, Me: 14, Ju: 11, Ve: 10, Sa: 15};
-    const COMBUST_RETRO = {Me: 12, Ve: 8};
+    // 燃烧（Combust）的默认度数（BPHS 常用值）；Me_r、Ve_r 是水星、金星逆行时的度数。
+    // 实际用的度数由 makeChart({combust}) 传入（计算设置 → 燃烧）。
+    const COMBUST = {Mo: 12, Ma: 17, Me: 14, Me_r: 12, Ju: 11, Ve: 10, Ve_r: 8, Sa: 15};
 
     const CONSTANTS = {
         KENDRA: {value: [1, 4, 7, 10], doc: "角宫 1、4、7、10"},
@@ -253,7 +253,8 @@
         sign.Lagna = lagna;
         deg.Lagna = 0;
         const phys = input.phys || input.points || {};
-        const chart = {sign, cell, deg, lon, lagna, phys, aspects: input.aspects || {}, dsignFn: input.dsign, memo: new Map()};
+        const chart = {sign, cell, deg, lon, lagna, phys, aspects: input.aspects || {}, combust: {...COMBUST, ...(input.combust || {})},
+            dsignFn: input.dsign, memo: new Map()};
         return chart;
     }
 
@@ -404,10 +405,10 @@
             fn: (c, p) => { needPlanet(p, "enemy_sign"); return (ENEMIES[p] || []).includes(SIGN_LORD[c.sign[p]]); }},
         retro: {min: 1, max: 1, sig: "retro(P)", doc: "P 逆行（按本命盘的真实速度）",
             fn: (c, p) => { needPlanet(p, "retro"); return Number(c.phys[p]?.speed) < 0; }},
-        combust: {min: 1, max: 1, sig: "combust(P)", doc: "P 燃烧：离太阳在规定度数内（月 12°、火 17°、水 14°/逆 12°、木 11°、金 10°/逆 8°、土 15°，按本命盘真实黄经）",
+        combust: {min: 1, max: 1, sig: "combust(P)", doc: "P 燃烧：离太阳在设置的度数以内（计算设置 → 燃烧），按本命盘真实黄经",
             fn: (c, p) => {
                 needPlanet(p, "combust");
-                const orb = (Number(c.phys[p]?.speed) < 0 && COMBUST_RETRO[p]) || COMBUST[p];
+                const orb = (Number(c.phys[p]?.speed) < 0 && c.combust[`${p}_r`]) || c.combust[p];
                 if (!orb || !c.phys[p] || !c.phys.Su) return false;
                 const d = Math.abs(((c.phys[p].lon - c.phys.Su.lon) % 360 + 540) % 360 - 180);
                 return d < orb;

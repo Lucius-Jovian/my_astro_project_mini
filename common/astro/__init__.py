@@ -13,7 +13,9 @@ from .core import (
     calculate_planets,
     calculate_sunrise_sunset,
     decimal_to_dms,
+    jd_to_local,
     parse_time_geo,
+    sidereal_sun_moon,
     set_ephemeris_path,
 )
 from .options import BASIC_CALC_KEYS, ayanamsha_options, clean_basic_calc, house_system_options
@@ -34,6 +36,8 @@ __all__ = [
     "calculate_planets",
     "calculate_sunrise_sunset",
     "decimal_to_dms",
+    "jd_to_local",
+    "sidereal_sun_moon",
     "house_system_options",
     "parse_time_geo",
     "set_ephemeris_path",

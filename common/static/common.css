@@ -58,8 +58,8 @@ a { color: inherit; }
     justify-content: space-between;
     align-items: center;
     gap: 16px;
-    height: 56px;
-    padding: 0 20px;
+    height: var(--topbar-h);
+    padding: 0 12px;
     background: var(--surface);
     border-bottom: 1px solid var(--border);
     position: sticky;
@@ -67,7 +67,7 @@ a { color: inherit; }
     z-index: 20;
 }
 
-.topbar h1 { margin: 0; font-size: 18px; font-weight: 650; letter-spacing: 0.02em; }
+.topbar h1 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: 0.02em; white-space: nowrap; }
 
 .topbar-actions {
     display: flex;
@@ -123,35 +123,77 @@ button.danger:hover { background: var(--danger-soft); }
 
 .small-btn { padding: 5px 10px; font-size: 13px; }
 
-/* ---------- 布局 ---------- */
+/* ---------- 布局：左边星盘、右边结果，设置收在抽屉里 ----------
+   --chart-size 是星盘的边长：窗口高度减去顶栏、星盘上方两行和留白，同时不超过窗口宽度的 58%。
+   星盘一栏的宽度跟着星盘走，剩下的宽度都给右边的结果区。 */
+
+:root {
+    --topbar-h: 52px;
+    --chart-size: max(320px, min(calc(100vh - var(--topbar-h) - 136px), 58vw));
+}
 
 .layout {
     display: grid;
-    grid-template-columns: 340px minmax(0, 1fr);
-    gap: 16px;
-    padding: 16px;
-    max-width: 1800px;
-    margin: 0 auto;
+    grid-template-columns: calc(var(--chart-size) + 26px) minmax(0, 1fr);
+    gap: 12px;
+    padding: 12px;
+    height: calc(100vh - var(--topbar-h));
+    box-sizing: border-box;
 }
 
-.sidebar, .content {
+.chart-panel, .result-panel { min-width: 0; min-height: 0; }
+.chart-panel { display: flex; flex-direction: column; gap: 8px; padding: 12px; overflow: auto; }
+.result-panel { display: flex; flex-direction: column; padding: 12px 14px; }
+.result-panel .tab-panels { flex: 1 1 auto; min-height: 0; overflow: auto; padding-right: 2px; scrollbar-width: thin; }
+
+/* ---------- 设置抽屉 ---------- */
+
+.drawer {
+    position: fixed;
+    top: var(--topbar-h);
+    bottom: 0;
+    left: 0;
+    z-index: 40;
+    width: min(360px, 92vw);
     display: flex;
     flex-direction: column;
     gap: 12px;
-    min-width: 0;
+    padding: 12px;
+    overflow-y: auto;
+    background: var(--bg);
+    border-right: 1px solid var(--border);
+    box-shadow: var(--pop-shadow);
+    transform: translateX(-102%);
+    visibility: hidden;
+    transition: transform 0.2s ease, visibility 0.2s;
+    scrollbar-width: thin;
 }
+.drawer.open { transform: none; visibility: visible; }
+.drawer-scrim { position: fixed; inset: var(--topbar-h) 0 0 0; z-index: 35; background: rgba(20, 18, 16, 0.35); }
+.drawer-scrim[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .drawer { transition: none; } }
 
-/* 宽屏时侧栏独立滚动：调参数时星盘始终留在视野里。 */
-@media (min-width: 981px) {
-    .sidebar {
-        position: sticky;
-        top: 72px;
-        max-height: calc(100vh - 88px);
-        overflow-y: auto;
-        padding-right: 4px;
-        scrollbar-width: thin;
-    }
+.drawer-btn { width: 34px; height: 34px; border-radius: 8px; }
+.drawer-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+.drawer-btn[aria-expanded="true"] { background: var(--accent-soft); color: var(--text); }
+
+/* 顶栏：当前人物 */
+.person-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 260px;
+    height: 32px;
+    padding: 0 12px 0 10px;
+    border-radius: 999px;
+    background: var(--subtle);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
 }
+.person-chip svg { flex: 0 0 auto; width: 14px; height: 14px; fill: none; stroke: var(--muted); stroke-width: 1.4; }
+.person-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-chip.empty { color: var(--muted); font-weight: 400; }
 
 .panel {
     background: var(--surface);
@@ -653,9 +695,9 @@ pre {
     flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 8px;
+    gap: 6px 8px;
 }
+.chart-head .segmented.compact span { padding: 4px 9px; }
 
 .chart-head h2 { margin: 0; }
 
@@ -722,9 +764,7 @@ pre {
 @media (max-width: 520px) { .view-menu-pop { --cols: 3; } }
 
 /* 星盘上方的一行说明（分盘名称、算法、转宫等） */
-.chart-caption { margin: -2px 0 6px; font-size: 12px; color: var(--muted); text-align: center; }
-.chart-caption[hidden] { display: none; }
-.chart-caption.blank { visibility: hidden; }
+
 
 .chart-box {
     display: flex;
@@ -744,11 +784,12 @@ pre {
 /* ---------- 结果区标签页 ---------- */
 
 .tab-bar {
+    flex: 0 0 auto;
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
-    padding-bottom: 10px;
-    margin-bottom: 12px;
+    gap: 2px;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
     border-bottom: 1px solid var(--border);
 }
 
@@ -771,50 +812,15 @@ pre {
 
 .tab-panel h3 { font-size: 13px; margin: 16px 0 6px; color: var(--text-2); }
 
-/* ---------- 结果区上移覆盖星盘（Tab 键或右上角按钮） ----------
-   上移的距离 --lift = 结果区到星盘区顶部的距离，由 JS 量好写进来（星盘大小变了会重新量）。
-   上移时：结果区至少和星盘一样高，把星盘整个盖住；负的下边距把原来的位置收回，页面下方不留空白。 */
-.result-panel { position: relative; }
-.result-panel .tab-bar { padding-right: 36px; }
-.lift-btn {
-    position: absolute;
-    top: 12px;
-    right: 12px;
-    z-index: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border-color: transparent;
-    background: transparent;
-    color: var(--text-2);
-    border-radius: 6px;
-}
-.lift-btn:hover { background: var(--hover); color: var(--text); }
-.lift-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; transition: transform 0.2s ease; }
-.lift-btn[aria-pressed="true"] svg { transform: rotate(180deg); }
-
-.content.results-lifted .result-panel {
-    z-index: 5;
-    transform: translateY(calc(-1 * var(--lift, 0px)));
-    min-height: var(--cover-h, auto);
-    margin-bottom: calc(-1 * var(--lift, 0px));
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
-}
-.content.results-animating .result-panel { transition: transform 0.22s ease, box-shadow 0.22s ease; }
-.content.results-lifted .chart-panel { pointer-events: none; }    /* 被盖住的星盘不再接收点击 */
-@media (prefers-reduced-motion: reduce) {
-    .content.results-animating .result-panel { transition: none; }
-}
 .tab-panel h3:first-child { margin-top: 0; }
 
 /* ---------- 窄屏 ---------- */
 
 @media (max-width: 980px) {
-    .layout { grid-template-columns: 1fr; padding: 12px; }
-    .topbar { position: static; height: auto; padding: 10px 16px; flex-wrap: wrap; }
+    :root { --chart-size: min(calc(100vw - 50px), 640px); }
+    .layout { grid-template-columns: 1fr; height: auto; }
+    .result-panel .tab-panels { overflow: visible; }
+    .topbar { position: static; height: auto; min-height: var(--topbar-h); padding: 8px 12px; flex-wrap: wrap; }
 }
 
 @media (max-width: 520px) {
@@ -875,15 +881,25 @@ pre {
 
 /* ---------- 时间步进 ---------- */
 
+/* 星盘上方的时间条：日期时间 + 步进（+ 过境时的「现在」） */
+.time-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.time-strip[hidden] { display: none; }
+.time-strip .dt-input { flex: 0 0 auto; width: auto; }
+.time-strip .dt-hint { flex: 1 0 100%; margin: 0; }
 .time-step {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 6px;
-    margin: 4px 0 6px;
+    gap: 4px;
+    margin: 0;
 }
 
-.time-step select { width: auto; flex: 1 1 0; min-width: 0; margin: 0; padding: 6px; }
+.time-step select { width: auto; margin: 0; padding: 5px 24px 5px 8px; }
+.step-reset { padding: 4px 8px; font-size: 12px; border-color: transparent; background: var(--accent-soft); color: var(--text-2); font-variant-numeric: tabular-nums; }
+.strip-spacer { flex: 1 1 0; min-width: 0; }
+.now-btn { width: 32px; height: 32px; }
+.now-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.now-btn.spin svg { animation: qa-spin 0.6s ease; }
+@keyframes qa-spin { to { transform: rotate(360deg); } }
 
 .step-btn {
     flex: 0 0 auto;
@@ -894,9 +910,7 @@ pre {
     line-height: 1;
 }
 
-.step-offset { flex: 1 0 100%; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
-.step-offset:empty { display: none; }
-#stepResetBtn { padding: 3px 8px; font-size: 12px; }
+.step-offset { font-size: 12px; }
 
 /* ---------- 人物档案：侧栏卡片 ---------- */
 
@@ -1526,7 +1540,7 @@ mark { background: var(--hl-self); color: var(--text); border-radius: 2px; paddi
 
 /* ---------- 顶栏：占星体系切换 ---------- */
 
-.topbar-title { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.topbar-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .system-switch { display: inline-flex; }
 .system-switch a {
     display: inline-flex;

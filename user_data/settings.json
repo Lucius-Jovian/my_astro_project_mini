@@ -13,14 +13,14 @@
     "calendar": "g"
   },
   "session": {
-    "library": "卜卦",
+    "library": "测试专用",
     "last_profile": {
-      "本命": 8,
-      "卜卦": 1,
+      "本命": 6,
+      "卜卦": 5,
       "测试专用": 1,
       "婚姻本命盘": 1
     },
-    "last_system": "western",
+    "last_system": "vedic",
     "profile_sort": {
       "本命": {
         "sort": "opened",
@@ -57,18 +57,14 @@
         "kp_ruling": true,
         "dasha": true
       },
-      "chart_style": "north",
-      "aspects": {
-        "Ra": false,
-        "Ke": false
-      }
+      "chart_style": "north"
     },
     "western": {
       "calculation_defaults": {
         "ecliptic_mode": "tropical",
         "ayanamsha_mode": "SIDM_LAHIRI",
         "node_mode": "mean",
-        "house_system": "Regiomontanus",
+        "house_system": "Placidus",
         "sunrise_rsmi": 256
       },
       "points": {
@@ -653,12 +649,12 @@
         "tabHouses",
         "tabSun",
         "tabDasha",
+        "tabYoga",
         "tabKpPlanets",
         "tabKpHouses",
         "tabKpAbcd",
         "tabKp1234",
         "tabRuling",
-        "tabYoga",
         "tabProfile"
       ],
       "western": [

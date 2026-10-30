@@ -65,6 +65,7 @@ const SYSTEM_HOOKS = {
     rawSections(results) { return baseRawSections(results); },
     renderChart(container, results, {emptyText, view}) {},
     onNewChart() {},                    // 新的一张盘算好了（例如清掉上一张盘里的选中高亮）
+    onProfileChange(profile) {},        // 换了人（例如印度占星清掉各张盘的转宫）
     afterCalculate(kind, result) {},    // 某张盘（natal / transit）刚算完
     tabVisible(button) { return undefined; },   // 体系的标签页是否显示；undefined = 不管
     // 从本命盘换算出来的分盘：{键: {label, derive(natalResults, {payload}), signature?(), bar?}}
@@ -77,7 +78,9 @@ const SYSTEM_HOOKS = {
     viewLabels: {},                     // 改写本命 / 过境两个按钮的名称：{natal: "...", transit: "..."}
     // 按钮条右边的下拉菜单（分盘多时用）：{label, items: [{value: 视图键, label, note?, sub?, title?}]}；null = 不要
     viewMenu: null,
-    viewCaption(view, results) { return ""; },   // 星盘上方的一行说明（例如分盘名称和算法）
+    // 「值日星 · 行星时」标签页：默认画共用的表；体系可以换成自己的（印度占星：历法 / Panchanga）
+    renderSunTab(container, results) { renderSunTable(container, results); },
+    tabLabels: {},                      // 改写共用标签页的名称：{tabSun: "历法"}
     onDerivedReady(view) {},            // 一张要等后端的分盘（如 Bhava）刚算好、已经重画
 };
 let SYSTEM = {...SYSTEM_HOOKS};
@@ -530,12 +533,12 @@ function localTimeText(iso) {
     return m ? `${m[1]}-${m[2]}-${m[3]} ${m[4]}:${m[5]}:${m[6]}` : String(iso || "—");
 }
 
-function renderSunTable(target, results) {
+function renderSunTable(container, results) {
     const sun = results.sun_events;
     const day = results.day_lord_result;
     const hour = results.planetary_hour_data;
     if (!sun || !day || !hour) {
-        $(target).innerHTML = "<p class='muted'>无数据</p>";
+        container.innerHTML = "";
         return;
     }
     const rows = [
@@ -543,10 +546,11 @@ function renderSunTable(target, results) {
         {name: "行星时主星", value: {html: SYSTEM.planetName(hour.planetary_hour_lord)}},
         {name: "日出", value: localTimeText(sun.sunrise_local)},
         {name: "日落", value: localTimeText(sun.sunset_local)},
+        {name: "次日日出", value: sun.next_sunrise_local ? localTimeText(sun.next_sunrise_local) : "—"},
         {name: "第几个行星时", value: String(hour.hour_number)},
         {name: "行星时起止", value: `${localTimeText(hour.hour_start).slice(11)} – ${localTimeText(hour.hour_end).slice(11)}`},
     ];
-    $(target).innerHTML = rowsTableHtml([{key: "name", label: "名称"}, {key: "value", label: "值"}], rows);
+    container.innerHTML = rowsTableHtml([{key: "name", label: "名称"}, {key: "value", label: "值"}], rows);
 }
 
 // ---------- 结果表共用的格式 ----------
@@ -570,7 +574,7 @@ function renderAllResults() {
     // 行星、宫位两页由体系决定怎么画（默认是原始参数表）。
     SYSTEM.renderPlanetTab($("planetResult"), state.results);
     SYSTEM.renderHouseTab($("houseResult"), state.results);
-    renderSunTable("sunResult", state.results);
+    SYSTEM.renderSunTab($("sunResult"), state.results);
 
     SYSTEM.renderResults();
 }
@@ -586,7 +590,6 @@ function renderChart() {
     if (!derived) {
         const base = state.charts[chartKind()].results;
         SYSTEM.renderChart(box, base, {emptyText, view});
-        renderChartCaption(base);
         return;
     }
     // 分盘都从本命盘换算；form 为 transit 的分盘（如 Gochara）另外还要过境盘。
@@ -594,7 +597,6 @@ function renderChart() {
     const transit = derived.form === "transit" ? state.charts.transit.results : undefined;
     if (!base || transit === null) {
         SYSTEM.renderChart(box, null, {emptyText, view});
-        renderChartCaption(null);
         return;
     }
     const entry = derivedEntry(view, base, transit);
@@ -608,19 +610,8 @@ function renderChart() {
         box.appendChild(p);
         if (entry.error) entry.errorShown = true;
     }
-    renderChartCaption(entry.results || base);
 }
 
-// 体系提供了说明文字时，这一行的高度一直保留（没有说明时只是看不见），切换星盘时星盘不会上下跳。
-function renderChartCaption(results) {
-    const caption = $("chartCaption");
-    if (!caption) return;
-    const used = SYSTEM.viewCaption !== SYSTEM_HOOKS.viewCaption;
-    const text = used && results ? String(SYSTEM.viewCaption(state.view, results) || "") : "";
-    caption.hidden = !used;
-    caption.textContent = text || "\u00a0";
-    caption.classList.toggle("blank", !text);
-}
 
 // 外观设置一改就生效，并在后台写回 settings.json；写失败只提示，不影响当前页面。
 async function saveAppearance(changes) {
@@ -1852,6 +1843,8 @@ function updateViewUI() {
     $("profilePanel").classList.toggle("hidden", transit);
     $("transitPanel").classList.toggle("hidden", !transit);
     $("timePanel").classList.toggle("hidden", !transit && !state.activeProfile);
+    $("timeStrip").hidden = !transit && !state.activeProfile;
+    $("nowBtn").classList.toggle("hidden", !transit);
     $("syncProfileLocBtn").disabled = !state.activeProfile;
     updateProfileTab();
     renderTransitCard();
@@ -2048,7 +2041,9 @@ function bindTransitActions() {
 // save = false：只在这一页换人，不写会话、不记「最近打开」
 // （打开网页时选回上次的人、或另一个体系已经记过时用）。
 async function useProfileForNatal(profile, {calculate = true, save = true} = {}) {
+    const changed = (profile?.id ?? null) !== (state.activeProfile?.id ?? null);
     setActiveProfile(profile);
+    if (changed) SYSTEM.onProfileChange(profile);
     if (save) saveSession(profile ? profile.id : null);
     const natal = state.charts.natal;
     natal.input = profile ? inputFromProfile(profile) : null;
@@ -2492,6 +2487,9 @@ function renderActiveProfileCard() {
     const card = $("activeProfileCard");
     const p = state.activeProfile;
     $("editProfileBtn").disabled = !p;
+    $("personName").textContent = p ? p.display_name : "选择人物";
+    $("personChip").classList.toggle("empty", !p);
+    $("personChip").title = p ? `${p.display_name}（点一下换人）` : "选择人物";
     if (!p) {
         card.innerHTML = "<p class='muted profile-card-empty'>未选择人物</p>";
         return;
@@ -4112,6 +4110,10 @@ async function init() {
         state.tagOptions = bootstrap.tags || [];
         Object.assign(state.appearance, state.settings.appearance || {});
         SYSTEM.init(bootstrap);
+        for (const [tab, label] of Object.entries(SYSTEM.tabLabels || {})) {
+            const button = document.querySelector(`#resultTabs [data-tab="${tab}"]`);
+            if (button) button.textContent = label;
+        }
 
         fillSelect($("houseSystem"), state.optionsMeta.house_systems);
         fillSelect($("ayanamshaMode"), state.optionsMeta.ayanamsha_modes);
@@ -4137,7 +4139,7 @@ async function init() {
         bindTimeStep();
         bindFolds();
         bindResultTabs();
-        bindResultLift();
+        bindDrawer();
         bindTabOrderDialog();
         bindRawDialog();
     bindSettingsTransfer();
@@ -4163,82 +4165,31 @@ async function init() {
     }
 }
 
-// ================= 结果区上移覆盖星盘 =================
-// 按 Tab（或结果区右上角的按钮）：右下角的结果区向上移动，盖住星盘；再按一次归位。Esc 也可以归位。
-// 只有焦点不在输入框、下拉框、多行文本里，而且没有打开浮窗时，Tab 才用来切换；
-// 在输入框里 Tab 仍然是跳到下一格，Shift + Tab 也保持浏览器原来的作用。
-// 状态记在 sessionStorage：在本标签页里切换占星体系时保持上移，关掉浏览器标签页后恢复默认。
+// ================= 设置抽屉 =================
+// 左上角的按钮打开 / 收起；点抽屉外面、按 Esc 也收起。抽屉里的改动和以前一样立即生效。
 
-const LIFT_STORE_KEY = "quant-astro:results-lifted";
-let liftObserver = null;
-
-function resultsLifted() {
-    return document.querySelector(".content").classList.contains("results-lifted");
+function drawerOpen() {
+    return $("drawer").classList.contains("open");
 }
 
-// 量出上移的距离（结果区顶部到星盘区顶部）和需要覆盖的高度（星盘区的高度）。
-function measureLift() {
-    const content = document.querySelector(".content");
-    const chart = $("chartPanel");
-    const results = $("resultPanel");
-    content.style.setProperty("--lift", `${results.offsetTop - chart.offsetTop}px`);
-    content.style.setProperty("--cover-h", `${chart.offsetHeight}px`);
+function setDrawerOpen(open) {
+    $("drawer").classList.toggle("open", open);
+    $("drawer").setAttribute("aria-hidden", String(!open));
+    $("drawerScrim").hidden = !open;
+    $("drawerBtn").setAttribute("aria-expanded", String(open));
+    if (open) setTimeout(() => $("drawer").querySelector("button, input, select")?.focus({preventScroll: true}), 0);
 }
 
-function setResultsLifted(on, {animate = true} = {}) {
-    const content = document.querySelector(".content");
-    if (on === resultsLifted()) return;
-    if (on) measureLift();
-    content.classList.toggle("results-animating", animate);
-    content.classList.toggle("results-lifted", on);
-    const button = $("liftResultsBtn");
-    button.setAttribute("aria-pressed", String(on));
-    const label = on ? "结果区归位（Tab）" : "结果区上移，覆盖星盘（Tab）";
-    button.title = label;
-    button.setAttribute("aria-label", label.replace("（Tab）", ""));
-    if (animate) setTimeout(() => content.classList.remove("results-animating"), 260);
-    try {
-        if (on) sessionStorage.setItem(LIFT_STORE_KEY, "1");
-        else sessionStorage.removeItem(LIFT_STORE_KEY);
-    } catch (_) { /* 无痕模式等情况下存不了：只是不记住，不影响使用 */ }
-
-    // 上移期间星盘、窗口大小变了，重新量一次距离。
-    if (on && !liftObserver && "ResizeObserver" in window) {
-        liftObserver = new ResizeObserver(() => { if (resultsLifted()) measureLift(); });
-        liftObserver.observe($("chartPanel"));
-    }
-    // 星盘的顶部在屏幕上方看不见时，滚到能看见结果区顶部的位置。
-    if (on) {
-        const top = $("chartPanel").getBoundingClientRect().top;
-        const topbar = document.querySelector(".topbar")?.getBoundingClientRect().height || 0;
-        if (top < topbar) window.scrollBy({top: top - topbar - 8, behavior: animate ? "smooth" : "auto"});
-    }
-}
-
-function isTypingTarget(el) {
-    if (!el || el === document.body) return false;
-    if (el.isContentEditable) return true;
-    return ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName);
-}
-
-function bindResultLift() {
-    $("liftResultsBtn").addEventListener("click", () => setResultsLifted(!resultsLifted()));
+function bindDrawer() {
+    $("drawerBtn").addEventListener("click", () => setDrawerOpen(!drawerOpen()));
+    $("drawerScrim").addEventListener("click", () => setDrawerOpen(false));
     document.addEventListener("keydown", (event) => {
-        if (event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
-        if (document.querySelector("dialog[open]")) return;          // 浮窗里 Tab 照常在浮窗内移动焦点
-        if (event.key === "Escape" && resultsLifted()) {
-            setResultsLifted(false);
-            return;
-        }
-        if (event.key !== "Tab" || event.shiftKey || isTypingTarget(event.target)) return;
-        event.preventDefault();
-        if (!event.repeat) setResultsLifted(!resultsLifted());
+        if (event.key !== "Escape" || !drawerOpen() || document.querySelector("dialog[open]")) return;
+        if (!$("libraryMenu").hidden) return;           // 先收起档案库菜单
+        setDrawerOpen(false);
+        $("drawerBtn").focus();
     });
-    window.addEventListener("resize", () => { if (resultsLifted()) measureLift(); });
-    let stored = false;
-    try { stored = sessionStorage.getItem(LIFT_STORE_KEY) === "1"; } catch (_) { stored = false; }
-    // 刚打开页面时星盘还没画好，等它画完再量距离（没有动画，直接到位）。
-    if (stored) requestAnimationFrame(() => setResultsLifted(true, {animate: false}));
+    $("personChip").addEventListener("click", () => openPicker());
 }
 
 window.addEventListener("DOMContentLoaded", init);

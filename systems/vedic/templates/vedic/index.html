@@ -41,11 +41,30 @@
                 <details class="fold nested" id="foldAspects">
                     <summary>相位 <span id="aspectMeta" class="fold-meta"></span></summary>
                     <div class="fold-body">
-                        <p class="muted aspect-note">所有行星看第 7 个星座，火星另看第 4、8 个，木星另看第 5、9 个，土星另看第 3、10 个。罗睺、计都是否投射相位由下面决定。星盘的点击高亮和 Yoga 都按这里计算。</p>
-                        <label class="checkbox-row"><input id="aspectRa" type="checkbox"> 罗睺投射第 5、7、9 个星座的相位</label>
-                        <label class="checkbox-row"><input id="aspectKe" type="checkbox"> 计都投射第 5、7、9 个星座的相位</label>
+                        <label class="checkbox-row"><input id="aspectRa" type="checkbox"> 罗睺 5 · 7 · 9</label>
+                        <label class="checkbox-row"><input id="aspectKe" type="checkbox"> 计都 5 · 7 · 9</label>
                     </div>
                 </details>
+
+                <details class="fold nested" id="foldCombust">
+                    <summary>燃烧 <span id="combustMeta" class="fold-meta"></span></summary>
+                    <div class="fold-body">
+                        {# 离太阳多少度以内算燃烧（Combust）；水星、金星逆行时另有一个度数 #}
+                        <div id="combustGrid" class="combust-grid"></div>
+                        <button id="combustResetBtn" type="button" class="small-btn">恢复默认</button>
+                    </div>
+                </details>
+
+                <div class="point-settings">
+                    <span class="field-label">Yoga</span>
+                    <div class="point-entries">
+                        <button id="openYogaManagerBtn" type="button" class="point-entry">
+                            <span class="point-entry-name">管理 Yoga</span>
+                            <span id="yogaManagerCount" class="point-count"></span>
+                            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                        </button>
+                    </div>
+                </div>
 
                 <details class="fold nested" id="foldAdvanced">
                     <summary>Dasha</summary>
@@ -57,17 +76,17 @@
 {% endblock %}
 
 {% block chart_head %}
-                <div class="chart-tools">
-                    {# 转宫：只在 Rashi 和 Gochara 显示；只转星盘，Asc 仍画在真实星座，结果表不变 #}
-                    <label id="lagnaPick" class="lagna-pick" title="转宫：以哪个星座为第一宫。只旋转星盘，Asc 仍画在它真正所在的星座，结果表不变">
-                        <span>第一宫</span>
-                        <select id="rashiLagna" aria-label="Rashi 第一宫（转宫）"></select>
-                    </label>
-                    <div class="segmented compact" role="radiogroup" aria-label="星盘样式">
-                        <label><input type="radio" name="chartStyle" value="north" checked><span>北印度</span></label>
-                        <label><input type="radio" name="chartStyle" value="south"><span>南印度</span></label>
-                    </div>
+                <div class="segmented compact style-switch" role="radiogroup" aria-label="星盘样式" title="北印度 / 南印度">
+                    <label><input type="radio" name="chartStyle" value="north" checked><span>北</span></label>
+                    <label><input type="radio" name="chartStyle" value="south"><span>南</span></label>
                 </div>
+{% endblock %}
+
+{% block time_tools %}
+            {# 转宫：Moon 以外的每张盘各自可以转；转过宫时下拉框有红框 #}
+            <label id="lagnaPick" class="lagna-pick" title="转宫：以哪个星座为第一宫">
+                <select id="rashiLagna" aria-label="转宫"></select>
+            </label>
 {% endblock %}
 
 {% block result_tabs %}
@@ -99,7 +118,6 @@
     </div>
     <div class="modal-body">
         <p class="dialog-msg hidden" data-dialog-msg></p>
-        <p class="point-hint muted">每张分盘选一种算法，改了立即生效并保存。只有一种算法的分盘不能选择。分盘只在星盘上方点到时才计算。</p>
         <div id="vargaMethodList" class="varga-list"></div>
     </div>
     <div class="modal-foot">
@@ -112,6 +130,9 @@
 <!-- 管理 Yoga：启用 / 停用、新建、修改、删除；改动立即保存 -->
 <dialog id="yogaDialog" class="modal yoga-modal" aria-labelledby="yogaDialogTitle">
     <div class="modal-head">
+        <button id="yogaBackBtn" type="button" class="icon-btn back-btn hidden" title="返回列表（Esc）" aria-label="返回列表">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8 10 12.5"/></svg>
+        </button>
         <h2 id="yogaDialogTitle">管理 Yoga</h2>
         <span id="yogaDialogMeta" class="muted"></span>
         <button type="button" class="icon-btn" data-close aria-label="关闭">×</button>

@@ -10,15 +10,13 @@
  */
 
 const YOGA_CAT_STORE = "quant-astro.yoga.cat.";     // 结果里每个分类折叠与否（只存在这台电脑的浏览器里）
-const YOGA_SHOW_ALL_STORE = "quant-astro.yoga.showAll";
 
 const yogaState = {
     version: 0,                 // 设置（Yoga、相位、分盘算法）每改一次加一，缓存随之失效
     compiled: new Map(),        // id → {rule, compiled}
     cache: new WeakMap(),       // 盘面数据对象 → {version, results}
     pending: false,
-    editing: null,              // 正在编辑的 Yoga（null = 新建时也用对象表示）
-    showAll: false,
+    editing: null,              // 正在编辑的 Yoga：{id, origin}；null = 在列表里
 };
 
 function yogaConfig() {
@@ -71,6 +69,7 @@ function compileAllYogas() {
 function yogaSettingsChanged() {
     yogaState.version++;
     scheduleYogaRender();
+    if ($("yogaManagerCount")) updateYogaManagerCount();
 }
 
 let yogaSaveChain = Promise.resolve();
@@ -90,18 +89,16 @@ function yogaSource() {
     const view = state.view;
     if (view === "transit") {
         const t = state.charts.transit.results;
-        return t ? {label: "Transit（过境盘）", data: t, base: t} : null;
+        return t ? {label: "Transit", data: t, base: t} : null;
     }
     const natal = state.charts.natal.results;
     if (!natal) return null;
     const derived = SYSTEM.derivedViews[view];
-    if (!derived || view === "gochara") return {label: view === "gochara" ? "Rashi（Gochara 显示本命的 Yoga）" : "Rashi", data: natal, base: natal};
+    if (!derived || view === "gochara") return {label: "Rashi", data: natal, base: natal};
     const entry = state.derived[view];
     if (!entry || entry.source !== natal || !entry.results) return entry?.error ? null : {pending: true};
     const varga = VedicVargas.get(view);
-    const label = view === "moon" ? "Moon（以月亮为第一宫）"
-        : view === "bhava" ? `Bhava（${bhavaHouseSystem()}）`
-            : varga ? `${varga.id} ${varga.name}` : derived.label;
+    const label = varga ? `${varga.id} ${varga.name}` : derived.label;
     return {label, data: entry.results, base: natal};
 }
 
@@ -116,6 +113,7 @@ function yogaChartFrom(source) {
         lagna: Number.isInteger(meta.lagna_sign) ? meta.lagna_sign : undefined,
         phys,
         aspects: vedicAspects(),
+        combust: combustTable(),
         // dsign(P, n)：按本命（或过境）D1 的真实黄经，用当前的分盘算法换算
         dsign: (code, n) => {
             const lon = phys[code]?.lon;
@@ -162,24 +160,17 @@ function scheduleYogaRender() {
 function renderYogaTab() {
     const box = $("yogaResult");
     const source = yogaSource();
-    if (!source) {
-        box.innerHTML = `<p class="muted">${state.view === "transit" ? "排盘后显示过境盘的 Yoga。" : "选择人物、排盘后显示 Yoga。"}</p>`;
-        return;
-    }
-    if (source.pending) {
-        box.innerHTML = "<p class='muted'>这张盘还在计算中…</p>";
+    if (!source || source.pending) {
+        box.innerHTML = "";
         return;
     }
     compileAllYogas();                   // 只在第一次（或公式改过时）真正编译
-    const t0 = performance.now();
     const results = computeYogas(source);
-    const ms = performance.now() - t0;
     const hits = results.filter((r) => r.value);
-    const errors = results.filter((r) => r.error);
-    const shown = yogaState.showAll ? results : hits;
+    const errors = results.filter((r) => r.error).length;
 
     const groups = new Map();
-    for (const r of shown) {
+    for (const r of hits) {
         const cat = r.yoga.cat || "custom";
         if (!groups.has(cat)) groups.set(cat, []);
         groups.get(cat).push(r);
@@ -190,68 +181,56 @@ function renderYogaTab() {
     const head = `
         <div class="yoga-head">
             <span class="yoga-scope">${escapeHtml(source.label)}</span>
-            <span class="muted">成立 ${hits.length} 条 · 检测 ${results.length} 条${errors.length ? ` · <span class="yoga-err-count">${errors.length} 条公式有错</span>` : ""}</span>
-            <span class="spacer"></span>
-            <label class="checkbox-row yoga-showall"><input id="yogaShowAll" type="checkbox" ${yogaState.showAll ? "checked" : ""}> 显示不成立的</label>
-            <button id="openYogaManagerBtn" type="button" class="small-btn">管理 Yoga…</button>
+            <span class="yoga-total">${hits.length}</span>
+            ${errors ? `<button type="button" class="yoga-err-count" data-open-yoga-manager title="有 ${errors} 条公式算不出来，点开检查">${errors} 条公式有错</button>` : ""}
         </div>`;
     const body = cats.map((cat) => {
         const rows = groups.get(cat);
-        const n = rows.filter((r) => r.value).length;
-        let open = cat !== "bhava";
+        let open = true;
         try {
             const saved = localStorage.getItem(YOGA_CAT_STORE + cat);
             if (saved !== null) open = saved === "1";
         } catch (_) { /* 存不了就用默认 */ }
         return `
             <details class="yoga-group" data-cat="${escapeHtml(cat)}" ${open ? "open" : ""}>
-                <summary><span>${escapeHtml(yogaCategoryLabel(cat))}</span><span class="muted">${n}${yogaState.showAll ? ` / ${rows.length}` : ""}</span></summary>
-                ${rows.map(yogaRowHtml).join("")}
+                <summary><span class="yoga-group-name">${escapeHtml(yogaCategoryLabel(cat))}</span><span class="yoga-group-count">${rows.length}</span></summary>
+                <div class="yoga-items">${rows.map(yogaRowHtml).join("")}</div>
             </details>`;
     }).join("");
-    box.innerHTML = head + (body || "<p class='muted yoga-none'>这张盘上没有成立的 Yoga。</p>") +
-        `<p class="muted yoga-foot">计算用时 ${ms < 1 ? "不到 1" : ms.toFixed(1)} 毫秒。宫位一律按格子数（${state.view === "bhava" ? "Bhava 盘按宫位" : "整宫制"}），逆行、燃烧、日夜按本命盘的真实位置。</p>`;
+    box.innerHTML = head + body;
 
-    $("yogaShowAll").addEventListener("change", (event) => {
-        yogaState.showAll = event.target.checked;
-        try { localStorage.setItem(YOGA_SHOW_ALL_STORE, yogaState.showAll ? "1" : "0"); } catch (_) {}
-        renderYogaTab();
-    });
-    $("openYogaManagerBtn").addEventListener("click", () => openYogaManager());
     box.querySelectorAll("details.yoga-group").forEach((d) => d.addEventListener("toggle", () => {
         try { localStorage.setItem(YOGA_CAT_STORE + d.dataset.cat, d.open ? "1" : "0"); } catch (_) {}
     }));
-    box.querySelectorAll("[data-edit-yoga]").forEach((b) => b.addEventListener("click", () => openYogaManager(b.dataset.editYoga)));
+    box.querySelector("[data-open-yoga-manager]")?.addEventListener("click", () => openYogaManager());
 }
 
 function yogaRowHtml(r) {
     const y = r.yoga;
-    const cls = r.error ? "error" : r.value ? "on" : "off";
-    const badge = y.origin === "custom" ? "<span class='yoga-badge'>自定义</span>" : y.origin === "modified" ? "<span class='yoga-badge'>已修改</span>" : "";
+    const tip = [y.src, y.rule].filter(Boolean).join("\n");
     return `
-        <div class="yoga-row ${cls}" title="${escapeHtml(y.rule)}">
-            <div class="yoga-title">
-                <span class="yoga-mark">${r.error ? "!" : r.value ? "●" : "○"}</span>
-                <b>${escapeHtml(y.name || y.id)}</b>
-                ${y.cn ? `<span class="yoga-cn">${escapeHtml(y.cn)}</span>` : ""}${badge}
+        <div class="yoga-row" title="${escapeHtml(tip)}">
+            <div class="yoga-line">
+                <span class="yoga-name">${escapeHtml(y.name || y.id)}</span>
+                ${y.cn ? `<span class="yoga-cn">${escapeHtml(y.cn)}</span>` : ""}
                 ${y.effect ? `<span class="yoga-effect">${escapeHtml(y.effect)}</span>` : ""}
-                <button type="button" class="yoga-edit-link" data-edit-yoga="${escapeHtml(y.id)}" title="修改这条 Yoga">编辑</button>
             </div>
-            <div class="yoga-desc">${r.error ? `<span class="yoga-error">公式有错：${escapeHtml(r.error)}</span>` : escapeHtml(y.desc || y.rule)}${y.src ? `<span class="yoga-src">${escapeHtml(y.src)}</span>` : ""}</div>
+            ${y.desc ? `<div class="yoga-desc">${escapeHtml(y.desc)}</div>` : ""}
         </div>`;
 }
 
 // ---------------------------------------------------------------- 管理浮窗
 
-function openYogaManager(editId = null) {
+function openYogaManager() {
     $("yogaSearch").value = "";
     renderYogaCatFilter();
     showYogaList();
     openDialog("yogaDialog");
-    if (editId) {
-        const y = yogaList().find((item) => item.id === editId);
-        if (y) openYogaEditor(y);
-    }
+}
+
+function updateYogaManagerCount() {
+    const list = yogaList();
+    $("yogaManagerCount").textContent = `${list.filter((y) => y.enabled).length} / ${list.length}`;
 }
 
 function renderYogaCatFilter() {
@@ -261,14 +240,21 @@ function renderYogaCatFilter() {
     fillSelect(select, [{value: "", label: "全部分类"}, ...cats.map((c) => ({value: c, label: yogaCategoryLabel(c)}))]);
     select.value = cats.includes(keep) ? keep : "";
     $("yogaCatList").innerHTML = [...new Set([...VedicYogaDefaults.CATEGORIES.map((c) => c.id), ...cats])]
-        .map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(yogaCategoryLabel(c))}</option>`).join("");
+        .map((c) => `<option value="${escapeHtml(yogaCategoryLabel(c))}"></option>`).join("");
 }
 
 function showYogaList() {
+    const returning = yogaState.editing !== null;
     yogaState.editing = null;
+    showError("");
     $("yogaEditor").classList.add("hidden");
     $("yogaListView").classList.remove("hidden");
+    $("yogaBackBtn").classList.add("hidden");
+    $("yogaDialogMeta").classList.remove("hidden");
+    $("yogaDialogTitle").textContent = "管理 Yoga";
+    $("yogaRestoreAllBtn").classList.remove("hidden");
     renderYogaManageList();
+    if (returning) $("yogaSearch").focus();
 }
 
 function renderYogaManageList() {
@@ -294,8 +280,7 @@ function renderYogaManageList() {
                     <div class="ym-rule">${escapeHtml(y.rule)}</div>
                 </div>
                 <span class="ym-cat muted">${escapeHtml(yogaCategoryLabel(y.cat))}</span>
-                <button type="button" class="small-btn ym-edit">编辑</button>
-                <button type="button" class="small-btn ym-del" title="${y.origin === "custom" ? "删除这条自定义 Yoga" : "删掉这条默认 Yoga（可以用「恢复全部默认」找回）"}">删除</button>
+                <button type="button" class="icon-btn ym-del" aria-label="删除" title="${y.origin === "custom" ? "删除这条自定义 Yoga" : "删掉这条默认 Yoga（可以用「恢复全部默认」找回）"}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 4.5h9M6.5 4.5V3h3v1.5M5 4.5l.6 8.5h4.8l.6-8.5"/></svg></button>
             </div>`;
     }).join("") + (rows.length > shown.length ? `<p class="muted">还有 ${rows.length - shown.length} 条，请用搜索或分类缩小范围。</p>` : "") +
         (rows.length ? "" : "<p class='muted'>没有符合条件的 Yoga。</p>");
@@ -310,9 +295,10 @@ function bindYogaManager() {
         if (!row) return;
         const y = yogaList().find((item) => item.id === row.dataset.id);
         if (!y) return;
-        if (event.target.closest(".ym-edit")) {
-            openYogaEditor(y);
-        } else if (event.target.closest(".ym-del")) {
+        if (event.target.closest(".ym-on")) return;
+        if (!event.target.closest(".ym-del")) {
+            openYogaEditor(y);              // 点这一行任何地方（勾选框、删除除外）就进入编辑
+        } else {
             if (!confirm(`删除「${y.name}${y.cn ? ` ${y.cn}` : ""}」？${y.origin === "custom" ? "\n自定义的 Yoga 删除后不能恢复。" : "\n默认 Yoga 删掉后可以用「恢复全部默认」找回。"}`)) return;
             const cfg = yogaConfig();
             const changes = {
@@ -347,7 +333,13 @@ function bindYogaManager() {
         showYogaList();
     });
 
-    // 编辑器
+    // 编辑器：左上角的返回、「返回列表」、Esc 都回到列表（列表里按 Esc 才关闭浮窗）
+    $("yogaBackBtn").addEventListener("click", showYogaList);
+    $("yogaDialog").addEventListener("cancel", (event) => {
+        if (yogaState.editing === null) return;
+        event.preventDefault();
+        showYogaList();
+    });
     const check = debounce(checkYogaRule, 150);
     $("yeRule").addEventListener("input", check);
     $("yeCancel").addEventListener("click", showYogaList);
@@ -365,7 +357,7 @@ function bindYogaManager() {
 function fillYogaEditor(y) {
     $("yeName").value = y.name || "";
     $("yeCn").value = y.cn || "";
-    $("yeCat").value = y.cat || "custom";
+    $("yeCat").value = yogaCategoryLabel(y.cat || "custom");
     $("yeRule").value = y.rule || "";
     $("yeDesc").value = y.desc || "";
     $("yeEffect").value = y.effect || "";
@@ -377,6 +369,10 @@ function openYogaEditor(y) {
     yogaState.editing = y ? {id: y.id, origin: y.origin} : {id: null, origin: "custom"};
     $("yogaListView").classList.add("hidden");
     $("yogaEditor").classList.remove("hidden");
+    $("yogaBackBtn").classList.remove("hidden");
+    $("yogaDialogMeta").classList.add("hidden");
+    $("yogaRestoreAllBtn").classList.add("hidden");
+    $("yogaDialogTitle").textContent = y ? `${y.name || y.id}${y.cn ? ` ${y.cn}` : ""}` : "新建 Yoga";
     $("yeRestore").classList.toggle("hidden", !(y && y.origin === "modified"));
     fillYogaEditor(y || {cat: "custom", rule: ""});
     $(y ? "yeRule" : "yeName").focus();
@@ -414,6 +410,14 @@ function checkYogaRule() {
     return true;
 }
 
+// 分类框里显示的是分类名称；保存时换回分类的 id（输入了新名称就把它当作新的分类）。
+function categoryIdFromText(text) {
+    const t = String(text || "").trim();
+    if (!t) return "custom";
+    const hit = VedicYogaDefaults.CATEGORIES.find((c) => c.label === t || c.id === t);
+    return hit ? hit.id : t.slice(0, 40);
+}
+
 function saveYogaEditor() {
     const name = $("yeName").value.trim();
     const rule = $("yeRule").value.trim();
@@ -433,7 +437,7 @@ function saveYogaEditor() {
     const item = {
         id, name, rule,
         cn: $("yeCn").value.trim(),
-        cat: $("yeCat").value.trim() || "custom",
+        cat: categoryIdFromText($("yeCat").value),
         desc: $("yeDesc").value.trim(),
         effect: $("yeEffect").value.trim(),
         src: $("yeSrc").value.trim(),
@@ -467,9 +471,10 @@ function yogaReferenceHtml() {
 }
 
 function bindYoga() {
-    try { yogaState.showAll = localStorage.getItem(YOGA_SHOW_ALL_STORE) === "1"; } catch (_) { yogaState.showAll = false; }
     document.querySelector('#resultTabs [data-tab="tabYoga"]').addEventListener("click", () => scheduleYogaRender());
+    $("openYogaManagerBtn").addEventListener("click", () => openYogaManager());
     bindYogaManager();
+    updateYogaManagerCount();
     // 浏览器空闲时先把公式编译好（全部 Yoga 一共几毫秒），第一次打开 Yoga 标签页就不用等。
     (window.requestIdleCallback || ((fn) => setTimeout(fn, 1500)))(compileAllYogas);
 }

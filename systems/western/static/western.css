@@ -19,23 +19,11 @@
 
 /* ---------- 圆形星盘 ---------- */
 
-/*
- * 圆形星盘的大小：改下面两个数即可（改完刷新网页）。
- *   --chart-max-width   星盘最大宽度。调大，星盘就大；调小，星盘就小。
- *   --chart-vh-offset   用窗口高度减去这个值作为星盘宽度的另一个上限，保证打开页面不用滚动就能看到整张盘。
- *                       调小（例如 120px），星盘可以更接近窗口高度；调大，星盘更矮。
- * 星盘最终宽度 = 下面三者中最小的一个：面板宽度、--chart-max-width、窗口高度 − --chart-vh-offset（但不小于 360px）。
- * 星盘是矢量图，所有文字跟着整体一起缩放，不会变糊，也不需要改别的地方。
- */
-:root {
-    --chart-max-width: 820px;
-    --chart-vh-offset: 140px;
-}
-
+/* 圆形星盘的大小由共用布局的 --chart-size 决定（common.css）。 */
 .chart-box { position: relative; }
 
 .astro-chart {
-    width: min(100%, var(--chart-max-width), max(360px, calc(100vh - var(--chart-vh-offset))));
+    width: min(100%, var(--chart-size));
     height: auto;
     user-select: none;
 }

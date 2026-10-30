@@ -794,7 +794,7 @@
         });
         // 外圈第 i 段紧贴里面第 i 个格子（第 i+1 宫），所以是同一个星座。
         const ring = data.ring
-            ? northRingGeometry(S, T).map((poly, i) => ringCell(poly, poly, (data.lagnaSign + i) % 12, data.ring))
+            ? northRingGeometry(S, T).map((poly, i) => ringCell(poly, poly, (data.lagnaSign + i) % 12, data.ring, [T, T + S]))
             : [];
 
         // 全盘统一字号：各格能撑开的最大字号里取最小，再夹在 [FONT_UNIFORM_MIN, FONT_MAX] 之间（里外两层一起算）。
@@ -828,7 +828,7 @@
 
     // ------------------------------------------------------------ Gochara 外圈
 
-    const RING_T = 88;               // 外圈的宽度（viewBox 单位；里面的星盘仍是 560 × 560）。南印度盘要求 > 140 - SOUTH_RING_SLANT
+    const RING_T = 96;               // 外圈的宽度（viewBox 单位；里面的星盘仍是 560 × 560）。南印度盘要求 > 140 - SOUTH_RING_SLANT
     const SOUTH_RING_SLANT = 56;     // 南印度盘外圈：角落与中间两段的分界线向角落倾斜多少（让角落多分一些地方）
 
     // 北印度盘外圈：12 段，顺序与 northGeometry 相同（第 1 宫在上方正中，逆时针）。
@@ -884,12 +884,26 @@
     }
 
     // 外圈的一段：排版用的几何信息 + 这一段里的过境元素及其排法。
-    function ringCell(poly, layoutPoly, sign, ringItems) {
+    // 星座数字放在这一段紧贴里面星盘的那条边（角落的那一段是里面的角点）的中点外侧，与里面的数字同样大小、同样可点；
+    // 排文字时把数字那一条切掉，元素不会压到数字。inner = 里面星盘的 [起点, 终点] 坐标。
+    function ringCell(poly, layoutPoly, sign, ringItems, inner) {
         const xs = layoutPoly.map((p) => p[0]), ys = layoutPoly.map((p) => p[1]);
+        const onInner = layoutPoly.filter(([x, y]) =>
+            x >= inner[0] - EPS && x <= inner[1] + EPS && y >= inner[0] - EPS && y <= inner[1] + EPS);
+        const mid = [onInner.reduce((t, p) => t + p[0], 0) / onInner.length, onInner.reduce((t, p) => t + p[1], 0) / onInner.length];
+        const center = polygonCentroid(layoutPoly);
+        const len = Math.hypot(center[0] - mid[0], center[1] - mid[1]) || 1;
+        const ux = (center[0] - mid[0]) / len, uy = (center[1] - mid[1]) / len;
+        const dist = onInner.length > 1 ? 12 : 16;
+        const numPos = [mid[0] + ux * dist, mid[1] + uy * dist];
+        const cut = dist + SIGN_NUM_SIZE * 0.9;      // 两位数的数字横着也不会碰到元素
+        const planes = halfPlanes(layoutPoly);
+        planes.push({nx: -ux, ny: -uy, d: -(ux * mid[0] + uy * mid[1] + cut) + NORTH_PAD});
         const cell = {
             type: "ring", apexDown: false,
             poly: layoutPoly,
-            planes: halfPlanes(layoutPoly),
+            numPos,
+            planes,
             bounds: [
                 [Math.min(...xs) - 1, Math.min(...ys) - 1], [Math.max(...xs) + 1, Math.min(...ys) - 1],
                 [Math.max(...xs) + 1, Math.max(...ys) + 1], [Math.min(...xs) - 1, Math.max(...ys) + 1],
@@ -901,7 +915,7 @@
         return {sign, poly, cell, items, layout: items.length ? layoutNorthCell(cell, items) : null};
     }
 
-    // 画外圈：先画每一段（可点：等于点这个星座），再画过境的元素。
+    // 画外圈：先画每一段（空白处也可以点：等于点这个星座），再画星座数字和过境的元素。
     function drawRing(layer, ring, uniform, onSelect) {
         const polys = el("g", {class: "ring-cells"}, layer);
         const labels = el("g", {class: "labels"}, layer);
@@ -910,11 +924,11 @@
                 class: "ring-cell", "data-ring-cell": sign,
                 points: poly.map((p) => p.join(",")).join(" "),
             }, polys);
-            el("title", {}, shape).textContent = `过境 · ${SIGN_NAMES[sign]}（点一下查看相位）`;
             shape.addEventListener("click", (event) => {
                 event.stopPropagation();
                 onSelect({type: "sign", sign});
             });
+            drawSignNumber(labels, sign, cell.numPos[0], cell.numPos[1], SIGN_NUM_SIZE, onSelect);
             drawCellItems(labels, cell, items, layout, uniform, onSelect);
         }
     }
@@ -953,7 +967,8 @@
         svg.setAttribute("viewBox", `-2 -2 ${total + 4} ${total + 4}`);
         if (data.ring) {
             const geo = southRingGeometry(W, T);
-            const ring = Array.from({length: 12}, (_, sign) => ringCell(geo[sign].poly, geo[sign].layout, sign, data.ring));
+            // 南印度盘星座位置固定（转宫只移动斜线），外圈每一段也固定对着同一个星座
+            const ring = Array.from({length: 12}, (_, sign) => ringCell(geo[sign].poly, geo[sign].layout, sign, data.ring, [T, T + W * 4]));
             const fits = ring.filter((c) => c.layout).map((c) => c.layout.fit);
             const uniform = Math.min(FONT_MAX, Math.max(FONT_UNIFORM_MIN, fits.length ? Math.min(...fits) : FONT_MAX));
             drawRing(el("g", {class: "ring"}, svg), ring, uniform, onSelect);

@@ -64,6 +64,11 @@ def update_aspects():
     return _save(bridge.save_aspects, request.get_json(force=True) or {}, "aspect settings")
 
 
+@bp.post("/api/combust")
+def update_combust():
+    return _save(bridge.save_combust, request.get_json(force=True) or {}, "combust settings")
+
+
 @bp.post("/api/yogas")
 def update_yogas():
     return _save(bridge.save_yogas, request.get_json(force=True) or {}, "yoga settings")

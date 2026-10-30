@@ -680,13 +680,42 @@ def calculate_sunrise_sunset(
             f"{local_date} 当地并非同时存在日出和日落（可能处于极昼/极夜过渡期）；"
             "不会用相邻日期事件冒充当天事件。"
         )
+    # 次日日出（印度占星的一天从日出到次日日出）。极昼 / 极夜过渡期算不出来时给 None，不影响其它结果。
+    next_jd = next_sunrise = None
+    try:
+        with _SWISS_LOCK:
+            set_ephemeris_path(effective_ephe_path)
+            next_jd, next_sunrise = _sun_event(context, local_date + timedelta(days=1), swe.CALC_RISE, style_flags)
+        if next_sunrise.date() != local_date + timedelta(days=1):
+            next_jd = next_sunrise = None
+    except ValueError:
+        next_jd = next_sunrise = None
     return {
         "date": local_date.isoformat(),
         "sunrise_local": sunrise,
         "sunset_local": sunset,
+        "next_sunrise_local": next_sunrise,
         "sunrise_jd_utc": rise_jd,
         "sunset_jd_utc": set_jd,
+        "next_sunrise_jd_utc": next_jd,
     }
+
+
+def sidereal_sun_moon(jd_utc: float, ayanamsha_mode: str | int, ephe_path: str | Path | None = None) -> dict[str, float]:
+    """某一时刻太阳、月亮的恒星黄经和日速度（Panchanga 用：Yoga、星宿必须按恒星黄道计算）。"""
+    with _SWISS_LOCK:
+        set_ephemeris_path(ephe_path)
+        swe.set_sid_mode(_resolve_ayanamsha(ayanamsha_mode))
+        flags = swe.FLG_SWIEPH | swe.FLG_SPEED | swe.FLG_SIDEREAL
+        su = swe.calc_ut(jd_utc, swe.SUN, flags)[0]
+        mo = swe.calc_ut(jd_utc, swe.MOON, flags)[0]
+    return {"sun": float(su[0]) % 360.0, "sun_speed": float(su[3]),
+            "moon": float(mo[0]) % 360.0, "moon_speed": float(mo[3])}
+
+
+def jd_to_local(jd_utc: float, tzinfo: timezone) -> datetime:
+    """儒略日（UT）→ 当地时间。"""
+    return _jd_to_local(jd_utc, tzinfo)
 
 
 def calculate_day_lord(

@@ -29,7 +29,6 @@
         {id: "nabhasa", label: "那跋娑 Nabhasa"},
         {id: "dosha", label: "凶象 Dosha"},
         {id: "vargottama", label: "同宫 Vargottama"},
-        {id: "bhava", label: "宫主落宫 Bhava"},
         {id: "custom", label: "自定义"},
     ];
 
@@ -45,7 +44,7 @@
         ["malavya", "Malavya", "金星", "Ve", "富足、享受、艺术"],
         ["sasa", "Sasa", "土星", "Sa", "权势、掌管众人"],
     ].forEach(([id, name, cnp, p, effect]) => add(
-        `mp.${id}`, name, `${name}（${cnp}）`, "mahapurusha",
+        `mp.${id}`, name, cnp, "mahapurusha",
         `house(${p}) in KENDRA and (own(${p}) or exalted(${p}))`,
         `${cnp}在自己的星座或擢升星座，并落在角宫`, effect, "BPHS 75",
     ));
@@ -265,14 +264,6 @@
         `dsign(${p}, 1) == dsign(${p}, 9)`,
         `${PNAME[p] || "上升点"}在 D1 与 D9 落在同一个星座`, "这颗行星（上升点）力量增强", "BPHS",
     ));
-
-    // ---------------------------------------------------------------- 宫主落宫（12 × 12）
-    for (let a = 1; a <= 12; a++) {
-        for (let b = 1; b <= 12; b++) {
-            add(`bhava.${a}_${b}`, `${a}L in ${b}`, `${a} 宫主落 ${b} 宫`, "bhava", `house(lord(${a})) == ${b}`,
-                `第 ${a} 宫主落在第 ${b} 宫`, "", "BPHS 24");
-        }
-    }
 
     window.VedicYogaDefaults = {CATEGORIES, YOGAS: Y};
 })();

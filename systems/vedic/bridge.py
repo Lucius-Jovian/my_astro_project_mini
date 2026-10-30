@@ -31,6 +31,7 @@ from .astro import (
     solve_horary_houses,
 )
 from .astro import dasha as dasha_engine
+from .astro.panchanga import calculate_panchanga
 
 
 # ---------------------------------------------------------------- 计算模块
@@ -97,6 +98,8 @@ DEFAULT_SYSTEM_SETTINGS = {
     },
     # 星盘相位：罗睺、计都是否投射第 5、7、9 个星座的相位（星盘点击高亮和 Yoga 的相位判断都按这里）。
     "aspects": {"Ra": True, "Ke": True},
+    # 燃烧（Combust）：离太阳多少度以内算燃烧；Me_r、Ve_r 是水星、金星逆行时的度数。默认取 BPHS 常用值。
+    "combust": {"Mo": 12.0, "Ma": 17.0, "Me": 14.0, "Me_r": 12.0, "Ju": 11.0, "Ve": 10.0, "Ve_r": 8.0, "Sa": 15.0},
     # Yoga：默认清单在 static/yogas_default.js；这里只存使用者的改动。
     #   disabled  停用的 Yoga（id 列表）
     #   removed   删掉的默认 Yoga（id 列表；可以在「管理 Yoga」里恢复）
@@ -117,6 +120,25 @@ def _clean_aspects(raw, *, strict):
             clean[key] = value
         elif strict:
             raise ValueError("相位设置只能是 Ra / Ke: true / false。")
+    return clean
+
+
+def _clean_combust(raw, *, strict):
+    raw = raw if isinstance(raw, dict) else {}
+    clean = {}
+    for key, value in raw.items():
+        if key not in DEFAULT_SYSTEM_SETTINGS["combust"]:
+            if strict:
+                raise ValueError(f"未知的燃烧设置：{key}")
+            continue
+        try:
+            v = float(value)
+            if isinstance(value, bool) or not 0 <= v <= 30:
+                raise ValueError
+            clean[key] = v
+        except (TypeError, ValueError):
+            if strict:
+                raise ValueError("燃烧度数要在 0° 到 30° 之间。") from None
     return clean
 
 
@@ -299,6 +321,7 @@ def normalize_system_settings(section):
         section["chart_style"] = "north"
     section["varga"] = {**DEFAULT_SYSTEM_SETTINGS["varga"], **_clean_varga(section.get("varga"), strict=False)}
     section["aspects"] = {**DEFAULT_SYSTEM_SETTINGS["aspects"], **_clean_aspects(section.get("aspects"), strict=False)}
+    section["combust"] = {**DEFAULT_SYSTEM_SETTINGS["combust"], **_clean_combust(section.get("combust"), strict=False)}
     section["yogas"] = {**DEFAULT_SYSTEM_SETTINGS["yogas"], **_clean_yogas(section.get("yogas"), strict=False)}
     return section
 
@@ -331,6 +354,13 @@ def save_aspects(store, updates):
     if not clean:
         raise ValueError("没有要保存的相位设置。")
     return dict(store.write(_keys("aspects"), clean))
+
+
+def save_combust(store, updates):
+    clean = _clean_combust(updates, strict=True)
+    if not clean:
+        raise ValueError("没有要保存的燃烧设置。")
+    return dict(store.write(_keys("combust"), clean))
 
 
 def save_yogas(store, updates):
@@ -598,6 +628,8 @@ def calculate_full_chart(payload):
         "sun_events": sun_events,
         "day_lord_result": day_lord_result,
         "planetary_hour_data": planetary_hour_data,
+        # Panchanga：Nakshatra、Yoga 一律按恒星黄道（用所选岁差），与星盘选哪种黄道无关。
+        "panchanga": calculate_panchanga(context, day_lord_result["day_lord"], options["ayanamsha_mode"]),
         **kp,
     }
     dasha = _calculate_dasha(context, planet_pos, options)

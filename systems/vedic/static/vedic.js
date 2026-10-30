@@ -305,10 +305,44 @@ function vargaSettings() {
     return state.settings.varga;
 }
 
-// Rashi 盘以哪个星座为第一宫：null = 跟随上升点；0–11 = 转宫。
-function rashiLagna() {
-    const v = vargaSettings().rashi_lagna;
-    return Number.isInteger(v) && v >= 0 && v <= 11 ? v : null;
+// ---------- 转宫 ----------
+// 每张盘（Moon 除外）各自可以转宫：以选定的星座为第一宫，只旋转星盘，点仍画在真实星座里，结果表和 Yoga 不变。
+// Gochara 与 Rashi 共用一个设置（里面那张就是 Rashi）。转宫是看盘时的临时操作：只在这一页里记住，换人时清掉。
+state.rotation = {};
+
+const rotationKey = (view) => (view === "gochara" ? "natal" : view);
+const canRotate = (view) => view !== "moon";
+
+function currentRotation(view = state.view) {
+    const v = state.rotation[rotationKey(view)];
+    return canRotate(view) && Number.isInteger(v) ? v : null;
+}
+
+function withRotation(results, view) {
+    const lagna = currentRotation(view);
+    return results && lagna !== null ? {...results, chart_meta: {...(results.chart_meta || {}), lagna_sign: lagna}} : results;
+}
+
+function updateRotationPicker(view = state.view) {
+    const pick = $("lagnaPick");
+    pick.hidden = !canRotate(view);
+    const lagna = currentRotation(view);
+    $("rashiLagna").value = lagna === null ? "asc" : String(lagna);
+    pick.classList.toggle("is-rotated", lagna !== null);
+}
+
+function bindRotation() {
+    fillSelect($("rashiLagna"), [
+        {value: "asc", label: "转宫"},
+        ...SIGN_LIST.map((name, i) => ({value: String(i), label: `${i + 1} ${name}`})),
+    ]);
+    $("rashiLagna").addEventListener("change", () => {
+        const v = $("rashiLagna").value;
+        if (v === "asc") delete state.rotation[rotationKey(state.view)];
+        else state.rotation[rotationKey(state.view)] = Number(v);
+        AstroChart.clearSelection();
+        renderChart();
+    });
 }
 
 function bhavaHouseSystem() {
@@ -330,7 +364,6 @@ function saveVarga(changes) {
         .then(() => api(systemApi("/varga"), {method: "POST", body: JSON.stringify(changes)}))
         .catch((error) => showError(`分盘设置没能保存：${error.message}`));
     updateVargaMeta();
-    $("lagnaPick").classList.toggle("is-rotated", rashiLagna() !== null);
     renderChart();          // 正在看的盘受影响时立即重画（别的分盘等点到时再按新设置换算）
     yogaSettingsChanged();  // 分盘算法、Bhava 宫位制会影响对应分盘的 Yoga
 }
@@ -460,30 +493,6 @@ function buildViewMenu() {
     };
 }
 
-function rotationNote(natal) {
-    const lagna = rashiLagna();
-    if (lagna === null) return "";
-    const asc = natal?.house_result?.axes?.Asc;
-    const real = asc ? `，上升点实际在${SIGN_LIST[signIndex(asc.lon)]}` : "";
-    return `转宫：以${SIGN_LIST[lagna]}为第一宫${real}`;
-}
-
-function vargaCaption(view, results) {
-    if (view === "natal") return rotationNote(results);
-    if (view === "gochara") {
-        const when = results?.transit?.context?.local_dt;
-        const text = `Gochara · 内圈 Rashi，外圈过境${when ? `（${localTimeText(when)}）` : ""}`;
-        const rot = rotationNote(results?.natal);
-        return rot ? `${text} · ${rot}` : text;
-    }
-    if (view === "moon") return "Moon · 以月亮所在星座为第一宫";
-    if (view === "bhava") return `Bhava · ${bhavaHouseSystem()} 宫位制 · 一个格子是一个宫位`;
-    const varga = VedicVargas.get(view);
-    if (!varga) return "";
-    const method = varga.methods[vargaMethod(varga.id)];
-    return `${varga.id} ${varga.name} · ${varga.topic} · ${method.label}`;
-}
-
 // ---------- 计算设置 → 分盘 ----------
 
 function updateVargaMeta() {
@@ -494,12 +503,6 @@ function updateVargaMeta() {
 }
 
 function fillVargaSelects() {
-    fillSelect($("rashiLagna"), [
-        {value: "asc", label: "跟随上升点"},
-        ...SIGN_LIST.map((name, i) => ({value: String(i), label: `${i + 1} ${name}`})),
-    ]);
-    const lagna = rashiLagna();
-    $("rashiLagna").value = lagna === null ? "asc" : String(lagna);
     fillSelect($("bhavaHouseSystem"), state.optionsMeta.house_systems);
     $("bhavaHouseSystem").value = bhavaHouseSystem();
     updateVargaMeta();
@@ -541,12 +544,6 @@ function renderVargaDialog() {
 
 function bindVargaSettings() {
     fillVargaSelects();
-    // 转宫在星盘上方（Rashi、Gochara 时显示），设置仍存在 varga.rashi_lagna。
-    $("rashiLagna").addEventListener("change", () => {
-        const v = $("rashiLagna").value;
-        saveVarga({rashi_lagna: v === "asc" ? "asc" : Number(v)});
-    });
-    $("lagnaPick").classList.toggle("is-rotated", rashiLagna() !== null);
     $("bhavaHouseSystem").addEventListener("change", () => saveVarga({bhava_house_system: $("bhavaHouseSystem").value}));
     $("openVargaMethodsBtn").addEventListener("click", () => {
         renderVargaDialog();
@@ -601,6 +598,120 @@ function bindAspectSettings() {
     }
 }
 
+// ---------- 计算设置 → 燃烧（离太阳多少度以内算燃烧） ----------
+
+const COMBUST_DEFAULT = {Mo: 12, Ma: 17, Me: 14, Me_r: 12, Ju: 11, Ve: 10, Ve_r: 8, Sa: 15};
+const COMBUST_FIELDS = [
+    ["Mo", "Mo"], ["Ma", "Ma"], ["Me", "Me"], ["Me_r", "Me 逆"],
+    ["Ju", "Ju"], ["Ve", "Ve"], ["Ve_r", "Ve 逆"], ["Sa", "Sa"],
+];
+
+function combustSettings() {
+    state.settings.combust = {...COMBUST_DEFAULT, ...(state.settings.combust || {})};
+    return state.settings.combust;
+}
+
+// 引擎和行星表共用的燃烧度数表：{行星: 度数}，逆行的水星、金星另有 Me_r、Ve_r。
+function combustTable() {
+    return {...combustSettings()};
+}
+
+// 这颗行星离太阳的度数（0–180）；不会燃烧的行星（日、罗、计）返回 null。
+function combustInfo(results, code) {
+    const table = combustSettings();
+    const p = results.planet_pos?.[code], su = results.planet_pos?.Su;
+    if (!p || !su || !(code in table)) return null;
+    const retro = Number(p.speed) < 0;
+    const orb = (retro && table[`${code}_r`]) || table[code];
+    const dist = Math.abs(((p.lon - su.lon) % 360 + 540) % 360 - 180);
+    return {dist, combust: dist < orb};
+}
+
+function updateCombustMeta() {
+    const cfg = combustSettings();
+    const same = Object.keys(COMBUST_DEFAULT).every((k) => Number(cfg[k]) === COMBUST_DEFAULT[k]);
+    $("combustMeta").textContent = same ? "BPHS" : "自定义";
+}
+
+function bindCombustSettings() {
+    const grid = $("combustGrid");
+    const cfg = combustSettings();
+    grid.innerHTML = COMBUST_FIELDS.map(([key, label]) => `
+        <label class="combust-field"><span>${label}</span>
+            <input type="number" min="0" max="30" step="0.5" data-combust="${key}" value="${cfg[key]}">°</label>`).join("");
+    let chain = Promise.resolve();
+    const save = (changes) => {
+        Object.assign(combustSettings(), changes);
+        updateCombustMeta();
+        yogaSettingsChanged();
+        renderView();                    // 行星表的「燃烧」一栏跟着变
+        chain = chain
+            .then(() => api(systemApi("/combust"), {method: "POST", body: JSON.stringify(changes)}))
+            .catch((error) => showError(`燃烧度数没能保存：${error.message}`));
+    };
+    grid.addEventListener("change", (event) => {
+        const key = event.target.dataset.combust;
+        if (!key) return;
+        const v = Number(event.target.value);
+        if (!Number.isFinite(v) || v < 0 || v > 30) {
+            showError("燃烧度数要在 0° 到 30° 之间。");
+            event.target.value = combustSettings()[key];
+            return;
+        }
+        save({[key]: v});
+    });
+    $("combustResetBtn").addEventListener("click", () => {
+        grid.querySelectorAll("[data-combust]").forEach((input) => { input.value = COMBUST_DEFAULT[input.dataset.combust]; });
+        save({...COMBUST_DEFAULT});
+    });
+    updateCombustMeta();
+}
+
+// ---------- 历法（Panchanga） ----------
+
+// 结束时刻：与盘的当地日期同一天只写时分，否则写月-日 时分。
+function panchangaEnd(iso, results) {
+    const m = /^(-?\d{4,})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(String(iso || ""));
+    if (!m) return "";
+    const day = String(results.context?.local_dt || "").slice(0, 10);
+    return `${day === `${m[1]}-${m[2]}-${m[3]}` ? "" : `${m[2]}-${m[3]} `}${m[4]}:${m[5]}`;
+}
+
+function renderPanchanga(container, results) {
+    const pa = results.panchanga;
+    const sun = results.sun_events;
+    const hour = results.planetary_hour_data;
+    if (!pa || !sun) {
+        container.innerHTML = "";
+        return;
+    }
+    const end = (iso) => panchangaEnd(iso, results);
+    const limbs = [
+        {name: "Vara", value: `${pa.vara.name} · ${pa.vara.lord}`, end: ""},
+        {name: "Tithi", value: `${pa.tithi.paksha} ${pa.tithi.name}（${pa.tithi.index}）`, end: end(pa.tithi.end)},
+        {name: "Nakshatra", value: `${pa.nakshatra.name} ${pa.nakshatra.cn} · Pada ${pa.nakshatra.pada}`, end: end(pa.nakshatra.end)},
+        {name: "Yoga", value: `${pa.yoga.name}（${pa.yoga.index}）`, end: end(pa.yoga.end)},
+        {name: "Karana", value: `${pa.karana.name}（${pa.karana.index}）`, end: end(pa.karana.end)},
+    ];
+    const t = (iso) => (iso ? localTimeText(iso) : "—");
+    const day = [
+        {name: "日出", value: t(sun.sunrise_local)},
+        {name: "日落", value: t(sun.sunset_local)},
+        {name: "次日日出", value: t(sun.next_sunrise_local)},
+    ];
+    if (hour) {
+        day.push({
+            name: "Hora",
+            value: `${hour.planetary_hour_lord} · ${hour.hour_number} · ${localTimeText(hour.hour_start).slice(11, 16)}–${localTimeText(hour.hour_end).slice(11, 16)}`,
+        });
+    }
+    // 不要表头：左列就是名称，一眼看完
+    const table = (rows) => `<div class="table-wrap"><table class="info-table kv-table"><tbody>${rows.map((r) => `
+        <tr><th>${escapeHtml(r.name)}</th><td>${escapeHtml(r.value)}</td>${"end" in r ? `<td class="kv-end">${r.end ? `至 ${escapeHtml(r.end)}` : ""}</td>` : ""}</tr>`).join("")}
+        </tbody></table></div>`;
+    container.innerHTML = `<h3>Panchanga</h3>${table(limbs)}<h3>日出 · Hora</h3>${table(day)}`;
+}
+
 // ---------- 结果表 ----------
 // 行星、宫位：黄经（星座 + 星座内度分秒）、星宿、宿主星、Pada（后端 basics.py 算好）。
 // KP 各表用同样的写法：行星写代号，星座写中文，星宿写「梵文名 中文宿名」，宫位写「第 N 宫」。
@@ -634,8 +745,13 @@ const BASIC_COLUMNS = [
 ];
 
 function renderVedicPlanets(container, results) {
-    const rows = (results.planet_table || []).map((r) => basicRow(r, r.name));
-    container.innerHTML = rowsTableHtml([...BASIC_COLUMNS, {key: "motion", label: "顺 / 逆"}], rows);
+    const rows = (results.planet_table || []).map((r) => {
+        const row = basicRow(r, r.name);
+        const c = combustInfo(results, r.name);
+        row.combust = c?.combust ? {text: "燃烧", cls: "bad"} : "";
+        return row;
+    });
+    container.innerHTML = rowsTableHtml([...BASIC_COLUMNS, {key: "motion", label: "顺 / 逆"}, {key: "combust", label: "燃烧"}], rows);
 }
 
 function renderVedicHouses(container, results) {
@@ -725,7 +841,9 @@ registerSystem({
         updateKpUI();
         bindChartStyle();
         bindVargaSettings();
+        bindRotation();
         bindAspectSettings();
+        bindCombustSettings();
         bindYoga();
     },
     applyDefaults(calc) {
@@ -760,18 +878,12 @@ registerSystem({
     planetName: (code) => escapeHtml(code || "—"),
     renderHouseTab: renderVedicHouses,
     renderChart(container, results, {emptyText, view}) {
-        // 转宫只用于 Rashi 和 Gochara（里面那张就是 Rashi）；星盘上方的「第一宫」也只在这两种盘显示。
-        $("lagnaPick").hidden = !(view === "natal" || view === "gochara");
-        const rotate = (natal) => {
-            const lagna = rashiLagna();
-            return natal && lagna !== null ? {...natal, chart_meta: {...(natal.chart_meta || {}), lagna_sign: lagna}} : natal;
-        };
+        updateRotationPicker(view);
         const options = {style: state.chartStyle, emptyText, aspects: vedicAspects()};
         if (view === "gochara") {
-            AstroChart.render(container, rotate(results?.natal), {...options, gochara: results?.transit,
-                emptyText: state.activeProfile ? "排盘后显示 Gochara" : "选择人物后显示 Gochara"});
+            AstroChart.render(container, withRotation(results?.natal, view), {...options, gochara: results?.transit});
         } else {
-            AstroChart.render(container, view === "natal" ? rotate(results) : results, options);
+            AstroChart.render(container, withRotation(results, view), options);
         }
     },
     onNewChart() {
@@ -784,5 +896,9 @@ registerSystem({
     viewLabels: {natal: "Rashi", transit: "Transit"},
     derivedViews: buildDerivedViews(),
     viewMenu: buildViewMenu(),
-    viewCaption: vargaCaption,
+    onProfileChange() {
+        state.rotation = {};            // 换了人：各张盘的转宫都回到 Lagna
+    },
+    tabLabels: {tabSun: "历法"},
+    renderSunTab: renderPanchanga,
 });
