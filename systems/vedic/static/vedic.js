@@ -715,12 +715,13 @@ function renderPanchanga(container, results) {
 
 // ---------- 结果表 ----------
 // 行星、宫位：黄经（星座 + 星座内度分秒）、星宿、宿主星、Pada（后端 basics.py 算好）。
-// KP 各表用同样的写法：行星写代号，星座写中文，星宿写「梵文名 中文宿名」，宫位写「第 N 宫」。
+// KP 各表用同样的写法：行星写代号，星座写三个字母的英文缩写，星宿写「梵文名 中文宿名」，宫位只写数字。
 
-const SIGN_CN = {
-    Aries: "白羊", Taurus: "金牛", Gemini: "双子", Cancer: "巨蟹", Leo: "狮子", Virgo: "处女",
-    Libra: "天秤", Scorpio: "天蝎", Sagittarius: "射手", Capricorn: "摩羯", Aquarius: "水瓶", Pisces: "双鱼",
+const SIGN_ABBR = {
+    Aries: "Ari", Taurus: "Tau", Gemini: "Gem", Cancer: "Can", Leo: "Leo", Virgo: "Vir",
+    Libra: "Lib", Scorpio: "Sco", Sagittarius: "Sag", Capricorn: "Cap", Aquarius: "Aqu", Pisces: "Pis",
 };
+const signAbbr = (sign) => SIGN_ABBR[sign] || sign || "";
 
 function nakshatraText(name, cn) {
     return cn ? `${name} ${cn}` : name;
@@ -729,7 +730,7 @@ function nakshatraText(name, cn) {
 function basicRow(row, name) {
     return {
         name,
-        position: `${row.sign_cn} ${row.dms}`,
+        position: `${signAbbr(row.sign)} ${row.dms}`,
         nakshatra: nakshatraText(row.nakshatra, row.nakshatra_cn),
         star_lord: row.star_lord,
         pada: String(row.pada),
@@ -763,7 +764,7 @@ function renderVedicHouses(container, results) {
 function kpLordsHtml(data, nameOf) {
     const rows = Object.entries(data || {}).map(([key, r]) => ({
         name: nameOf(key),
-        sign: `${r.sign_cn || SIGN_CN[r.sign] || r.sign}${r.dms ? ` ${r.dms}` : ""}`,
+        sign: `${signAbbr(r.sign)}${r.dms ? ` ${r.dms}` : ""}`,
         star: nakshatraText(r.star, r.star_cn),
         sign_lord: r.sign_lord,
         star_lord: r.star_lord,
@@ -901,5 +902,9 @@ registerSystem({
         state.rotation = {};            // 换了人：各张盘的转宫都回到 Lagna
     },
     tabLabels: {tabSun: "历法"},
+    // 结果区标签页的默认顺序；改动这里时把 tabOrderRev 加 1，旧的保存顺序就不再使用
+    defaultTabOrder: ["tabPlanets", "tabHouses", "tabDasha", "tabYoga", "tabSun", "tabKpPlanets", "tabKpHouses",
+        "tabKpAbcd", "tabKp1234", "tabRuling", "tabProfile"],
+    tabOrderRev: 1,
     renderSunTab: renderPanchanga,
 });

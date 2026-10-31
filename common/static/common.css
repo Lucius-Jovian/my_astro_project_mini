@@ -31,13 +31,21 @@
     --c-cusp: #9cb0c0;
     --c-asc: #dc9a91;
     --c-retro: #e5776c;
-    --c-transit: #74c2db;
-    --c-transit-deg: #62a6bd;
+    --c-transit: #a9b99c;        /* 鼠尾草绿：过境行星，与本命的米白、上升的灰粉、宫头的灰蓝都分得开 */
+    --c-transit-deg: #8e9c82;
+    --c-good: #a3b9a8;           /* 表格里的「成立 / 有利」 */
+    --c-bad: #cfa58e;            /* 表格里的「不利」 */
+    --scrim: rgba(20, 18, 16, 0.38);
     --hover: rgba(184, 166, 150, 0.14);
     --pop-shadow: 0 14px 36px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 * { box-sizing: border-box; }
+
+/* 选中文字、复选框、滚动条：都用同一套暖灰，不出现系统默认的亮蓝 */
+::selection { background: var(--accent-soft); color: var(--text); }
+input[type="checkbox"], input[type="radio"], input[type="range"] { accent-color: var(--accent); }
+html, .drawer, .tab-panels, .modal { scrollbar-color: var(--border-strong) transparent; }
 
 html { background: var(--bg); }
 
@@ -152,7 +160,7 @@ button.danger:hover { background: var(--danger-soft); }
     position: fixed;
     top: var(--topbar-h);
     bottom: 0;
-    left: 0;
+    right: 0;
     z-index: 40;
     width: min(360px, 92vw);
     display: flex;
@@ -161,15 +169,15 @@ button.danger:hover { background: var(--danger-soft); }
     padding: 12px;
     overflow-y: auto;
     background: var(--bg);
-    border-right: 1px solid var(--border);
+    border-left: 1px solid var(--border);
     box-shadow: var(--pop-shadow);
-    transform: translateX(-102%);
+    transform: translateX(102%);
     visibility: hidden;
     transition: transform 0.2s ease, visibility 0.2s;
     scrollbar-width: thin;
 }
 .drawer.open { transform: none; visibility: visible; }
-.drawer-scrim { position: fixed; inset: var(--topbar-h) 0 0 0; z-index: 35; background: rgba(20, 18, 16, 0.35); }
+.drawer-scrim { position: fixed; inset: var(--topbar-h) 0 0 0; z-index: 35; background: var(--scrim); }
 .drawer-scrim[hidden] { display: none; }
 @media (prefers-reduced-motion: reduce) { .drawer { transition: none; } }
 
@@ -240,6 +248,7 @@ input:focus, select:focus, textarea:focus, button:focus-visible {
     outline-offset: 0;
     border-color: var(--border-strong);
 }
+a:focus-visible { outline: 2px solid var(--accent-soft); }
 
 select:disabled { opacity: 0.5; }
 
@@ -546,7 +555,28 @@ input.invalid { border-color: var(--danger); background: var(--danger-soft); }
 .profile-row:hover .profile-row-del, .profile-row:focus-within .profile-row-del, .profile-row-del:focus-visible { opacity: 1; }
 .profile-row-del:hover { color: var(--danger); background: var(--danger-soft); }
 .profile-row-del svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-@media (hover: none) { .profile-row-del { opacity: 1; } }     /* 未打开过、字段未填 */
+@media (hover: none) { .profile-row-del, .profile-row-edit { opacity: 1; } }
+
+/* 行内的编辑按钮：和删除按钮同样不显眼，紧挨在它左边 */
+.profile-row-edit {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    margin: -4px 0 -4px 4px;
+    padding: 0;
+    border-color: transparent;
+    background: transparent;
+    color: var(--muted);
+    border-radius: 5px;
+    opacity: 0;
+}
+.profile-row-edit + .profile-row-del { margin-left: 0; }
+.profile-row:hover .profile-row-edit, .profile-row:focus-within .profile-row-edit, .profile-row-edit:focus-visible { opacity: 1; }
+.profile-row-edit:hover { color: var(--text); background: var(--accent-soft); }
+.profile-row-edit svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }     /* 未打开过、字段未填 */
 .profile-row-sort + .profile-row-birth { margin-left: 8px; }
 
 .sort-row {
@@ -958,7 +988,7 @@ dialog.modal {
 }
 
 dialog.modal[open] { display: flex; flex-direction: column; }
-dialog.modal::backdrop { background: rgba(30, 26, 22, 0.42); }
+dialog.modal::backdrop { background: var(--scrim); }
 
 .modal-head {
     display: flex;
@@ -970,6 +1000,9 @@ dialog.modal::backdrop { background: rgba(30, 26, 22, 0.42); }
 
 .modal-head h2 { margin: 0; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .modal-head .icon-btn { margin-left: auto; }
+/* 弹窗标题左边的返回按钮（从列表打开的编辑器、Yoga 管理） */
+.modal-head .icon-btn.back-btn { width: 28px; height: 28px; margin-left: -6px; }
+.back-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
 .icon-btn {
     width: 30px;
@@ -1488,8 +1521,20 @@ mark { background: var(--hl-self); color: var(--text); border-radius: 2px; paddi
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 4px;
     margin: 8px 0 2px;
 }
+
+/* 过境时「经纬度」右边的两个小图标：定位、改用档案的出生地点 */
+.loc-tools { display: inline-flex; align-items: center; gap: 2px; min-width: 0; margin-right: auto; margin-left: 4px; }
+.loc-tools.hidden { display: none; }
+.loc-btn { width: 24px; height: 24px; padding: 0; border-color: transparent; background: transparent; color: var(--muted); border-radius: 5px; }
+.loc-btn:hover:not(:disabled) { color: var(--text); background: var(--accent-soft); }
+.loc-btn:disabled { opacity: 0.35; cursor: default; }
+.loc-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.loc-btn svg .dot { fill: currentColor; stroke: none; }
+.loc-btn.busy { color: var(--accent); }
+.loc-info { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
 
 /* 小号分段开关：比星盘样式那组再小一号，只占标题行的高度 */
 .segmented.mini { display: inline-flex; padding: 2px; border-radius: 7px; }
@@ -1653,10 +1698,10 @@ dialog.modal.raw-modal { width: min(1100px, calc(100vw - 32px)); height: min(820
 .info-table td, .info-table th { white-space: nowrap; }
 .info-table td.muted-cell { color: var(--muted); white-space: normal; }
 .info-table td.dim { color: var(--muted); }
-.info-table td.good { color: var(--asp-applying, #8cc3ae); font-weight: 600; }
-.info-table td.bad { color: var(--asp-separating, #e0a37f); font-weight: 600; }
-.info-table td.score-pos { color: #8cc3ae; font-weight: 700; }
-.info-table td.score-neg { color: #e0a37f; font-weight: 700; }
+.info-table td.good { color: var(--c-good); font-weight: 600; }
+.info-table td.bad { color: var(--c-bad); font-weight: 600; }
+.info-table td.score-pos { color: var(--c-good); font-weight: 700; }
+.info-table td.score-neg { color: var(--c-bad); font-weight: 700; }
 .info-table .glyph { font-family: "Segoe UI Symbol", "Noto Sans Symbols 2", "Noto Sans Symbols", "Apple Symbols", "DejaVu Sans", sans-serif; font-size: 15px; }
 .info-table .glyph.active { color: var(--text); font-weight: 700; border-bottom: 2px solid var(--accent); }
 .info-table .glyph.inactive { color: var(--muted); }
@@ -1702,6 +1747,14 @@ dialog.modal.transfer-modal { width: min(460px, calc(100vw - 32px)); }
 .top-chip .chev { flex: 0 0 auto; width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .lib-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .person-chip { border-radius: 8px; }
+
+/* 体系切换：和档案库同一种下拉菜单 */
+.sys-switch { position: relative; display: flex; flex: 0 0 auto; }
+.system-menu { left: 0; width: 180px; }
+.system-menu[hidden] { display: none; }
+a.lm-item { text-decoration: none; cursor: pointer; }
+.top-chip .chev { transition: transform 0.18s ease; }
+.top-chip[aria-expanded="true"] .chev { transform: rotate(180deg); }
 
 /* 顶栏里的时间 */
 .topbar .time-strip { position: relative; flex-wrap: nowrap; gap: 6px; margin-left: 4px; }

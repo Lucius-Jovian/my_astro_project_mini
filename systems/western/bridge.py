@@ -380,9 +380,9 @@ DEFAULT_PLANET_COLORS = {
 
 DEFAULT_ASTEROID_COLORS = {1: "#c9b38a", 2: "#a9bfa3", 3: "#c9a3b8", 4: "#d9a383", 2060: "#a8b6c4", 433: "#d69aa6"}
 DEFAULT_ASTEROID_COLOR = "#b7a8c9"
-DEFAULT_STAR_COLOR = "#e6c46a"
+DEFAULT_STAR_COLOR = "#d9bf7c"
 DEFAULT_LOT_COLORS = {"fortune": "#e0c27a", "spirit": "#b9c6e0"}
-DEFAULT_LOT_COLOR = "#e09ab3"
+DEFAULT_LOT_COLOR = "#d3a0b2"
 DEFAULT_SPECIAL_COLOR = "#d8b886"
 DEFAULT_SPECIAL_STYLES = {code: {"symbol": sym, "color": DEFAULT_SPECIAL_COLOR} for code, sym in SPECIAL_SYMBOLS.items()}
 

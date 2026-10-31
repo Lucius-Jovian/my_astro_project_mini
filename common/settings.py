@@ -9,6 +9,8 @@
                                                                  共用：上次用的档案库、人物、体系、各库的人物排序
       "appearance":       {"coord_format"}                       共用：经纬度格式
       "layout":           {"tab_order": {体系: [标签页]}}         共用：各体系结果区标签页的顺序
+                          {"tab_order_rev": {体系: 版本号}}      保存这份顺序时，体系默认顺序的版本号；
+                                                                 体系改了默认顺序（版本号变大）后，旧的保存顺序不再使用
       "systems": {
         "vedic":   {...}   印度占星自己的设置（由 systems/vedic 定义和校验）
         "western": {...}   西方占星自己的设置（由 systems/western 定义和校验）
@@ -121,6 +123,11 @@ class SettingsStore:
                 str(sid): [str(t) for t in tabs if isinstance(t, str)]
                 for sid, tabs in order.items() if isinstance(tabs, list)
             }}
+            revs = layout.get("tab_order_rev") if isinstance(layout.get("tab_order_rev"), dict) else {}
+            data["layout"]["tab_order_rev"] = {
+                str(sid): int(rev) for sid, rev in revs.items()
+                if isinstance(rev, int) and not isinstance(rev, bool) and 0 <= rev < 10000
+            }
             data["systems"] = {}
             raw_systems = raw.get("systems") if isinstance(raw.get("systems"), dict) else {}
             for sid, (defaults, normalize) in self._systems.items():
@@ -183,8 +190,8 @@ class SettingsStore:
         # 整节写回（merge=False）：顺手清掉旧版本留在文件里、已经不用的外观设置（例如 theme）。
         return dict(self.write(("appearance",), {**self.data.get("appearance", {}), **clean}, merge=False))
 
-    def save_tab_order(self, system_id, order):
-        """记住某个体系结果区标签页的顺序（标签页的 id 列表）。"""
+    def save_tab_order(self, system_id, order, rev=0):
+        """记住某个体系结果区标签页的顺序（标签页的 id 列表），以及当时体系默认顺序的版本号。"""
         if system_id not in self._systems:
             raise ValueError(f"未知的占星体系：{system_id}")
         if not isinstance(order, list) or len(order) > 60:
@@ -195,7 +202,11 @@ class SettingsStore:
                 raise ValueError(f"标签页的 id 不合法：{item!r}")
             if item not in clean:
                 clean.append(item)
-        return list(self.write(("layout", "tab_order", system_id), clean, merge=False))
+        if not isinstance(rev, int) or isinstance(rev, bool) or not 0 <= rev < 10000:
+            raise ValueError("标签页顺序的版本号不合法。")
+        saved = list(self.write(("layout", "tab_order", system_id), clean, merge=False))
+        self.write(("layout", "tab_order_rev", system_id), rev, merge=False)
+        return saved
 
     def save_session(self, updates):
         """updates 可含：library（档案库名）、last_profile（{档案库名: 人物 id 或 null}）、last_system、

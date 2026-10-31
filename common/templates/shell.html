@@ -15,25 +15,34 @@
 <header class="topbar">
     {# 一行放下：设置抽屉、体系切换、档案库、人物、时间（日期时间 + 步进 + 现在），右端是「排盘」 #}
     <div class="topbar-main">
-        <button id="drawerBtn" type="button" class="icon-btn drawer-btn" aria-controls="drawer" aria-expanded="false" title="设置（Esc 关闭）" aria-label="设置">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-        </button>
-        {# 占星体系切换：systems/ 下有几个体系就显示几个；切换时保留当前档案库和选中的人物 #}
-        <nav class="system-switch segmented compact" aria-label="占星体系">
-            {% for s in systems %}
-            <a href="{{ s.url }}" data-system="{{ s.id }}" class="{{ 'active' if s.id == current_system else '' }}"{% if s.id == current_system %} aria-current="page"{% endif %}>{{ s.title }}</a>
+        {# 占星体系：下拉选择（职业占星师一般只专注一个体系，不必常驻两个按钮）；切换时保留当前档案库和选中的人物 #}
+        <div class="sys-switch">
+            {% for s in systems if s.id == current_system %}
+            <button id="systemBtn" type="button" class="top-chip system-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="systemMenu">
+                <span>{{ s.title }}</span>
+                <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
+            </button>
             {% endfor %}
-        </nav>
-        {# 档案库：和设置抽屉里的是同一个菜单（点哪个按钮，菜单就出现在哪个按钮下面） #}
+            <div id="systemMenu" class="library-menu system-menu" role="menu" aria-label="占星体系" hidden>
+                {% for s in systems %}
+                <a href="{{ s.url }}" role="menuitemradio" data-system="{{ s.id }}" class="lm-item{{ ' current' if s.id == current_system else '' }}" aria-checked="{{ 'true' if s.id == current_system else 'false' }}">
+                    <span class="lm-check">{% if s.id == current_system %}<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg>{% endif %}</span>
+                    <span class="lm-name">{{ s.title }}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {# 档案库 #}
         <div class="lib-switch top-lib">
-            <button id="libraryBtnTop" type="button" class="library-btn top-chip" data-lib-btn aria-haspopup="menu" aria-expanded="false" aria-controls="libraryMenu" title="档案库">
+            <button id="libraryBtn" type="button" class="library-btn top-chip" data-lib-btn aria-haspopup="menu" aria-expanded="false" aria-controls="libraryMenu">
                 <svg class="lib-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h4l1.2 1.5h5.8v6.5h-11z"/></svg>
                 <span class="lib-name"></span>
                 <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
             </button>
+            <div id="libraryMenu" class="library-menu" role="menu" aria-label="档案库" hidden></div>
         </div>
-        {# 人物：点一下打开「选择人物」 #}
-        <button id="personChip" type="button" class="person-chip top-chip" title="选择人物">
+        {# 人物：点一下打开「选择人物」（选人、编辑、新建、导入导出都在那里） #}
+        <button id="personChip" type="button" class="person-chip top-chip">
             <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="5.5" r="2.8"/><path d="M2.8 14c0-2.9 2.3-4.8 5.2-4.8s5.2 1.9 5.2 4.8"/></svg>
             <span id="personName">选择人物</span>
             <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
@@ -51,11 +60,11 @@
                 <span class="dt-sep">:</span>
                 <input data-part="minute" type="text" inputmode="numeric" placeholder="分" aria-label="分" autocomplete="off">
                 <span class="dt-sep">:</span>
-                <input data-part="second" class="dt-second" type="text" inputmode="decimal" placeholder="秒" aria-label="秒（可带 3 位小数）" title="秒，可以带最多 3 位小数，如 05.25" autocomplete="off">
+                <input data-part="second" class="dt-second" type="text" inputmode="decimal" placeholder="秒" aria-label="秒（可带 3 位小数）" autocomplete="off">
             </div>
             <div class="time-step" role="group" aria-label="时间步进">
-                <button id="stepBackBtn" type="button" class="step-btn" title="往前一个步长并排盘" aria-label="往前一个步长">−</button>
-                <select id="stepSize" title="步长" aria-label="步长">
+                <button id="stepBackBtn" type="button" class="step-btn" aria-label="往前一个步长">−</button>
+                <select id="stepSize" aria-label="步长">
                     <option value="y:1">1 年</option>
                     <option value="M:6">半年</option>
                     <option value="M:1">1 月</option>
@@ -67,10 +76,10 @@
                     <option value="s:240">4 分</option>
                     <option value="s:60">1 分</option>
                 </select>
-                <button id="stepFwdBtn" type="button" class="step-btn" title="往后一个步长并排盘" aria-label="往后一个步长">＋</button>
-                <button id="stepResetBtn" type="button" class="step-reset hidden" title="回到步进前的时间并排盘"><span id="stepOffset" class="step-offset"></span> ↺</button>
+                <button id="stepFwdBtn" type="button" class="step-btn" aria-label="往后一个步长">＋</button>
+                <button id="stepResetBtn" type="button" class="step-reset hidden"><span id="stepOffset" class="step-offset"></span> ↺</button>
             </div>
-            <button id="nowBtn" type="button" class="icon-btn now-btn hidden" title="更新到现在" aria-label="更新到现在">
+            <button id="nowBtn" type="button" class="icon-btn now-btn hidden" aria-label="更新到现在">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 3.5V8.5H15.5"/></svg>
             </button>
             <p id="localTimeHint" class="dt-hint"></p>
@@ -79,6 +88,10 @@
     <div class="topbar-actions">
         <span id="statusBadge" class="status-badge">初始化中</span>
         <button id="calcBtn" type="button" class="primary-btn">排盘</button>
+        {# 设置抽屉：时间与地点、计算设置、工具；从右边滑出 #}
+        <button id="drawerBtn" type="button" class="icon-btn drawer-btn" aria-controls="drawer" aria-expanded="false" aria-label="设置">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg>
+        </button>
     </div>
 </header>
 
@@ -122,44 +135,6 @@
 <!-- 设置抽屉：从左边滑出，盖在星盘上；点外面、按 Esc 或再点左上角按钮收起 -->
 <div id="drawerScrim" class="drawer-scrim" hidden></div>
 <aside id="drawer" class="drawer" aria-label="设置" aria-hidden="true">
-    <section id="profilePanel" class="panel">
-        <div class="panel-head">
-            <div class="lib-switch">
-                <button id="libraryBtn" type="button" class="library-btn" data-lib-btn aria-haspopup="menu" aria-expanded="false" aria-controls="libraryMenu">
-                    <span id="libraryName" class="lib-name"></span>
-                    <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
-                </button>
-                <div id="libraryMenu" class="library-menu" role="menu" aria-label="档案库" hidden></div>
-            </div>
-            <span id="profileLibraryCount" class="muted"></span>
-        </div>
-        <div id="activeProfileCard" class="profile-card"></div>
-        <div class="button-row three">
-            <button id="openPickerBtn" type="button" class="accent-btn">选择人物…</button>
-            <button id="editProfileBtn" type="button">编辑档案</button>
-            <button id="newProfileBtn" type="button">新建档案</button>
-        </div>
-    </section>
-
-    <section id="transitPanel" class="panel hidden">
-        <div class="panel-head">
-            <h2>过境</h2>
-            <span id="locationInfo" class="muted"></span>
-        </div>
-        <div id="transitCard" class="profile-card"></div>
-        <div class="button-row three icon-row" role="toolbar" aria-label="过境操作">
-            <button id="locateBtn" type="button" aria-label="定位" title="定位">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><circle class="dot" cx="12" cy="12" r="2"/><path d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22"/></svg>
-            </button>
-            <button id="syncProfileLocBtn" type="button" aria-label="用档案地点" title="用档案地点">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.5s-6.5-5.4-6.5-11a6.5 6.5 0 0 1 13 0c0 5.6-6.5 11-6.5 11z"/><circle cx="12" cy="10.5" r="2.3"/></svg>
-            </button>
-            <button id="saveAsProfileBtn" type="button" aria-label="存为档案" title="存为档案">
-                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9.5" cy="8" r="3.5"/><path d="M3 20.5c0-3.6 2.9-6.2 6.5-6.2s6.5 2.6 6.5 6.2"/><path d="M19 7.5v6M16 10.5h6"/></svg>
-            </button>
-        </div>
-    </section>
-
     <section id="timePanel" class="panel">
         <div class="panel-head">
             <h2>时间与地点</h2>
@@ -195,6 +170,16 @@
         <div id="coordBlock" class="coord-block" data-format="decimal">
             <div class="coord-head">
                 <span class="field-label">经纬度</span>
+                {# 只在过境（Transit / Gochara）时出现：定位、改用档案的出生地点 #}
+                <span id="transitLocTools" class="loc-tools hidden">
+                    <button id="locateBtn" type="button" class="icon-btn loc-btn" aria-label="定位">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><circle class="dot" cx="12" cy="12" r="2"/><path d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22"/></svg>
+                    </button>
+                    <button id="syncProfileLocBtn" type="button" class="icon-btn loc-btn" aria-label="用档案的出生地点">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.5s-6.5-5.4-6.5-11a6.5 6.5 0 0 1 13 0c0 5.6-6.5 11-6.5 11z"/><circle cx="12" cy="10.5" r="2.3"/></svg>
+                    </button>
+                    <span id="locationInfo" class="muted loc-info"></span>
+                </span>
                 <div class="segmented mini" role="radiogroup" aria-label="经纬度格式">
                     <label><input type="radio" name="coordFormat" value="decimal" checked><span>十进制</span></label>
                     <label><input type="radio" name="coordFormat" value="dms"><span>度分秒</span></label>
@@ -342,6 +327,7 @@
     <div class="modal-foot">
         <a id="exportCsvBtn" class="small-btn ghost-btn" href="/api/profiles/export.csv" download>导出 CSV</a>
         <label class="small-btn ghost-btn file-btn">导入 CSV<input id="importCsvInput" type="file" accept=".csv,text/csv" hidden></label>
+        <button id="newProfileBtn" type="button" class="small-btn accent-btn">＋ 新建档案</button>
         <span class="spacer"></span>
     </div>
 </dialog>
@@ -349,6 +335,9 @@
 <!-- 编辑 / 新建档案 -->
 <dialog id="editorDialog" class="modal editor-modal" aria-labelledby="editorTitle">
     <div class="modal-head">
+        <button id="editorBackBtn" type="button" class="icon-btn back-btn hidden" aria-label="返回选择人物">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8 10 12.5"/></svg>
+        </button>
         <h2 id="editorTitle">编辑档案</h2>
         <button type="button" class="icon-btn" data-close aria-label="关闭">×</button>
     </div>
@@ -382,7 +371,6 @@
         <button id="deleteProfileBtn" type="button" class="danger" title="删除这份档案">删除</button>
         <span class="spacer"></span>
         <button type="button" data-close>取消</button>
-        <button id="saveAsNewBtn" type="button" title="把表单另存为一份新档案（不改动原档案）">另存为新档案</button>
         <button id="saveProfileBtn" type="button" class="accent-btn">保存</button>
     </div>
 </dialog>

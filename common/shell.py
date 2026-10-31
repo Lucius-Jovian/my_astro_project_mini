@@ -112,10 +112,10 @@ def import_settings():
 
 @bp.post("/api/layout/tab-order")
 def update_tab_order():
-    """结果区标签页拖动排序后写回：{"system": 体系 id, "order": [标签页 id, ...]}。"""
+    """结果区标签页拖动排序后写回：{"system": 体系 id, "order": [标签页 id, ...], "rev": 默认顺序的版本号}。"""
     try:
         payload = request.get_json(force=True) or {}
-        return ok(_store.save_tab_order(str(payload.get("system") or ""), payload.get("order")))
+        return ok(_store.save_tab_order(str(payload.get("system") or ""), payload.get("order"), payload.get("rev", 0)))
     except ValueError as exc:
         return fail(exc, 400)
     except OSError as exc:

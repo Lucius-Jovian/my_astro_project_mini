@@ -156,9 +156,6 @@ dialog.modal.varga-modal { width: min(640px, calc(100vw - 32px)); }
 .combust-field input { width: 4.8em; margin: 0; padding: 4px 6px; text-align: right; font-variant-numeric: tabular-nums; }
 
 /* 浮窗标题左边的返回按钮 */
-.modal-head .icon-btn.back-btn { width: 28px; height: 28px; margin-left: -6px; }
-.back-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.back-btn.hidden { display: none; }
 
 /* ---------- Yoga 标签页 ----------
    分类标题是一条带底色的窄条（小字、全大写式字距），Yoga 是下面缩进的条目，两者一眼就能分开。 */
@@ -233,7 +230,7 @@ dialog.modal.yoga-modal { width: min(900px, calc(100vw - 32px)); height: min(820
 .yoga-editor.hidden { display: none; }
 .yoga-editor textarea { font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; resize: vertical; }
 .yoga-check { min-height: 1.4em; margin: 0; font-size: 12.5px; }
-.yoga-check.ok { color: var(--c-transit); }
+.yoga-check.ok { color: var(--c-good); }
 .yoga-check.bad { color: var(--danger); }
 .yoga-editor-actions { display: flex; gap: 8px; justify-content: flex-end; }
 .yoga-ref { font-size: 12.5px; line-height: 1.7; }

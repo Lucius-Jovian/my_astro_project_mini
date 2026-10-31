@@ -71,9 +71,14 @@ function pointRow(r, name) {
 const POINT_RENDERERS = {
     asteroids: (rows) => rowsTableHtml([COL.name, COL.position, COL.lat, COL.ra, COL.dec, COL.speed], rows.map((r) => pointRow(r, r.name))),
     specials: (rows) => rowsTableHtml([COL.name, COL.position, COL.lat, COL.ra, COL.dec, COL.speed], rows.map((r) => pointRow(r, r.name))),
+    // 恒星：最左一列是英文简称（与星盘上的符号相同，带同样的颜色）；速度非常小，不列
     stars: (rows) => rowsTableHtml(
-        [COL.name, COL.position, COL.lat, COL.ra, COL.dec, COL.speed, {key: "mag", label: "星等"}, {key: "bayer", label: "拜耳命名"}],
-        rows.map((r) => ({...pointRow(r, r.name), mag: Number(r.mag).toFixed(2), bayer: r.bayer})),
+        [{key: "abbr", label: "简称"}, COL.name, COL.position, COL.lat, COL.ra, COL.dec, {key: "mag", label: "星等"}, {key: "bayer", label: "拜耳命名"}],
+        rows.map((r) => {
+            const meta = (state.points?.stars || []).find((s) => s.label === r.name) || {};
+            const abbr = meta.symbol || r.name.replace(/[^A-Za-z0-9]/g, "").slice(0, 3);
+            return {...pointRow(r, r.name), abbr: {html: glyphHtml(abbr, meta.color)}, mag: Number(r.mag).toFixed(2), bayer: r.bayer};
+        }),
     ),
     lots: (rows) => rowsTableHtml(
         [COL.name, COL.position, COL.speed, {key: "formula", label: "公式"}, {key: "sect", label: "日夜"}],
@@ -522,7 +527,7 @@ function renderStarsDialog(body) {
             }
             const name = label.value.trim() || info.name || info.query;
             const symbol = (info.name || info.nomenclature || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 3) || "★";
-            updateDraft((d) => d.stars.push({query: info.query, label: name, symbol, color: "#e6c46a", enabled: true}));
+            updateDraft((d) => d.stars.push({query: info.query, label: name, symbol, color: "#d9bf7c", enabled: true}));
         } catch (error) {
             showError(error.message);
         }
@@ -719,7 +724,7 @@ function renderLotsDialog(body) {
         }
         item.label = item.label || item.code;
         item.symbol = item.symbol || item.code.slice(0, 3);
-        item.color = "#e09ab3";
+        item.color = "#d3a0b2";
         showError("");
         updateDraft((d) => d.lots.items.push(item));
     });
@@ -1131,34 +1136,8 @@ function renderAspectGroups(box, data) {
         || "<p class='muted'>特殊点、恒星、Lot、映点与反映点都没有落在容许度内的相位。</p>";
 }
 
-// ---------- 星盘 ⇄ 相位表 ----------
-// 相位表放在星盘的位置上，用星盘区域右上角的「星盘 / 相位」切换，方便边看盘边对照。
-// 两个视图各自保留状态：切回相位时仍是上次看的主相位表或特殊点等分组表。
-
-function applyChartMode(mode) {
-    state.chartMode = mode === "aspects" ? "aspects" : "chart";
-    const chart = $("chartBox");
-    const panel = $("aspectPanel");
-    if (state.chartMode === "aspects") {
-        // 相位表至少和星盘一样高，切换时页面下方的内容不会跳动。
-        if (chart.offsetHeight) panel.style.minHeight = `${chart.offsetHeight}px`;
-        chart.classList.add("hidden");
-        panel.classList.remove("hidden");
-        renderAspects();
-    } else {
-        panel.classList.add("hidden");
-        chart.classList.remove("hidden");
-    }
-    document.querySelectorAll("#chartModeSwitch input").forEach((radio) => {
-        radio.checked = radio.value === state.chartMode;
-    });
-}
-
-function bindChartMode() {
-    document.querySelectorAll("#chartModeSwitch input").forEach((radio) => {
-        radio.addEventListener("change", () => { if (radio.checked) applyChartMode(radio.value); });
-    });
-}
+// ---------- 相位标签页 ----------
+// 主相位表 / 其它点（特殊点、恒星、Lot、映点与反映点）两个视图，切换后保留上次看的那个。
 
 function bindAspectView() {
     document.querySelectorAll("#aspectViewSwitch input").forEach((radio) => {
@@ -1404,7 +1383,6 @@ registerSystem({
     bind() {
         bindSettingsDialogs();
         bindAspectView();
-        bindChartMode();
     },
     collectOptions() {
         return {points: state.points, aspects: state.aspects, classical: state.classical};
@@ -1434,6 +1412,9 @@ registerSystem({
     onNewChart() {
         AstroChart.clearSelection();
     },
+    // 结果区标签页的默认顺序：相位紧跟在行星后面
+    defaultTabOrder: ["tabPlanets", "tabAspects", "tabHouses", "tabSun", "tabAsteroids", "tabStars", "tabLots",
+        "tabSpecials", "tabAntiscia", "tabProfile"],
     tabVisible(button) {
         const category = button.dataset.points;
         return category ? pointCategoryEnabled(category) : undefined;

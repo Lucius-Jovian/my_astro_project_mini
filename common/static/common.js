@@ -263,7 +263,7 @@ async function applyPendingSync() {
 function bindEmbedding() {
     if (!EMBEDDED) return;
     // 顶部的体系切换：请外壳切换，不跳转。按住 Ctrl / ⌘ / Shift 或用中键时照常在新窗口打开。
-    document.querySelectorAll(".system-switch a[data-system]").forEach((link) => {
+    document.querySelectorAll("#systemMenu a[data-system]").forEach((link) => {
         link.addEventListener("click", (event) => {
             if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
             event.preventDefault();
@@ -556,10 +556,10 @@ function renderSunTable(container, results) {
 
 // ---------- 结果表共用的格式 ----------
 
-// "house 7" / 7 → "第 7 宫"
+// "house 7" / 7 → "7"（表格里宫位只写数字）
 function houseName(key) {
     const n = String(key).match(/\d+/);
-    return n ? `第 ${Number(n[0])} 宫` : String(key);
+    return n ? String(Number(n[0])) : String(key);
 }
 
 // 速度：保留 4 位小数，单位 °/日（速度是唯一不换成度分秒的数值）。
@@ -668,15 +668,28 @@ function tabButtons() {
     return [...$("resultTabs").querySelectorAll("[data-tab]")];
 }
 
+// 默认顺序：体系可以用 defaultTabOrder 指定（没列出的按页面里的先后排在后面）。
+// 体系改了默认顺序时把 tabOrderRev 加 1：之前保存的顺序版本号更小，就不再使用，回到新的默认顺序。
 function defaultTabOrder() {
-    return state.defaultTabOrder || tabButtons().map((b) => b.dataset.tab);
+    if (!state.defaultTabOrder) {
+        const dom = tabButtons().map((b) => b.dataset.tab);
+        const wanted = (SYSTEM.defaultTabOrder || []).filter((id) => dom.includes(id));
+        state.defaultTabOrder = [...wanted, ...dom.filter((id) => !wanted.includes(id))];
+    }
+    return state.defaultTabOrder;
+}
+
+function savedTabOrder() {
+    const layout = state.settings.layout || {};
+    const rev = layout.tab_order_rev?.[state.system.id] || 0;
+    if (rev < (SYSTEM.tabOrderRev || 0)) return [];
+    return layout.tab_order?.[state.system.id] || [];
 }
 
 // 按保存的顺序重排标签页按钮；保存的列表里没有的标签页（例如体系新增的）按默认先后排在后面。
 function applyTabOrder(order = null) {
     const bar = $("resultTabs");
-    if (!state.defaultTabOrder) state.defaultTabOrder = tabButtons().map((b) => b.dataset.tab);
-    const saved = order || state.settings.layout?.tab_order?.[state.system.id] || [];
+    const saved = order || savedTabOrder();
     const byId = new Map(tabButtons().map((b) => [b.dataset.tab, b]));
     const ids = [...saved.filter((id) => byId.has(id)), ...defaultTabOrder().filter((id) => !saved.includes(id))];
     ids.forEach((id) => bar.appendChild(byId.get(id)));
@@ -767,9 +780,10 @@ function bindOrderDrag(handle, row) {
 async function finishTabOrder() {
     const order = [...tabOrderDraft];
     try {
-        await api("/api/layout/tab-order", {method: "POST", body: JSON.stringify({system: state.system.id, order})});
+        await api("/api/layout/tab-order", {method: "POST", body: JSON.stringify({system: state.system.id, order, rev: SYSTEM.tabOrderRev || 0})});
         state.settings.layout = state.settings.layout || {tab_order: {}};
         state.settings.layout.tab_order = {...(state.settings.layout.tab_order || {}), [state.system.id]: order};
+        state.settings.layout.tab_order_rev = {...(state.settings.layout.tab_order_rev || {}), [state.system.id]: SYSTEM.tabOrderRev || 0};
         applyTabOrder(order);
         closeDialog("tabOrderDialog");
         setStatus("标签页顺序已保存");
@@ -1763,7 +1777,7 @@ function renderView() {
     const chart = state.charts[resultsKind()];
     state.results = chart.results || {};
     renderAllResults();
-    if (chartKind() === "transit") renderTransitCard();
+
 }
 
 // 星盘上方：常用的几张盘做成按钮条；分盘很多时，其余的放进按钮条右边的下拉菜单（SYSTEM.viewMenu）。
@@ -1923,26 +1937,15 @@ function updateViewUI() {
     const transit = chartKind() === "transit";
     document.querySelectorAll("input[name='chartView']").forEach((r) => { r.checked = r.value === state.view; });
     updateViewMenu();
-    $("profilePanel").classList.toggle("hidden", transit);
-    $("transitPanel").classList.toggle("hidden", !transit);
     $("timePanel").classList.toggle("hidden", !transit && !state.activeProfile);
     $("timeStrip").hidden = !transit && !state.activeProfile;
     $("nowBtn").classList.toggle("hidden", !transit);
+    // 定位、用档案地点：只在过境（Transit / Gochara）的「时间与地点」里出现
+    $("transitLocTools").classList.toggle("hidden", !transit);
     $("syncProfileLocBtn").disabled = !state.activeProfile;
     updateProfileTab();
-    renderTransitCard();
 }
 
-// 过境卡片：这一刻的日主星、时主星（时刻、历法、时区、经纬度下面「时间与地点」里都有）。
-function renderTransitCard() {
-    const r = state.charts.transit.results || {};
-    const row = (label, code) => `
-        <div class="lord-row">
-            <span class="lord-label">${label}</span>
-            <span class="lord-name">${code ? escapeHtml(PLANET_NAMES[code] || code) : "—"}</span>
-        </div>`;
-    $("transitCard").innerHTML = row("日主星", r.day_lord_result?.day_lord) + row("时主星", r.planetary_hour_data?.planetary_hour_lord);
-}
 
 // ---------- 表单 ↔ 某张盘的输入 ----------
 
@@ -2089,7 +2092,6 @@ function locateTransit({silentFail = false} = {}) {
                 locationInfo: `已定位${accText}`,
             }, accuracy === null ? "" : `浏览器报告的精度约 ${accuracy} 米`);
             if (chartKind() === "transit") calculateFull();
-            renderTransitCard();
         },
         (error) => {
             button.classList.remove("busy");
@@ -2113,8 +2115,6 @@ function bindTransitActions() {
     $("nowBtn").addEventListener("click", setTransitNow);
     $("locateBtn").addEventListener("click", () => locateTransit());
     $("syncProfileLocBtn").addEventListener("click", syncProfileLocation);
-    // 用过境的时间与地点（比如“现在”）新建档案。
-    $("saveAsProfileBtn").addEventListener("click", () => openEditor("new"));
 }
 
 // ---------- 本命盘 ↔ 档案 ----------
@@ -2579,19 +2579,11 @@ function bindDialogs() {
 
 // ---------- 当前人物卡片 + 档案资料页 ----------
 
+// 顶栏的人物按钮：显示当前人物的名字。
 function renderActiveProfileCard() {
-    const card = $("activeProfileCard");
     const p = state.activeProfile;
-    $("editProfileBtn").disabled = !p;
     $("personName").textContent = p ? p.display_name : "选择人物";
     $("personChip").classList.toggle("empty", !p);
-    $("personChip").title = p ? `${p.display_name}（点一下换人）` : "选择人物";
-    if (!p) {
-        card.innerHTML = "<p class='muted profile-card-empty'>未选择人物</p>";
-        return;
-    }
-    // 出生时间、历法、时区、经纬度下面「时间与地点」里都有，这里只放名字。
-    card.innerHTML = `<div class="profile-card-name" title="${escapeHtml(p.display_name)}">${escapeHtml(p.display_name)}</div>`;
 }
 
 // 「档案资料」标签页：只在本命 / 分盘视图、且选中了人物时出现。
@@ -2864,10 +2856,17 @@ function renderProfileList() {
                 <span class="chips">${tags}</span>
                 ${sortText ? `<span class="profile-row-sort${item.sort_value == null || item.sort_value === "" ? " empty" : ""}">${escapeHtml(sortText)}</span>` : ""}
                 <span class="profile-row-birth">${escapeHtml(birthLabel(item.birth_time, item.calendar))}</span>
-                <button type="button" class="profile-row-del" title="删除这份档案" aria-label="删除「${escapeHtml(item.display_name)}」的档案">${ICON_TRASH}</button>
+                <button type="button" class="profile-row-edit" aria-label="编辑「${escapeHtml(item.display_name)}」的档案">${ICON_PEN}</button>
+                <button type="button" class="profile-row-del" aria-label="删除「${escapeHtml(item.display_name)}」的档案">${ICON_TRASH}</button>
             </div>
             ${match}
         `;
+        const edit = row.querySelector(".profile-row-edit");
+        edit.addEventListener("click", (event) => {
+            event.stopPropagation();          // 不要同时触发「选中这一行」
+            editProfileFromList(item);
+        });
+        edit.addEventListener("keydown", (event) => event.stopPropagation());
         const del = row.querySelector(".profile-row-del");
         del.addEventListener("click", (event) => {
             event.stopPropagation();          // 不要同时触发「选中这一行」
@@ -2897,7 +2896,6 @@ function renderProfileList() {
     }
 
     $("profileTotal").textContent = hasActiveFilter() ? `筛出 ${list.total} 人` : `共 ${list.total} 人`;
-    $("profileLibraryCount").textContent = state.libraryTotal != null ? `共 ${state.libraryTotal} 人` : "";
     $("pageJump").value = String(list.page);
     $("pageJump").max = String(Math.max(1, list.totalPages));
     $("pageCount").textContent = String(Math.max(1, list.totalPages));
@@ -3155,7 +3153,6 @@ function bindProfileBrowser() {
         loadProfileList(1);
     }, 300);
 
-    $("openPickerBtn").addEventListener("click", openPicker);
 
     $("filterToggle").addEventListener("click", () => {
         const open = $("filterBox").classList.toggle("hidden") === false;
@@ -3367,47 +3364,96 @@ function collectProfileFields() {
 
 const CALENDAR_NAMES = {g: "格里历", j: "儒略历"};
 
-function birthSummary() {
-    const time = getLocalTime() || "（日期时间未填完整）";
-    return `出生数据：${time} · ${CALENDAR_NAMES[currentCalendar()]} · UTC${$("timezone").value.trim() || "?"} · ` +
-        `${formatCoord($("latitude").value, "latitude")} · ${formatCoord($("longitude").value, "longitude")}`;
+// ---------- 编辑 / 新建档案 ----------
+// 入口都在「选择人物」浮窗：每一行的铅笔图标编辑这一份；底部的「新建档案」用当前这张盘（本命或过境）的时间地点新建。
+// 从「选择人物」进来的，左上角的返回、取消、Esc 都回到「选择人物」原来那一页。
+//
+// 出生数据取哪里：
+//   新建                          → 当前这张盘的时间与地点（本命盘或过境盘，就是顶栏时间条里的那一份）
+//   编辑当前人物                  → 本命盘现在的时间与地点（步进、改时间后点保存，就把校正写进档案）
+//   编辑别的人                    → 这份档案原来的出生数据（不改）
+state.editor = {mode: "new", profile: null, birth: null, fromPicker: false};
+
+function birthInputValid(input) {
+    const nums = DT_PARTS.map((p, i) => Number(input?.parts?.[i]));
+    if (input?.parts?.some((v) => String(v ?? "").trim() === "") || nums.some((n) => !Number.isFinite(n))) return false;
+    return Boolean(String(input.timezone || "").trim()) && input.latitude !== "" && input.longitude !== "" &&
+        Number.isFinite(Number(input.latitude)) && Number.isFinite(Number(input.longitude));
 }
 
-// mode: "edit"（编辑当前人物）或 "new"（新建）
-function openEditor(mode) {
-    state.editorMode = mode;
-    const p = mode === "edit" ? state.activeProfile : null;
-    $("editorTitle").textContent = p ? `编辑档案：${p.display_name}` : "新建档案";
+function editorBirthInput(mode, profile) {
+    if (mode === "new") return readForm();
+    if (profile && profile.id === state.activeProfileId) {
+        return chartKind() === "natal" ? readForm() : (state.charts.natal.input || inputFromProfile(profile));
+    }
+    return inputFromProfile(profile);
+}
+
+function birthSummary(input) {
+    if (!birthInputValid(input)) return "出生数据：（时间或地点未填完整）";
+    const b = birthFromInput(input);
+    return `出生数据：${b.local_time_str} · ${CALENDAR_NAMES[b.calendar]} · UTC${b.timezone_str} · ` +
+        `${formatCoord(b.latitude, "latitude")} · ${formatCoord(b.longitude, "longitude")}`;
+}
+
+// mode: "edit"（profile = 要编辑的那一份，完整档案）或 "new"
+function openEditor(mode, {profile = null, fromPicker = false} = {}) {
+    const p = mode === "edit" ? profile : null;
+    state.editorMode = p ? "edit" : "new";
+    state.editor = {mode: state.editorMode, profile: p, birth: editorBirthInput(state.editorMode, p), fromPicker};
+    if (fromPicker) closeDialog("pickerDialog");
+    $("editorTitle").textContent = p ? p.display_name : "新建档案";
+    $("editorBackBtn").classList.toggle("hidden", !fromPicker);
     $("profileName").value = p?.display_name || "";
     $("profileTags").value = (p?.tags || []).join(", ");
     renderProfileCustomFields(p?.fields || {});
     renderTagSuggest();
     renderFieldManager();
     renderTagManager();
-    $("editorBirthInfo").textContent = birthSummary();
+    $("editorBirthInfo").textContent = birthSummary(state.editor.birth);
     $("deleteProfileBtn").classList.toggle("hidden", !p);
-    $("saveAsNewBtn").classList.toggle("hidden", !p);
-    $("saveProfileBtn").textContent = p ? "保存修改" : "创建档案";
+    $("saveProfileBtn").textContent = p ? "保存" : "创建档案";
     openDialog("editorDialog");
     setTimeout(() => $("profileName").focus(), 0);
 }
 
+// 关掉编辑窗口；从「选择人物」进来的回到「选择人物」原来那一页（列表重新读一次，名字、标签改过也能看到）。
+function leaveEditor({backToPicker = true} = {}) {
+    const fromPicker = state.editor.fromPicker;
+    state.editor.fromPicker = false;
+    closeDialog("editorDialog");
+    if (fromPicker && backToPicker) {
+        openDialog("pickerDialog");
+        loadProfileList(state.profileList.page || 1);
+    }
+}
+
+async function editProfileFromList(item) {
+    try {
+        const full = await api(`/api/profiles/${item.id}`);
+        openEditor("edit", {profile: full, fromPicker: true});
+    } catch (error) {
+        showError(error.message);
+    }
+}
+
 function profilePayload() {
+    const b = birthFromInput(state.editor.birth);
     return {
         display_name: $("profileName").value.trim(),
-        birth_time: getLocalTime(),
-        calendar: currentCalendar(),
-        timezone_offset: $("timezone").value.trim(),
-        latitude: Number($("latitude").value),
-        longitude: Number($("longitude").value),
+        birth_time: b.local_time_str,
+        calendar: b.calendar,
+        timezone_offset: b.timezone_str,
+        latitude: b.latitude,
+        longitude: b.longitude,
         tags: splitTags($("profileTags").value),
         fields: collectProfileFields(),
     };
 }
 
 function checkProfileForm() {
-    if (!formComplete()) {
-        showError("请先在左侧「时间与地点」里填写完整、合法的本地时间、时区、纬度、经度。");
+    if (!birthInputValid(state.editor.birth)) {
+        showError("时间或地点没有填完整：请先在顶栏的时间条和设置里的「时间与地点」填好。");
         return null;
     }
     const payload = profilePayload();
@@ -3419,16 +3465,19 @@ function checkProfileForm() {
     return payload;
 }
 
-// 保存 / 新建成功后：把服务器整理过的结果设为当前人物，并刷新列表和标签。
-// 新建（包括在过境里「存为档案」）时，新档案成为本命盘；编辑保存时本命盘的时刻就是表单里的，不必重算。
+// 新建成功：新档案成为本命盘，关掉窗口直接看盘。
+// 编辑成功：是当前人物就更新当前人物；从「选择人物」进来的回到列表。
 async function afterProfileSaved(saved, {isNew = false} = {}) {
     const full = await api(`/api/profiles/${saved.id}`);
-    closeDialog("editorDialog");
     if (isNew) {
+        leaveEditor({backToPicker: false});
         await useProfileForNatal(full);
     } else {
-        setActiveProfile(full);
-        updateViewUI();
+        if (full.id === state.activeProfileId) {
+            setActiveProfile(full);
+            updateViewUI();
+        }
+        leaveEditor();
     }
     await Promise.all([refreshProfiles(), refreshTagOptions()]);
 }
@@ -3452,7 +3501,8 @@ async function createProfile() {
 }
 
 async function saveActiveProfile() {
-    if (state.editorMode !== "edit" || !state.activeProfileId) {
+    const target = state.editor.profile;
+    if (state.editorMode !== "edit" || !target) {
         await createProfile();
         return;
     }
@@ -3460,10 +3510,7 @@ async function saveActiveProfile() {
     if (!payload) return;
     try {
         showError("");
-        const saved = await api(`/api/profiles/${state.activeProfileId}`, {
-            method: "PUT",
-            body: JSON.stringify(payload),
-        });
+        const saved = await api(`/api/profiles/${target.id}`, {method: "PUT", body: JSON.stringify(payload)});
         await afterProfileSaved(saved);
         setStatus(`已保存「${saved.display_name}」`);
     } catch (error) {
@@ -3486,12 +3533,13 @@ async function deleteProfileFromList(item) {
 }
 
 async function deleteActiveProfile() {
-    if (!state.activeProfileId) return;
-    if (!confirm(`确定删除「${state.activeProfile?.display_name || ""}」的档案？删除后无法恢复。`)) return;
+    const target = state.editor.profile;
+    if (!target) return;
+    if (!confirm(`确定删除「${target.display_name || ""}」的档案？删除后无法恢复。`)) return;
     try {
-        await api(`/api/profiles/${state.activeProfileId}`, {method: "DELETE"});
-        closeDialog("editorDialog");
-        await useProfileForNatal(null);
+        await api(`/api/profiles/${target.id}`, {method: "DELETE"});
+        leaveEditor();
+        if (target.id === state.activeProfileId) await useProfileForNatal(null);
         await Promise.all([refreshProfiles(), refreshTagOptions()]);
         setStatus("档案已删除");
     } catch (error) {
@@ -3502,11 +3550,21 @@ async function deleteActiveProfile() {
 function bindProfileActions() {
     bindProfileBrowser();
 
-    $("editProfileBtn").addEventListener("click", () => openEditor("edit"));
-    $("newProfileBtn").addEventListener("click", () => openEditor("new"));
+    $("newProfileBtn").addEventListener("click", () => openEditor("new", {fromPicker: true}));
     $("saveProfileBtn").addEventListener("click", saveActiveProfile);
-    $("saveAsNewBtn").addEventListener("click", createProfile);
     $("deleteProfileBtn").addEventListener("click", deleteActiveProfile);
+    // 返回、取消、Esc：从「选择人物」进来的都回到「选择人物」
+    $("editorBackBtn").addEventListener("click", () => leaveEditor());
+    $("editorDialog").querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", (event) => {
+        if (!state.editor.fromPicker) return;
+        event.stopImmediatePropagation();
+        leaveEditor();
+    }, true));
+    $("editorDialog").addEventListener("cancel", (event) => {
+        if (!state.editor.fromPicker) return;
+        event.preventDefault();
+        leaveEditor();
+    });
     $("profileTags").addEventListener("input", renderTagSuggest);
     // 浮窗里按 Ctrl/⌘ + 回车保存
     $("editorDialog").addEventListener("keydown", (event) => {
@@ -4276,6 +4334,39 @@ function setDrawerOpen(open) {
     if (open) setTimeout(() => $("drawer").querySelector("button, input, select")?.focus({preventScroll: true}), 0);
 }
 
+// 顶栏的占星体系下拉：和档案库菜单同样的样式；点体系名字切换（切换由外壳页面完成，见 bindEmbedding）。
+function bindSystemMenu() {
+    const button = $("systemBtn");
+    const menu = $("systemMenu");
+    if (!button || !menu) return;
+    const close = (focus = false) => {
+        if (menu.hidden) return;
+        menu.classList.remove("open");
+        menu.hidden = true;
+        button.setAttribute("aria-expanded", "false");
+        if (focus) button.focus();
+    };
+    const open = () => {
+        menu.hidden = false;
+        button.setAttribute("aria-expanded", "true");
+        requestAnimationFrame(() => menu.classList.add("open"));
+        (menu.querySelector(".lm-item.current") || menu.querySelector(".lm-item"))?.focus();
+    };
+    button.addEventListener("click", () => (menu.hidden ? open() : close()));
+    menu.addEventListener("click", () => close());
+    menu.addEventListener("keydown", (event) => {
+        const items = [...menu.querySelectorAll(".lm-item")];
+        const index = items.indexOf(document.activeElement);
+        if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(true); }
+        else if (event.key === "ArrowDown") { event.preventDefault(); items[(index + 1) % items.length]?.focus(); }
+        else if (event.key === "ArrowUp") { event.preventDefault(); items[(index - 1 + items.length) % items.length]?.focus(); }
+        else if (event.key === "Tab") close();
+    });
+    document.addEventListener("pointerdown", (event) => {
+        if (!menu.hidden && !event.target.closest(".sys-switch")) close();
+    });
+}
+
 function bindDrawer() {
     $("drawerBtn").addEventListener("click", () => setDrawerOpen(!drawerOpen()));
     $("drawerScrim").addEventListener("click", () => setDrawerOpen(false));
@@ -4286,6 +4377,7 @@ function bindDrawer() {
         $("drawerBtn").focus();
     });
     $("personChip").addEventListener("click", () => openPicker());
+    bindSystemMenu();
 }
 
 window.addEventListener("DOMContentLoaded", init);

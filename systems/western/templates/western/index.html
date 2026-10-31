@@ -92,24 +92,8 @@
                 </div>
 {% endblock %}
 
-{% block chart_head %}
-                <div class="segmented compact" id="chartModeSwitch" role="radiogroup" aria-label="星盘或相位表">
-                    <label><input type="radio" name="chartMode" value="chart" checked><span>星盘</span></label>
-                    <label><input type="radio" name="chartMode" value="aspects"><span>相位</span></label>
-                </div>
-{% endblock %}
-
-{% block chart_extra %}
-            <div id="aspectPanel" class="aspect-panel hidden">
-                <div class="segmented aspect-view-switch" id="aspectViewSwitch" role="radiogroup" aria-label="相位视图">
-                    <label><input type="radio" name="aspectView" value="main" checked><span>主相位表</span></label>
-                    <label><input type="radio" name="aspectView" value="others"><span>特殊点 · 恒星 · Lot · 映点与反映点</span></label>
-                </div>
-                <div id="aspectResult"></div>
-            </div>
-{% endblock %}
-
 {% block result_tabs %}
+                <button type="button" role="tab" data-tab="tabAspects">相位</button>
                 <button type="button" role="tab" data-tab="tabAsteroids" data-points="asteroids">小行星</button>
                 <button type="button" role="tab" data-tab="tabStars" data-points="stars">恒星</button>
                 <button type="button" role="tab" data-tab="tabLots" data-points="lots">Lot</button>
@@ -118,6 +102,13 @@
 {% endblock %}
 
 {% block result_panels %}
+            <div class="tab-panel hidden" id="tabAspects">
+                <div class="segmented compact aspect-view-switch" id="aspectViewSwitch" role="radiogroup" aria-label="相位视图">
+                    <label><input type="radio" name="aspectView" value="main" checked><span>主相位表</span></label>
+                    <label><input type="radio" name="aspectView" value="others"><span>其它点</span></label>
+                </div>
+                <div id="aspectResult"></div>
+            </div>
             <div class="tab-panel hidden" id="tabAsteroids"><div id="asteroidResult"></div></div>
             <div class="tab-panel hidden" id="tabStars"><div id="starResult"></div></div>
             <div class="tab-panel hidden" id="tabLots"><div id="lotResult"></div></div>

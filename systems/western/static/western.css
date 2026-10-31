@@ -5,16 +5,16 @@
 
 :root {
     /* 相位：入相 / 出相 */
-    --asp-applying: #8cc3ae;
-    --asp-separating: #e0a37f;
-    --c-fire: #e08c80;
-    --c-earth: #c8bd7e;
-    --c-air: #8cc4b6;
-    --c-water: #93a9d8;
-    --c-asteroid: #c3a3d6;
+    --asp-applying: #9fbcaa;
+    --asp-separating: #d3a88c;
+    --c-fire: #d99a8e;
+    --c-earth: #c6bb88;
+    --c-air: #9dbfb4;
+    --c-water: #9dabcf;
+    --c-asteroid: #b9a5cc;
     --c-special: #d8b886;
-    --c-lot: #e09ab3;
-    --c-star: #e6c46a;
+    --c-lot: #d3a0b2;
+    --c-star: #d9bf7c;
 }
 
 /* ---------- 圆形星盘 ---------- */
@@ -211,7 +211,7 @@
 
 /* ---------- 相位结果 ---------- */
 
-.aspect-view-switch { margin-bottom: 10px; max-width: 460px; }
+.aspect-view-switch { margin-bottom: 10px; }
 
 .aspect-matrix-wrap { overflow-x: auto; }
 table.aspect-matrix {
@@ -221,10 +221,10 @@ table.aspect-matrix {
     font-variant-numeric: tabular-nums;
 }
 table.aspect-matrix td, table.aspect-matrix th {
-    width: 58px;
-    min-width: 58px;
-    height: 44px;
-    padding: 2px 3px;
+    width: 48px;
+    min-width: 48px;
+    height: 40px;
+    padding: 2px 1px;
     text-align: center;
     vertical-align: middle;
     border: 0;
@@ -248,6 +248,8 @@ table.aspect-matrix .am-diag {
     font-weight: 600;
 }
 table.aspect-matrix .am-label {
+    width: 40px;
+    min-width: 40px;
     color: var(--text);
     font-size: 17px;
     font-weight: 600;
@@ -373,7 +375,3 @@ table.aspect-matrix .am-sym { font: inherit; }
 .sun-phase-row input { margin: 0; }
 .sun-phase-add { margin-top: 10px; }
 
-/* 与星盘互相切换的相位表 */
-.aspect-panel { display: flex; flex-direction: column; gap: 10px; overflow: auto; }
-.aspect-panel.hidden { display: none; }
-.aspect-panel .aspect-view-switch { align-self: flex-start; }
