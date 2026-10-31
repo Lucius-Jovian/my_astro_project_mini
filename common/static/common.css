@@ -31,8 +31,8 @@
     --c-cusp: #9cb0c0;
     --c-asc: #dc9a91;
     --c-retro: #e5776c;
-    --c-transit: #9fc4b7;
-    --c-transit-deg: #8aa79d;
+    --c-transit: #74c2db;
+    --c-transit-deg: #62a6bd;
     --hover: rgba(184, 166, 150, 0.14);
     --pop-shadow: 0 14px 36px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3);
 }
@@ -129,7 +129,7 @@ button.danger:hover { background: var(--danger-soft); }
 
 :root {
     --topbar-h: 52px;
-    --chart-size: max(320px, min(calc(100vh - var(--topbar-h) - 136px), 58vw));
+    --chart-size: max(320px, min(calc(100vh - var(--topbar-h) - 94px), 60vw));
 }
 
 .layout {
@@ -142,7 +142,7 @@ button.danger:hover { background: var(--danger-soft); }
 }
 
 .chart-panel, .result-panel { min-width: 0; min-height: 0; }
-.chart-panel { display: flex; flex-direction: column; gap: 8px; padding: 12px; overflow: auto; }
+.chart-panel { display: flex; flex-direction: column; gap: 8px; padding: 12px; overflow-x: hidden; overflow-y: auto; }
 .result-panel { display: flex; flex-direction: column; padding: 12px 14px; }
 .result-panel .tab-panels { flex: 1 1 auto; min-height: 0; overflow: auto; padding-right: 2px; scrollbar-width: thin; }
 
@@ -703,41 +703,46 @@ pre {
 
 /* 星盘切换：按钮条 + 下拉菜单（分盘多时，其余的盘收在菜单里，不挤占版面） */
 .chart-views { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; }
-.view-menu { position: relative; }
-.view-menu[hidden] { display: none; }
-.view-menu-btn {
+.view-menu {
     display: inline-flex;
-    align-items: center;
-    gap: 6px;
+    align-items: stretch;
     height: 32px;
-    padding: 0 10px 0 12px;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: var(--subtle);
+    overflow: hidden;
+}
+.view-menu[hidden] { display: none; }
+.view-menu-main, .view-menu-btn {
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
     color: var(--text-2);
     font-size: 13px;
     white-space: nowrap;
 }
-.view-menu-btn:hover { color: var(--text); }
-.view-menu-btn.active { background: var(--surface); color: var(--text); font-weight: 600; border-color: var(--border-strong); }
+.view-menu-main { padding: 0 10px 0 12px; font-variant-numeric: tabular-nums; }
+.view-menu-btn { display: inline-flex; align-items: center; padding: 0 8px; border-left: 1px solid var(--border); }
+.view-menu-main:hover, .view-menu-btn:hover { background: var(--hover); color: var(--text); }
+.view-menu.active .view-menu-main { background: var(--surface); color: var(--text); font-weight: 600; }
 .view-menu-btn .chev {
     width: 12px; height: 12px; fill: none; stroke: currentColor;
     stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round;
     transition: transform 0.18s ease;
 }
+.view-menu-btn[aria-expanded="true"] { background: var(--accent-soft); color: var(--text); }
 .view-menu-btn[aria-expanded="true"] .chev { transform: rotate(180deg); }
 
+/* 菜单挂在 <body> 上，fixed 定位，位置由 JS 算好并限制在窗口内 */
 .view-menu-pop {
     --cols: 4;
-    position: absolute;
-    top: calc(100% + 6px);
-    left: 0;
-    z-index: 30;
+    position: fixed;
+    z-index: 60;
     display: grid;
     grid-template-columns: repeat(var(--cols), minmax(84px, 1fr));
     gap: 2px;
     width: max-content;
-    max-width: min(440px, calc(100vw - 32px));
     padding: 6px;
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -1667,3 +1672,63 @@ dialog.modal.transfer-modal { width: min(460px, calc(100vw - 32px)); }
 .transfer-choice:hover { background: var(--hover); border-color: var(--border-strong); }
 .transfer-name { font-size: 14px; font-weight: 600; color: var(--text); }
 .transfer-desc { font-size: 12px; color: var(--muted); line-height: 1.5; white-space: normal; }
+
+/* ---------- 顶栏一行：设置、体系、档案库、人物、时间 ---------- */
+
+.topbar-main { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; }
+.topbar .lib-switch { max-width: none; flex: 0 1 auto; }
+
+/* 档案库、人物：同一种圆角小按钮 */
+.top-chip,
+.topbar .library-btn.top-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    max-width: 170px;
+    margin: 0;
+    padding: 0 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--subtle);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+.top-chip:hover, .topbar .library-btn.top-chip[aria-expanded="true"] { background: var(--accent-soft); border-color: var(--border-strong); }
+.top-chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.top-chip .lib-icon { flex: 0 0 auto; width: 14px; height: 14px; fill: none; stroke: var(--muted); stroke-width: 1.3; stroke-linejoin: round; }
+.top-chip .chev { flex: 0 0 auto; width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.lib-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-chip { border-radius: 8px; }
+
+/* 顶栏里的时间 */
+.topbar .time-strip { position: relative; flex-wrap: nowrap; gap: 6px; margin-left: 4px; }
+.topbar .dt-input { height: 32px; padding-top: 0; padding-bottom: 0; }
+.topbar .time-step select { height: 32px; }
+.topbar .step-btn { height: 32px; }
+/* 日期不合法的提示：浮在时间下面，不占顶栏的高度 */
+.topbar .time-strip .dt-hint {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
+    padding: 4px 8px; border-radius: 6px;
+    background: var(--surface); border: 1px solid var(--border); box-shadow: var(--pop-shadow);
+    white-space: nowrap;
+}
+
+/* 星盘上方只有一行 */
+.chart-head { flex-wrap: nowrap; }
+.head-spacer { flex: 1 1 0; min-width: 0; }
+.chart-views { flex-wrap: nowrap; }
+
+/* 顶栏放不下一行时（窄屏）：允许换行，布局按两行顶栏计算 */
+@media (min-width: 981px) and (max-width: 1180px) {
+    :root { --topbar-h: 92px; }
+    .topbar { height: var(--topbar-h); flex-wrap: wrap; align-content: center; row-gap: 6px; }
+    .topbar-main { flex-wrap: wrap; row-gap: 6px; }
+}
+
+@media (max-width: 980px) {
+    .topbar-main { flex-wrap: wrap; row-gap: 6px; }
+    .chart-head, .chart-views { flex-wrap: wrap; }
+}

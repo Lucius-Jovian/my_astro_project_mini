@@ -295,8 +295,8 @@ function buildDashaLevel(items, level, nowIndex) {
 
 const SIGN_LIST = ["白羊", "金牛", "双子", "巨蟹", "狮子", "处女", "天秤", "天蝎", "射手", "摩羯", "水瓶", "双鱼"];
 
-// 放在按钮条上的 D 盘（其余在下拉菜单里）。想多放一张，只改这一处。
-const PINNED_VARGAS = ["D9"];
+// 放在按钮条上的 D 盘（默认都在「分盘」按钮里，D9 是分盘按钮的默认盘）。想单独放一张，只改这一处。
+const PINNED_VARGAS = [];
 
 const signIndex = (lon) => Math.floor(norm360(lon) / 30) % 12;
 
@@ -334,7 +334,7 @@ function updateRotationPicker(view = state.view) {
 function bindRotation() {
     fillSelect($("rashiLagna"), [
         {value: "asc", label: "转宫"},
-        ...SIGN_LIST.map((name, i) => ({value: String(i), label: `${i + 1} ${name}`})),
+        ...SIGN_LIST.map((name, i) => ({value: String(i), label: String(i + 1)})),
     ]);
     $("rashiLagna").addEventListener("change", () => {
         const v = $("rashiLagna").value;
@@ -454,7 +454,7 @@ function buildBhavaChart(natal, houses) {
 }
 
 // 按钮条的顺序：Rashi、Transit 固定在最前，后面按这里的数字从小到大。想调整顺序，只改这几个数字。
-const BAR_ORDER = {moon: 10, bhava: 20, D9: 30, gochara: 40};
+const BAR_ORDER = {moon: 10, bhava: 20, gochara: 30};
 
 /*
  * Gochara：Rashi 外面加一圈过境。左侧的时间与地点是过境的（form: "transit"），右下角结果区仍是 Rashi。
@@ -486,6 +486,7 @@ function buildDerivedViews() {
 function buildViewMenu() {
     return {
         label: "分盘",
+        defaultValue: "D9",
         items: VedicVargas.list().map((v) => ({
             value: v.view, label: v.id, note: v.name, sub: v.topic,
             title: `${v.id} ${v.name} · ${v.topic}`,

@@ -13,41 +13,32 @@
 </head>
 <body data-system="{{ current_system }}">
 <header class="topbar">
-    <div class="topbar-title">
-        {# 设置抽屉：档案库与人物、过境、时区与经纬度、计算设置、工具。平时收起，需要时再打开 #}
+    {# 一行放下：设置抽屉、体系切换、档案库、人物、时间（日期时间 + 步进 + 现在），右端是「排盘」 #}
+    <div class="topbar-main">
         <button id="drawerBtn" type="button" class="icon-btn drawer-btn" aria-controls="drawer" aria-expanded="false" title="设置（Esc 关闭）" aria-label="设置">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
         </button>
-        <h1>Quant Astro</h1>
         {# 占星体系切换：systems/ 下有几个体系就显示几个；切换时保留当前档案库和选中的人物 #}
         <nav class="system-switch segmented compact" aria-label="占星体系">
             {% for s in systems %}
             <a href="{{ s.url }}" data-system="{{ s.id }}" class="{{ 'active' if s.id == current_system else '' }}"{% if s.id == current_system %} aria-current="page"{% endif %}>{{ s.title }}</a>
             {% endfor %}
         </nav>
-        {# 当前人物：点一下直接打开「选择人物」 #}
-        <button id="personChip" type="button" class="person-chip" title="选择人物">
+        {# 档案库：和设置抽屉里的是同一个菜单（点哪个按钮，菜单就出现在哪个按钮下面） #}
+        <div class="lib-switch top-lib">
+            <button id="libraryBtnTop" type="button" class="library-btn top-chip" data-lib-btn aria-haspopup="menu" aria-expanded="false" aria-controls="libraryMenu" title="档案库">
+                <svg class="lib-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h4l1.2 1.5h5.8v6.5h-11z"/></svg>
+                <span class="lib-name"></span>
+                <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
+            </button>
+        </div>
+        {# 人物：点一下打开「选择人物」 #}
+        <button id="personChip" type="button" class="person-chip top-chip" title="选择人物">
             <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="5.5" r="2.8"/><path d="M2.8 14c0-2.9 2.3-4.8 5.2-4.8s5.2 1.9 5.2 4.8"/></svg>
             <span id="personName">选择人物</span>
+            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
         </button>
-    </div>
-    <div class="topbar-actions">
-        <span id="statusBadge" class="status-badge">初始化中</span>
-        <button id="calcBtn" type="button" class="primary-btn">排盘</button>
-    </div>
-</header>
-
-<main class="layout">
-    <section class="panel chart-panel" id="chartPanel">
-        <div class="chart-head">
-            <div class="chart-views">
-                <div id="chartViews" class="segmented compact" role="radiogroup" aria-label="星盘"></div>
-                {# 体系提供 viewMenu 时（分盘多），其余的盘放在这个下拉菜单里 #}
-                <div id="chartViewMenu" class="view-menu" hidden></div>
-            </div>
-            {% block chart_head %}{% endblock %}
-        </div>
-        {# 时间条：本地日期时间 + 时间步进常驻在星盘上方（本命 / 过境用的是当前这张盘自己的时刻） #}
+        {# 时间：当前这张盘的时刻（本命 / 过境各自一份）；设置抽屉的「时区与地点」里还有一份，两边同步 #}
         <div id="timeStrip" class="time-strip">
             <div id="localTime" class="dt-input" role="group" aria-label="本地日期时间">
                 <input data-part="year" class="dt-year" type="text" inputmode="numeric" placeholder="年" aria-label="年" autocomplete="off">
@@ -79,13 +70,30 @@
                 <button id="stepFwdBtn" type="button" class="step-btn" title="往后一个步长并排盘" aria-label="往后一个步长">＋</button>
                 <button id="stepResetBtn" type="button" class="step-reset hidden" title="回到步进前的时间并排盘"><span id="stepOffset" class="step-offset"></span> ↺</button>
             </div>
-            <span class="strip-spacer"></span>
             <button id="nowBtn" type="button" class="icon-btn now-btn hidden" title="更新到现在" aria-label="更新到现在">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 3.5V8.5H15.5"/></svg>
             </button>
-            {# 体系自己放在时间条右端的控件（印度占星：转宫） #}
-            {% block time_tools %}{% endblock %}
             <p id="localTimeHint" class="dt-hint"></p>
+        </div>
+    </div>
+    <div class="topbar-actions">
+        <span id="statusBadge" class="status-badge">初始化中</span>
+        <button id="calcBtn" type="button" class="primary-btn">排盘</button>
+    </div>
+</header>
+
+<main class="layout">
+    <section class="panel chart-panel" id="chartPanel">
+        <div class="chart-head">
+            <div class="chart-views">
+                <div id="chartViews" class="segmented compact" role="radiogroup" aria-label="星盘"></div>
+                {# 体系提供 viewMenu 时（分盘多），其余的盘放在这个下拉菜单里 #}
+                <div id="chartViewMenu" class="view-menu" hidden></div>
+            </div>
+            <span class="head-spacer"></span>
+            {# 体系自己放在这一行右端的控件（印度占星：转宫、北 / 南；西方占星：星盘 / 相位） #}
+            {% block time_tools %}{% endblock %}
+            {% block chart_head %}{% endblock %}
         </div>
         <div id="chartBox" class="chart-box"></div>
         {# 体系自己放在星盘区域里的内容（西方占星：与星盘互相切换的相位表） #}
@@ -117,8 +125,8 @@
     <section id="profilePanel" class="panel">
         <div class="panel-head">
             <div class="lib-switch">
-                <button id="libraryBtn" type="button" class="library-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="libraryMenu">
-                    <span id="libraryName"></span>
+                <button id="libraryBtn" type="button" class="library-btn" data-lib-btn aria-haspopup="menu" aria-expanded="false" aria-controls="libraryMenu">
+                    <span id="libraryName" class="lib-name"></span>
                     <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
                 </button>
                 <div id="libraryMenu" class="library-menu" role="menu" aria-label="档案库" hidden></div>
@@ -154,7 +162,24 @@
 
     <section id="timePanel" class="panel">
         <div class="panel-head">
-            <h2>时区与地点</h2>
+            <h2>时间与地点</h2>
+        </div>
+        <div class="field-block">
+            <span class="field-label">本地日期时间</span>
+            <div id="localTimeDrawer" class="dt-input" role="group" aria-label="本地日期时间">
+                <input data-part="year" class="dt-year" type="text" inputmode="numeric" placeholder="年" aria-label="年" autocomplete="off">
+                <span class="dt-sep">-</span>
+                <input data-part="month" type="text" inputmode="numeric" placeholder="月" aria-label="月" autocomplete="off">
+                <span class="dt-sep">-</span>
+                <input data-part="day" type="text" inputmode="numeric" placeholder="日" aria-label="日" autocomplete="off">
+                <span class="dt-gap"></span>
+                <input data-part="hour" type="text" inputmode="numeric" placeholder="时" aria-label="时" autocomplete="off">
+                <span class="dt-sep">:</span>
+                <input data-part="minute" type="text" inputmode="numeric" placeholder="分" aria-label="分" autocomplete="off">
+                <span class="dt-sep">:</span>
+                <input data-part="second" class="dt-second" type="text" inputmode="decimal" placeholder="秒" aria-label="秒（可带 3 位小数）" title="秒，可以带最多 3 位小数，如 05.25" autocomplete="off">
+            </div>
+            <p id="localTimeHintDrawer" class="dt-hint"></p>
         </div>
         <div class="grid-2">
             <label>UTC 时区<input id="timezone" type="text" placeholder="+08:00"></label>

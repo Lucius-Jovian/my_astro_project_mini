@@ -13,9 +13,9 @@
     "calendar": "g"
   },
   "session": {
-    "library": "测试专用",
+    "library": "本命",
     "last_profile": {
-      "本命": 6,
+      "本命": 8,
       "卜卦": 5,
       "测试专用": 1,
       "婚姻本命盘": 1
@@ -64,7 +64,7 @@
         "ecliptic_mode": "tropical",
         "ayanamsha_mode": "SIDM_LAHIRI",
         "node_mode": "mean",
-        "house_system": "Placidus",
+        "house_system": "Regiomontanus",
         "sunrise_rsmi": 256
       },
       "points": {
@@ -649,7 +649,6 @@
         "tabHouses",
         "tabSun",
         "tabDasha",
-        "tabYoga",
         "tabKpPlanets",
         "tabKpHouses",
         "tabKpAbcd",

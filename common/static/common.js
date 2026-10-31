@@ -76,7 +76,8 @@ const SYSTEM_HOOKS = {
     //   order       按钮条上的先后（数字小的在前，本命 / 过境固定在最前）
     derivedViews: {},
     viewLabels: {},                     // 改写本命 / 过境两个按钮的名称：{natal: "...", transit: "..."}
-    // 按钮条右边的下拉菜单（分盘多时用）：{label, items: [{value: 视图键, label, note?, sub?, title?}]}；null = 不要
+    // 按钮条右边的分盘按钮（分盘多时用）：{label, defaultValue, items: [{value: 视图键, label, note?, sub?, title?}]}；
+    // 左半边切到最近用过的那张（没用过时是 defaultValue），右半边 ▾ 打开全部；null = 不要
     viewMenu: null,
     // 「值日星 · 行星时」标签页：默认画共用的表；体系可以换成自己的（印度占星：历法 / Panchanga）
     renderSunTab(container, results) { renderSunTable(container, results); },
@@ -1018,8 +1019,31 @@ function formatSecondPart(sec) {
     return String(whole).padStart(2, "0") + (ms ? `.${String(ms).padStart(3, "0").replace(/0+$/, "")}` : "");
 }
 
-function dtInput(part) {
-    return $("localTime").querySelector(`[data-part='${part}']`);
+// 本地日期时间有两份一模一样的输入框：顶栏一份（#localTime，计算都读它），设置抽屉里一份（#localTimeDrawer）。
+// 在哪一份里输入都可以，改完立刻同步到另一份。
+function dtInput(part, group = $("localTime")) {
+    return group.querySelector(`[data-part='${part}']`);
+}
+
+function dtGroups() {
+    return [$("localTime"), $("localTimeDrawer")].filter(Boolean);
+}
+
+// 把 from 这一份的内容（和标红）抄到另一份。
+function mirrorDt(from = $("localTime")) {
+    for (const g of dtGroups()) {
+        if (g === from) continue;
+        for (const p of DT_PARTS) {
+            const src = dtInput(p, from), dst = dtInput(p, g);
+            if (dst.value !== src.value) dst.value = src.value;
+            dst.classList.toggle("invalid", src.classList.contains("invalid"));
+        }
+    }
+}
+
+// 正在输入的是哪一份（焦点在哪一份里）；都不在时是顶栏那份。
+function focusedDtGroup() {
+    return dtGroups().find((g) => g.contains(document.activeElement)) || $("localTime");
 }
 
 function isLeapYear(year, calendar) {
@@ -1046,7 +1070,8 @@ function readDtParts() {
 }
 
 // 检查整个日期时间；返回 {ok, parts, message}，并给不合法的格子标红。
-function validateDateTime({mark = true} = {}) {
+function validateDateTime({mark = true, source = null} = {}) {
+    mirrorDt(source || focusedDtGroup());
     const parts = readDtParts();
     const bad = new Set();
     let message = "";
@@ -1078,8 +1103,12 @@ function validateDateTime({mark = true} = {}) {
         }
     }
     if (mark) {
-        for (const p of DT_PARTS) dtInput(p).classList.toggle("invalid", bad.has(p) && dtInput(p).value !== "");
-        $("localTimeHint").textContent = bad.size && DT_PARTS.some((p) => dtInput(p).value !== "") ? message : "";
+        for (const g of dtGroups()) {
+            for (const p of DT_PARTS) dtInput(p, g).classList.toggle("invalid", bad.has(p) && dtInput(p, g).value !== "");
+        }
+        const hint = bad.size && DT_PARTS.some((p) => dtInput(p).value !== "") ? message : "";
+        $("localTimeHint").textContent = hint;
+        if ($("localTimeHintDrawer")) $("localTimeHintDrawer").textContent = hint;
     }
     return {ok: bad.size === 0, parts, message};
 }
@@ -1106,20 +1135,20 @@ function setLocalTime(text, {keepStep = false} = {}) {
         dtInput(p).value = p === "year" ? values[p].padStart(4, "0")
             : p === "second" ? formatSecondPart(values[p]) : values[p].padStart(2, "0");
     }
-    validateDateTime();
+    validateDateTime({source: $("localTime")});
     if (!keepStep) resetStepBase();
     return true;
 }
 
-function focusDtPart(index) {
-    const input = dtInput(DT_PARTS[Math.max(0, Math.min(DT_PARTS.length - 1, index))]);
+function focusDtPart(index, group = $("localTime")) {
+    const input = dtInput(DT_PARTS[Math.max(0, Math.min(DT_PARTS.length - 1, index))], group);
     input.focus();
     input.select();
 }
 
 // 离开一格时补零：月日时分秒补到 2 位，年补到 4 位；秒的小数部分整理成最多 3 位（5. 写成 05）。
-function padDtPart(part) {
-    const input = dtInput(part);
+function padDtPart(part, group = $("localTime")) {
+    const input = dtInput(part, group);
     if (input.value === "") return;
     if (part === "second") {
         const value = Number(input.value);
@@ -1144,7 +1173,8 @@ function secondFull(text) {
 }
 
 // ↑ ↓：只改这一格（循环），不进位；日期会限制在当月天数以内。
-function nudgeDtPart(part, delta) {
+function nudgeDtPart(part, delta, group = $("localTime")) {
+    mirrorDt(group);
     const parts = readDtParts();
     let value = Number.isNaN(parts[part]) ? (DT_RANGE[part]?.[0] ?? 1) : parts[part] + delta;
     let [lo, hi] = DT_RANGE[part] || [1, 31];
@@ -1157,18 +1187,18 @@ function nudgeDtPart(part, delta) {
         // 秒：整数部分加减，保留小数；超出 0–59 循环。
         if (value >= 60) value -= 60;
         if (value < 0) value += 60;
-        dtInput(part).value = formatSecondPart(value);
-        dtInput(part).select();
+        dtInput(part, group).value = formatSecondPart(value);
+        dtInput(part, group).select();
         resetStepBase();
-        validateDateTime();
+        validateDateTime({source: group});
         return;
     }
     if (value > hi) value = lo;
     if (value < lo) value = hi;
-    dtInput(part).value = String(value).padStart(DT_LEN[part], "0");
-    dtInput(part).select();
+    dtInput(part, group).value = String(value).padStart(DT_LEN[part], "0");
+    dtInput(part, group).select();
     resetStepBase();
-    validateDateTime();
+    validateDateTime({source: group});
 }
 
 // ================= 经纬度：十进制 / 度分秒 =================
@@ -1425,8 +1455,16 @@ function bindCoordInputs() {
 }
 
 function bindDateTimeInput() {
+    dtGroups().forEach(bindDtGroup);
+    $("calendar").addEventListener("change", () => {
+        resetStepBase();
+        validateDateTime();
+    });
+}
+
+function bindDtGroup(group) {
     DT_PARTS.forEach((part, index) => {
-        const input = dtInput(part);
+        const input = dtInput(part, group);
 
         // 点进来就全选：直接敲数字覆盖，不用先删。
         // 用鼠标点进来时，浏览器会在 mouseup 时把全选改回光标，所以在 mouseup 里再选一次。
@@ -1464,25 +1502,27 @@ function bindDateTimeInput() {
                 input.dispatchEvent(new Event("input", {bubbles: true}));
             } else if (event.key === "Enter") {
                 event.preventDefault();
-                padDtPart(part);
+                padDtPart(part, group);
+                mirrorDt(group);
                 calculateFull();
             } else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
                 event.preventDefault();
-                nudgeDtPart(part, event.key === "ArrowUp" ? 1 : -1);
+                nudgeDtPart(part, event.key === "ArrowUp" ? 1 : -1, group);
             } else if (event.key === "Backspace" && input.value === "" && index > 0) {
                 event.preventDefault();
-                focusDtPart(index - 1);
+                focusDtPart(index - 1, group);
             } else if (event.key === "ArrowLeft" && atStart && index > 0) {
                 event.preventDefault();
-                focusDtPart(index - 1);
+                focusDtPart(index - 1, group);
             } else if (event.key === "ArrowRight" && atEnd && index < DT_PARTS.length - 1) {
                 event.preventDefault();
-                focusDtPart(index + 1);
+                focusDtPart(index + 1, group);
             } else if (["-", "/", ".", ":", " ", "：", "T", "t"].includes(event.key)) {
                 event.preventDefault();
                 if (input.value !== "" && index < DT_PARTS.length - 1) {
-                    padDtPart(part);
-                    focusDtPart(index + 1);
+                    padDtPart(part, group);
+                    mirrorDt(group);
+                    focusDtPart(index + 1, group);
                 }
             }
         });
@@ -1492,13 +1532,15 @@ function bindDateTimeInput() {
             if (digits !== input.value) input.value = digits;
             resetStepBase();
             input.classList.remove("invalid");
-            if (index === DT_PARTS.length - 1) return;
-            const full = digits.length >= DT_LEN[part];
-            const forced = digits.length === 1 && part in DT_FIRST_DIGIT_MAX && Number(digits) > DT_FIRST_DIGIT_MAX[part];
-            if (full || forced) {
-                padDtPart(part);
-                focusDtPart(index + 1);
+            if (index !== DT_PARTS.length - 1) {
+                const full = digits.length >= DT_LEN[part];
+                const forced = digits.length === 1 && part in DT_FIRST_DIGIT_MAX && Number(digits) > DT_FIRST_DIGIT_MAX[part];
+                if (full || forced) {
+                    padDtPart(part, group);
+                    focusDtPart(index + 1, group);
+                }
             }
+            mirrorDt(group);
         });
 
         input.addEventListener("paste", (event) => {
@@ -1510,17 +1552,13 @@ function bindDateTimeInput() {
         });
 
         input.addEventListener("blur", () => {
-            padDtPart(part);
+            padDtPart(part, group);
+            mirrorDt(group);
             // 焦点还在这组输入框里（只是换了一格）时不报错，等离开整组再检查。
             setTimeout(() => {
-                if (!$("localTime").contains(document.activeElement)) validateDateTime();
+                if (!group.contains(document.activeElement)) validateDateTime({source: group});
             }, 0);
         });
-    });
-
-    $("calendar").addEventListener("change", () => {
-        resetStepBase();
-        validateDateTime();
     });
 }
 
@@ -1750,6 +1788,24 @@ function renderViewButtons() {
     renderViewMenu();
 }
 
+// 分盘按钮是一个「分体按钮」：左半边直接切到最近用过的那张分盘（默认 SYSTEM.viewMenu.defaultValue，如 D9），
+// 右半边 ▾ 打开全部分盘的菜单。菜单挂在 <body> 上、用 fixed 定位，并限制在窗口以内，
+// 不会被星盘一栏的边界截断，也不会因为星盘一栏出现滚动条而跟着跑。
+const VIEW_MENU_STORE = "quant-astro.viewMenu.last.";
+
+function viewMenuLast() {
+    const menu = SYSTEM.viewMenu;
+    let last = null;
+    try { last = localStorage.getItem(VIEW_MENU_STORE + (state.system?.id || "")); } catch (_) { last = null; }
+    const ok = (v) => v && menu.items.some((item) => item.value === v) && SYSTEM.derivedViews[v];
+    return ok(last) ? last : (ok(menu.defaultValue) ? menu.defaultValue : null);
+}
+
+function rememberViewMenu(view) {
+    if (!SYSTEM.derivedViews[view] || SYSTEM.derivedViews[view].bar !== false) return;
+    try { localStorage.setItem(VIEW_MENU_STORE + (state.system?.id || ""), view); } catch (_) {}
+}
+
 function renderViewMenu() {
     const holder = $("chartViewMenu");
     const menu = SYSTEM.viewMenu;
@@ -1761,13 +1817,16 @@ function renderViewMenu() {
     }
     holder.hidden = false;
     holder.innerHTML = `
-        <button type="button" class="view-menu-btn" aria-haspopup="menu" aria-expanded="false">
-            <span class="view-menu-label"></span>
+        <button type="button" class="view-menu-main"></button>
+        <button type="button" class="view-menu-btn" aria-haspopup="menu" aria-expanded="false" aria-label="${escapeHtml(menu.label || "更多")}" title="${escapeHtml(menu.label || "更多")}">
             <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
-        </button>
-        <div class="view-menu-pop" role="menu" aria-label="${escapeHtml(menu.label || "更多")}" hidden></div>`;
+        </button>`;
+    const main = holder.querySelector(".view-menu-main");
     const button = holder.querySelector(".view-menu-btn");
-    const pop = holder.querySelector(".view-menu-pop");
+    const pop = document.createElement("div");
+    pop.className = "view-menu-pop";
+    pop.setAttribute("role", "menu");
+    pop.hidden = true;
     pop.innerHTML = menu.items.map((item) => `
         <button type="button" role="menuitemradio" class="view-menu-item" data-view="${escapeHtml(item.value)}"
                 title="${escapeHtml(item.title || "")}">
@@ -1775,22 +1834,37 @@ function renderViewMenu() {
             ${item.note ? `<span class="view-menu-note">${escapeHtml(item.note)}</span>` : ""}
             ${item.sub ? `<span class="view-menu-sub">${escapeHtml(item.sub)}</span>` : ""}
         </button>`).join("");
+    document.querySelector(".view-menu-pop")?.remove();
+    document.body.appendChild(pop);
 
+    const place = () => {
+        const r = holder.getBoundingClientRect();
+        const vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+        pop.style.maxWidth = `${vw - 16}px`;
+        const w = pop.offsetWidth, h = pop.offsetHeight;
+        pop.style.left = `${Math.max(8, Math.min(r.left, vw - w - 8))}px`;
+        const below = r.bottom + 6;
+        pop.style.top = `${below + h > vh - 8 ? Math.max(8, r.top - h - 6) : below}px`;
+    };
     const close = (focusButton = false) => {
+        if (pop.hidden) return;
         pop.hidden = true;
         button.setAttribute("aria-expanded", "false");
         if (focusButton) button.focus();
     };
+    main.addEventListener("click", () => {
+        const view = main.dataset.view;
+        if (view) switchView(view);
+    });
     button.addEventListener("click", (event) => {
         event.stopPropagation();
-        const opening = pop.hidden;
-        pop.hidden = !opening;
-        button.setAttribute("aria-expanded", String(opening));
-        if (!opening) return;
-        // 窗口右边放不下时往左挪，整块菜单留在窗口里。
-        pop.style.left = "0px";
-        const over = pop.getBoundingClientRect().right - (document.documentElement.clientWidth - 8);
-        if (over > 0) pop.style.left = `${-over}px`;
+        if (!pop.hidden) {
+            close();
+            return;
+        }
+        pop.hidden = false;
+        button.setAttribute("aria-expanded", "true");
+        place();
         (pop.querySelector("[aria-checked='true']") || pop.querySelector("button"))?.focus();
     });
     pop.addEventListener("click", (event) => {
@@ -1811,25 +1885,34 @@ function renderViewMenu() {
         } else if (event.key in moves && index >= 0) {
             event.preventDefault();
             items[Math.min(items.length - 1, Math.max(0, index + moves[event.key]))].focus();
+        } else if (event.key === "Tab") {
+            close();
         }
     });
-    // 点在菜单外任何地方都收起（用捕获阶段：星盘上的点击会阻止冒泡，也照样能收起）。
+    // 点在菜单和按钮以外的地方才收起（捕获阶段：星盘上的点击会阻止冒泡，也照样能收起）。
     document.addEventListener("pointerdown", (event) => {
-        if (!pop.hidden && !holder.contains(event.target)) close();
+        if (!pop.hidden && !pop.contains(event.target) && !holder.contains(event.target)) close();
     }, true);
+    window.addEventListener("resize", () => { if (!pop.hidden) place(); });
     updateViewMenu();
 }
 
-// 下拉菜单的按钮：当前看的是菜单里的某张盘时，按钮显示它的名字并高亮；否则显示菜单名。
+// 分体按钮：左半边显示当前（或最近用过）的那张分盘；当前看的正是菜单里的盘时高亮。
 function updateViewMenu() {
     const holder = $("chartViewMenu");
     const menu = SYSTEM.viewMenu;
     if (!holder || holder.hidden || !menu) return;
     const inBar = [...document.querySelectorAll("input[name='chartView']")].some((r) => r.value === state.view);
     const current = inBar ? null : menu.items.find((item) => item.value === state.view);
-    holder.querySelector(".view-menu-label").textContent = current ? current.label : (menu.label || "更多");
-    holder.querySelector(".view-menu-btn").classList.toggle("active", Boolean(current));
-    holder.querySelectorAll("[data-view]").forEach((item) => {
+    if (current) rememberViewMenu(current.value);
+    const target = current?.value || viewMenuLast();
+    const label = menu.items.find((item) => item.value === target)?.label || menu.label || "更多";
+    const main = holder.querySelector(".view-menu-main");
+    main.textContent = label;
+    main.dataset.view = target || "";
+    main.title = target ? `切到 ${label}` : "";
+    holder.classList.toggle("active", Boolean(current));
+    document.querySelectorAll(".view-menu-pop [data-view]").forEach((item) => {
         item.setAttribute("aria-checked", String(item.dataset.view === state.view));
     });
 }
@@ -1881,7 +1964,7 @@ function writeForm(input) {
     $("latitude").value = input?.latitude ?? "";
     $("longitude").value = input?.longitude ?? "";
     $("locationInfo").textContent = input?.locationInfo ?? "";
-    validateDateTime();
+    validateDateTime({source: $("localTime")});
 }
 
 function inputFromProfile(p) {
@@ -2093,7 +2176,7 @@ async function restoreLastProfile() {
 
 // 标题处的档案库按钮：显示当前库名；点开是一个悬浮菜单（库列表 + 新建 / 重命名，就地输入，不弹系统对话框）。
 function renderLibrarySelect() {
-    $("libraryName").textContent = state.library || "";
+    document.querySelectorAll(".lib-name").forEach((el) => { el.textContent = state.library || ""; });
     if (!$("libraryMenu").hidden) renderLibraryMenu();
 }
 
@@ -2174,12 +2257,17 @@ function libraryMenuItems() {
     return [...$("libraryMenu").querySelectorAll(".lm-item")];
 }
 
-async function openLibraryMenu() {
+// 档案库菜单只有一个；顶栏和设置抽屉各有一个按钮，点哪个，菜单就挂到哪个按钮下面。
+let libraryAnchor = null;
+
+async function openLibraryMenu(button = $("libraryBtn")) {
     const menu = $("libraryMenu");
+    libraryAnchor = button;
+    button.parentElement.appendChild(menu);
     libraryMenuMode = "list";
     renderLibraryMenu();
     menu.hidden = false;
-    $("libraryBtn").setAttribute("aria-expanded", "true");
+    button.setAttribute("aria-expanded", "true");
     requestAnimationFrame(() => menu.classList.add("open"));
     (menu.querySelector(".lm-item.current") || libraryMenuItems()[0])?.focus();
     try {                                   // 人数可能已经变了：打开时顺手刷新一次
@@ -2203,8 +2291,9 @@ function closeLibraryMenu(returnFocus = true) {
     menu.classList.remove("open");
     menu.hidden = true;
     libraryMenuMode = "list";
-    $("libraryBtn").setAttribute("aria-expanded", "false");
-    if (returnFocus) $("libraryBtn").focus();
+    const anchor = libraryAnchor || $("libraryBtn");
+    anchor.setAttribute("aria-expanded", "false");
+    if (returnFocus) anchor.focus();
 }
 
 async function submitLibraryForm(name) {
@@ -2266,14 +2355,21 @@ async function switchLibrary(name) {
 }
 
 function bindLibraryMenu() {
-    const button = $("libraryBtn");
     const menu = $("libraryMenu");
-    button.addEventListener("click", () => (menu.hidden ? openLibraryMenu() : closeLibraryMenu()));
-    button.addEventListener("keydown", (event) => {
-        if ((event.key === "ArrowDown" || event.key === "ArrowUp") && menu.hidden) {
-            event.preventDefault();
-            openLibraryMenu();
-        }
+    document.querySelectorAll("[data-lib-btn]").forEach((button) => {
+        button.addEventListener("click", () => {
+            if (!menu.hidden && libraryAnchor === button) closeLibraryMenu();
+            else {
+                if (!menu.hidden) closeLibraryMenu(false);
+                openLibraryMenu(button);
+            }
+        });
+        button.addEventListener("keydown", (event) => {
+            if ((event.key === "ArrowDown" || event.key === "ArrowUp") && menu.hidden) {
+                event.preventDefault();
+                openLibraryMenu(button);
+            }
+        });
     });
     menu.addEventListener("click", (event) => {
         const item = event.target.closest(".lm-item");
