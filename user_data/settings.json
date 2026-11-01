@@ -16,7 +16,7 @@
     "library": "本命",
     "last_profile": {
       "本命": 8,
-      "卜卦": 5,
+      "卜卦": 6,
       "测试专用": 1,
       "婚姻本命盘": 1
     },
@@ -24,6 +24,10 @@
     "profile_sort": {
       "本命": {
         "sort": "opened",
+        "order": "desc"
+      },
+      "卜卦": {
+        "sort": "birth",
         "order": "desc"
       }
     }
@@ -38,15 +42,19 @@
         "ayanamsha_mode": "SIDM_LAHIRI",
         "node_mode": "mean",
         "house_system": "Whole Sign",
+        "kp_enabled": true,
         "KP_HORARY": {
           "is_active": false,
           "mode": "KS-N",
           "number": 78
         },
-        "sunrise_rsmi": 256,
+        "sunrise": {
+          "limb": "center",
+          "refraction": true,
+          "latitude": true
+        },
         "dasha_days_in_year": 365.25,
         "dasha_start_planet": "Mo",
-        "kp_enabled": true,
         "dasha_system": "vimshottari"
       },
       "modules": {
@@ -57,7 +65,34 @@
         "kp_ruling": true,
         "dasha": true
       },
-      "chart_style": "north"
+      "chart_style": "north",
+      "jyotish": {
+        "points": {
+          "chart": [],
+          "lagna_base": "sunrise",
+          "gulika_at": "start",
+          "mandi_at": "middle",
+          "kalavela_at": "start",
+          "arudha_exception": true,
+          "dual_lord": "stronger"
+        },
+        "friends": {
+          "nodes": false
+        }
+      },
+      "combust": {
+        "Mo": 12.0,
+        "Ma": 17.0,
+        "Me": 14.0,
+        "Me_r": 12.0,
+        "Ju": 11.0,
+        "Ve": 10.0,
+        "Ve_r": 8.0,
+        "Sa": 15.0
+      },
+      "aspects": {
+        "jaimini": false
+      }
     },
     "western": {
       "calculation_defaults": {
@@ -253,14 +288,14 @@
               "enabled": false
             },
             {
-              "code": "FortuneLilly",
-              "label": "福点lilly",
-              "symbol": "⊗",
-              "color": "#e09ab3",
-              "day": "Asc + Mo - Su",
-              "night": "Asc + Mo - Su",
-              "sect_mode": "day",
-              "enabled": false
+              "code": "Resignation",
+              "label": "解雇点",
+              "symbol": "Res",
+              "color": "#d3a0b2",
+              "day": "Sa + Ju - Su",
+              "night": "Sa + Su - Ju",
+              "sect_mode": "auto",
+              "enabled": true
             }
           ]
         },
@@ -517,10 +552,10 @@
           "lots": 3.0,
           "antiscia": 2.0,
           "exclusive": {
-            "specials": false,
-            "stars": false,
-            "lots": false,
-            "antiscia": false
+            "specials": true,
+            "stars": true,
+            "lots": true,
+            "antiscia": true
           }
         },
         "types": [
@@ -668,6 +703,9 @@
         "tabAntiscia",
         "tabProfile"
       ]
+    },
+    "tab_order_rev": {
+      "western": 0
     }
   }
 }

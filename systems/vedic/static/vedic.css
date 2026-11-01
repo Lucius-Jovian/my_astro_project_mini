@@ -242,5 +242,27 @@ dialog.modal.yoga-modal { width: min(900px, calc(100vw - 32px)); height: min(820
 .yoga-ref-table td:first-child { white-space: nowrap; }
 
 /* 历法：无表头的两三列表 */
-.kv-table th { width: 7.5em; font-weight: 600; color: var(--text-2); }
+.kv-table th { width: 9em; font-weight: 600; color: var(--text-2); }
 .kv-table .kv-end { width: 9em; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* 特殊点（Vishesha Lagna、Upagraha、Arudha）：比行星淡一档，与宫头同一类画法 */
+.astro-chart .kind-extra .item-code { fill: var(--c-extra); font-weight: 600; }
+.astro-chart .kind-extra .item-deg { fill: var(--c-extra-deg); }
+
+/* 设置：四个特殊度数开关两列排；特殊点勾选按组排成小网格 */
+.check-pair { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; }
+.check-pair .checkbox-row { margin: 4px 0; }
+.point-chart-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px 6px; margin-bottom: 8px; }
+.point-chart-grid .pc-group { grid-column: 1 / -1; margin-top: 6px; font-size: 11.5px; color: var(--muted); }
+.point-chart-grid label { display: flex; align-items: center; gap: 5px; margin: 0; font-size: 12.5px; color: var(--text-2); }
+.point-chart-grid input { width: auto; margin: 0; }
+
+/* 结果表：代号 + 名称 */
+.code-tag { display: inline-block; min-width: 2.6em; font-weight: 700; color: var(--text); }
+.av-table td { text-align: center; }
+.av-table th.lagna-col { color: var(--c-asc); }
+.av-table tr.sav-row th, .av-table tr.sav-row td { border-top: 1px solid var(--border-strong); font-weight: 650; color: var(--text); }
+.rel-table td { text-align: center; }
+.num-col { text-align: right; }
+.bala-table td { text-align: right; }
+.dasha-system-name { font-size: 13px; font-weight: 650; color: var(--text); }

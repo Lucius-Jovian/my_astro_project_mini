@@ -87,6 +87,10 @@
     </div>
     <div class="topbar-actions">
         <span id="statusBadge" class="status-badge">初始化中</span>
+        {# 三盘视角：体系提供 miniViews 时才出现（印占） #}
+        <button id="tripleBtn" type="button" class="icon-btn triple-btn hidden" aria-pressed="false" aria-label="三盘">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="10" height="15" rx="1.5"/><rect x="14.5" y="4.5" width="7" height="6.8" rx="1.2"/><rect x="14.5" y="12.7" width="7" height="6.8" rx="1.2"/></svg>
+        </button>
         <button id="calcBtn" type="button" class="primary-btn">排盘</button>
         {# 设置抽屉：时间与地点、计算设置、工具；从右边滑出 #}
         <button id="drawerBtn" type="button" class="icon-btn drawer-btn" aria-controls="drawer" aria-expanded="false" aria-label="设置">
@@ -111,6 +115,16 @@
         <div id="chartBox" class="chart-box"></div>
         {# 体系自己放在星盘区域里的内容（西方占星：与星盘互相切换的相位表） #}
         {% block chart_extra %}{% endblock %}
+    </section>
+
+    {# 三盘视角的两个小星盘：各自选一张盘（体系的 miniViews） #}
+    <section class="panel mini-panel" id="miniPanel" aria-label="小星盘">
+        <div class="mini-head">
+            <select id="miniSelA" aria-label="上方小星盘"></select>
+            <select id="miniSelB" aria-label="下方小星盘"></select>
+        </div>
+        <div id="miniBoxA" class="mini-box"></div>
+        <div id="miniBoxB" class="mini-box"></div>
     </section>
 
     <section class="panel result-panel" id="resultPanel">
@@ -235,6 +249,22 @@
                     </select>
                 </label>
             </div>
+
+            {# 日出判定基准：日出日落、值日星、行星时以及依赖日出的各项都按这里 #}
+            <details class="fold nested" id="foldSunrise">
+                <summary>日出 <span id="sunriseMeta" class="fold-meta"></span></summary>
+                <div class="fold-body">
+                    <label>判定基准
+                        <select id="sunriseLimb">
+                            <option value="upper">太阳上边缘</option>
+                            <option value="center">日心</option>
+                            <option value="lower">太阳下边缘</option>
+                        </select>
+                    </label>
+                    <label class="checkbox-row"><input id="sunriseRefraction" type="checkbox"> 大气折射</label>
+                    <label class="checkbox-row"><input id="sunriseLatitude" type="checkbox"> 计入太阳黄纬</label>
+                </div>
+            </details>
 
             {# 体系自己的计算设置 #}
             {% block calc_settings %}{% endblock %}

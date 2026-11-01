@@ -51,8 +51,14 @@ function planetGlyph(code) {
     return glyphHtml(state.optionsMeta.planet_symbols[code] || code, state.points?.planet_colors?.[code]);
 }
 
+// 黄经一格：星座符号占固定宽度，度分秒紧跟其后，上下行符号对符号、度数对度数
 function positionCell(row) {
-    return {html: `${glyphHtml(SIGN_GLYPHS[row.sign_index], state.points?.sign_colors?.[row.sign_index])} ${escapeHtml(row.dms)}`};
+    return {html: `<span class="pos pos-glyph"><span class="pos-s">${glyphHtml(SIGN_GLYPHS[row.sign_index], state.points?.sign_colors?.[row.sign_index])}</span><span>${escapeHtml(row.dms)}</span></span>`};
+}
+
+// 几颗星放在一格（三分主星）：每颗星占一个固定的位置，缺的那一位留空，上下行对齐
+function glyphSlots(codes) {
+    return {html: `<span class="slots">${codes.map((c) => `<span>${c ? planetGlyph(c) : ""}</span>`).join("")}</span>`};
 }
 
 const COL = {
@@ -1327,10 +1333,15 @@ function scoreCell(dignity) {
 }
 
 function renderWesternPlanets(container, results) {
+    // 三分主星有几位：任何一行有共管就留三个位置，否则两个
+    const tripSlots = [true, true, (results.planet_table || []).some((r) => r.triplicity?.participating)];
     const data = (results.planet_table || []).map((r) => ({
         name: {html: planetGlyph(r.name)},
         position: positionCell(r),
-        triplicity: {html: [r.triplicity.day, r.triplicity.night, r.triplicity.participating].filter(Boolean).map(planetGlyph).join(" ")},
+        domicile: {html: planetGlyph(r.domicile)},
+        exaltation: r.exaltation ? {html: planetGlyph(r.exaltation)} : "",
+        triplicity: glyphSlots(tripSlots[2] ? [r.triplicity.day, r.triplicity.night, r.triplicity.participating]
+            : [r.triplicity.day, r.triplicity.night]),
         term: {html: planetGlyph(r.term)},
         face: {html: planetGlyph(r.face)},
         score: scoreCell(r.dignity),
@@ -1345,6 +1356,8 @@ function renderWesternPlanets(container, results) {
     }));
     const columns = [
         COL.name, COL.position,
+        {key: "domicile", label: "庙"},
+        {key: "exaltation", label: "旺"},
         {key: "triplicity", label: "三分"},
         {key: "term", label: "界"},
         {key: "face", label: "面"},

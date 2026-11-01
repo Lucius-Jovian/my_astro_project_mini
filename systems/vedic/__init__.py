@@ -15,7 +15,7 @@ from . import bridge, routes
 
 SYSTEM = AstroSystem(
     id="vedic",
-    title="印度占星",
+    title="印占",
     blueprint=routes.bp,
     settings_defaults=bridge.DEFAULT_SYSTEM_SETTINGS,
     normalize_settings=bridge.normalize_system_settings,

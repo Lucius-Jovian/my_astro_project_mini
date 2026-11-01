@@ -19,6 +19,12 @@ state.computedModules = {};
 // 星盘样式：north 北印度 / south 南印度
 state.chartStyle = "north";
 
+// 大运体系：在计算设置 → Dasha 里选，Dasha 标签页只显示结果。
+function fillDashaSystemOptions() {
+    fillSelect($("dashaSystem"), dashaSystemOptions());
+    $("dashaSystem").value = currentDashaSystem();
+}
+
 // 大运起算行星：所有行星（包括罗睺 / 计都）都可以选。
 function fillDashaStartOptions() {
     const planets = state.optionsMeta.main_planets;
@@ -130,6 +136,7 @@ function bindVedicCalc() {
         });
     }
     $("dashaStartPlanet").addEventListener("change", () => saveVedicCalc({dasha_start_planet: $("dashaStartPlanet").value}));
+    $("dashaSystem").addEventListener("change", () => selectDashaSystem($("dashaSystem").value));
     $("dashaDaysInYear").addEventListener("change", () => {
         const days = Number($("dashaDaysInYear").value);
         if (!Number.isFinite(days) || days < 300 || days > 400) {
@@ -179,7 +186,7 @@ function findNowIndex(items, now) {
 
 // ---------- 大运体系 ----------
 // 后端一次算好全部体系的第一层（results.dasha.systems），标签页里切换只是换一份数据重画，不重新排盘。
-// 当前显示哪一种记在 calculation_defaults.dasha_system，只在 Dasha 标签页顶部的下拉框里切换（左侧 Dasha 设置里不再重复放这一项）。
+// 当前显示哪一种记在 calculation_defaults.dasha_system，在计算设置 → Dasha → 体系里切换。
 
 function dashaSystemOptions() {
     return (state.optionsMeta.dasha_systems || []).map((s) => ({value: s.value, label: `${s.label}（${s.years} 年）`}));
@@ -230,12 +237,10 @@ function renderDashaRoot() {
 
     const head = document.createElement("div");
     head.className = "dasha-head";
-    const select = document.createElement("select");
-    select.setAttribute("aria-label", "大运体系");
-    fillSelect(select, dashaSystemOptions());
-    select.value = data.value;
-    select.addEventListener("change", () => selectDashaSystem(select.value));
-    head.appendChild(select);
+    const name = document.createElement("span");
+    name.className = "dasha-system-name";
+    name.textContent = `${data.label} · ${data.years} 年`;
+    head.appendChild(name);
     if (data.condition) {
         const note = document.createElement("span");
         note.className = "dasha-condition";
@@ -445,11 +450,16 @@ function buildBhavaChart(natal, houses) {
     };
     for (const [code, p] of Object.entries(natal.planet_pos || {})) place(code, p.lon);
     place("Asc", asc.lon);
+    // 特殊点（vedic_extra.js 的 withExtras）也按同样的宫头放进格子
+    const placeOf = (lon) => {
+        const {h, off} = houseOf(norm360(lon));
+        return {cell: (base + h) % 12, rank: off};
+    };
 
     return {
         planet_pos: natal.planet_pos,
         house_result: {house_system: houses.house_system, axes: {Asc: asc}, houses: {}},
-        chart_meta: {lagna_sign: base, hide_cusps: true, cells, ranks, notes},
+        chart_meta: {lagna_sign: base, hide_cusps: true, cells, ranks, notes, placeOf},
     };
 }
 
@@ -574,24 +584,34 @@ function vedicAspects() {
 
 function updateAspectMeta() {
     const cfg = aspectSettings();
+    if (cfg.jaimini) {
+        $("aspectMeta").textContent = "Jaimini";
+        return;
+    }
     const on = ["Ra", "Ke"].filter((k) => cfg[k] !== false).map((k) => (k === "Ra" ? "罗睺" : "计都"));
     $("aspectMeta").textContent = on.length ? `${on.join("、")}投射相位` : "罗计不投射相位";
+}
+
+// Jaimini 星座互看开着时，星盘只能点星座数字（高亮与它互看的星座）
+function rasiDrishtiOn() {
+    return Boolean(aspectSettings().jaimini);
 }
 
 function bindAspectSettings() {
     const cfg = aspectSettings();
     $("aspectRa").checked = cfg.Ra !== false;
     $("aspectKe").checked = cfg.Ke !== false;
+    $("aspectJaimini").checked = Boolean(cfg.jaimini);
     updateAspectMeta();
     let chain = Promise.resolve();
-    for (const [id, key] of [["aspectRa", "Ra"], ["aspectKe", "Ke"]]) {
+    for (const [id, key] of [["aspectRa", "Ra"], ["aspectKe", "Ke"], ["aspectJaimini", "jaimini"]]) {
         $(id).addEventListener("change", () => {
             const changes = {[key]: $(id).checked};
             Object.assign(aspectSettings(), changes);
             updateAspectMeta();
             AstroChart.clearSelection();
             renderChart();
-            yogaSettingsChanged();
+            if (key !== "jaimini") yogaSettingsChanged();
             chain = chain
                 .then(() => api(systemApi("/aspects"), {method: "POST", body: JSON.stringify(changes)}))
                 .catch((error) => showError(`相位设置没能保存：${error.message}`));
@@ -690,7 +710,7 @@ function renderPanchanga(container, results) {
     const limbs = [
         {name: "Vara", value: `${pa.vara.name} · ${pa.vara.lord}`, end: ""},
         {name: "Tithi", value: `${pa.tithi.paksha} ${pa.tithi.name}（${pa.tithi.index}）`, end: end(pa.tithi.end)},
-        {name: "Nakshatra", value: `${pa.nakshatra.name} ${pa.nakshatra.cn} · Pada ${pa.nakshatra.pada}`, end: end(pa.nakshatra.end)},
+        {name: "Nakshatra", value: `${pa.nakshatra.name} · Pada ${pa.nakshatra.pada}`, end: end(pa.nakshatra.end)},
         {name: "Yoga", value: `${pa.yoga.name}（${pa.yoga.index}）`, end: end(pa.yoga.end)},
         {name: "Karana", value: `${pa.karana.name}（${pa.karana.index}）`, end: end(pa.karana.end)},
     ];
@@ -708,9 +728,27 @@ function renderPanchanga(container, results) {
     }
     // 不要表头：左列就是名称，一眼看完
     const table = (rows) => `<div class="table-wrap"><table class="info-table kv-table"><tbody>${rows.map((r) => `
-        <tr><th>${escapeHtml(r.name)}</th><td>${escapeHtml(r.value)}</td>${"end" in r ? `<td class="kv-end">${r.end ? `至 ${escapeHtml(r.end)}` : ""}</td>` : ""}</tr>`).join("")}
+        <tr><th>${escapeHtml(r.name)}</th><td${r.cls ? ` class="${r.cls}"` : ""}>${escapeHtml(r.value)}</td>${"end" in r ? `<td class="kv-end">${r.end ? `至 ${escapeHtml(r.end)}` : ""}</td>` : ""}</tr>`).join("")}
         </tbody></table></div>`;
-    container.innerHTML = `<h3>Panchanga</h3>${table(limbs)}<h3>日出 · Hora</h3>${table(day)}`;
+    let html = `<h3>Panchanga</h3>${table(limbs)}<h3>日出 · Hora</h3>${table(day)}`;
+    const cal = results.calendar;
+    if (cal) {
+        const span = (x) => `${localTimeText(x.start).slice(11, 16)}–${localTimeText(x.end).slice(11, 16)}`;
+        const times = [
+            {name: "Rahu Kala", value: span(cal.rahu_kala)},
+            {name: "Yamaganda", value: span(cal.yamaganda)},
+            {name: "Gulika Kala", value: span(cal.gulika_kala)},
+            {name: "Abhijit", value: span(cal.abhijit), cls: cal.abhijit.excluded ? "dim" : ""},
+        ];
+        const vela = (cal.kalavela?.items || []).map((x) => ({name: x.name, value: span(x)}));
+        const year = [
+            {name: "Masa", value: `${cal.masa.adhika ? "Adhika " : ""}${cal.masa.name}`},
+            {name: "Samvatsara", value: `${cal.samvatsara.name}（${cal.samvatsara.index}）`},
+            {name: "Ayana", value: cal.ayana.name},
+        ];
+        html += `<h3>凶时 · 吉时</h3>${table(times)}<h3>Kala Vela · ${cal.kalavela?.is_day ? "昼" : "夜"}</h3>${table(vela)}<h3>年 · 月</h3>${table(year)}`;
+    }
+    container.innerHTML = html;
 }
 
 // ---------- 结果表 ----------
@@ -721,17 +759,25 @@ const SIGN_ABBR = {
     Aries: "Ari", Taurus: "Tau", Gemini: "Gem", Cancer: "Can", Leo: "Leo", Virgo: "Vir",
     Libra: "Lib", Scorpio: "Sco", Sagittarius: "Sag", Capricorn: "Cap", Aquarius: "Aqu", Pisces: "Pis",
 };
+const SIGN_NAMES_EN = Object.keys(SIGN_ABBR);
+const SIGN_ABBR_LIST = Object.values(SIGN_ABBR);
 const signAbbr = (sign) => SIGN_ABBR[sign] || sign || "";
+const NAKSHATRA_NAMES = [
+    "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra", "Punarvasu", "Pushya", "Ashlesha",
+    "Magha", "Purva Phalguni", "Uttara Phalguni", "Hasta", "Chitra", "Swati", "Vishakha", "Anuradha", "Jyeshtha",
+    "Mula", "Purva Ashadha", "Uttara Ashadha", "Shravana", "Dhanishta", "Shatabhisha", "Purva Bhadrapada", "Uttara Bhadrapada", "Revati",
+];
 
-function nakshatraText(name, cn) {
-    return cn ? `${name} ${cn}` : name;
+// 黄经一格：星座缩写占固定宽度，度分秒紧跟其后，上下行星座对星座、度数对度数
+function posCell(sign, dms) {
+    return {html: `<span class="pos"><span class="pos-s">${escapeHtml(signAbbr(sign))}</span><span>${escapeHtml(dms || "")}</span></span>`};
 }
 
 function basicRow(row, name) {
     return {
         name,
-        position: `${signAbbr(row.sign)} ${row.dms}`,
-        nakshatra: nakshatraText(row.nakshatra, row.nakshatra_cn),
+        position: posCell(row.sign, row.dms),
+        nakshatra: row.nakshatra,
         star_lord: row.star_lord,
         pada: String(row.pada),
         motion: row.motion ? {text: row.motion, cls: row.retrograde ? "bad" : ""} : null,
@@ -746,14 +792,34 @@ const BASIC_COLUMNS = [
     {key: "pada", label: "Pada"},
 ];
 
+// 行星表：基础五列、顺逆、燃烧，再加尊贵、Chara Karaka、Avastha（Baladi · Jagradadi）、特殊度数与行星战
 function renderVedicPlanets(container, results) {
+    const cfg = jyotishSettings();
+    const pos = results.planet_pos || {};
+    const karakas = Jyotish.charaKarakas(pos, cfg.status?.karaka);
+    const wars = results.graha_yuddha || [];
     const rows = (results.planet_table || []).map((r) => {
         const row = basicRow(r, r.name);
         const c = combustInfo(results, r.name);
         row.combust = c?.combust ? {text: "燃烧", cls: "bad"} : "";
+        const dig = Jyotish.dignity(r.name, r.lon, cfg.dignity);
+        row.dignity = dig ? {text: dig.text, cls: dig.cls} : "";
+        row.karaka = karakas[r.name] || "";
+        const jag = Jyotish.jagradadi(r.name, r.lon, cfg.dignity);
+        row.avastha = [Jyotish.baladi(r.lon), jag].filter(Boolean).join(" · ");
+        const tags = Jyotish.specialDegrees(r.name, r.lon, cfg.status);
+        for (const w of wars) {
+            if (w.winner === r.name) tags.push({text: `战胜 ${w.loser}`, cls: "good"});
+            else if (w.loser === r.name) tags.push({text: `战败 ${w.winner}`, cls: "bad"});
+        }
+        row.marks = tags.length ? {html: `<span class="tags">${tags.map((t) => `<span class="${t.cls}">${escapeHtml(t.text)}</span>`).join("")}</span>`} : "";
         return row;
     });
-    container.innerHTML = rowsTableHtml([...BASIC_COLUMNS, {key: "motion", label: "顺 / 逆"}, {key: "combust", label: "燃烧"}], rows);
+    container.innerHTML = rowsTableHtml([
+        BASIC_COLUMNS[0], BASIC_COLUMNS[1], {key: "dignity", label: "尊贵"}, ...BASIC_COLUMNS.slice(2),
+        {key: "motion", label: "顺 / 逆"}, {key: "combust", label: "燃烧"},
+        {key: "karaka", label: "Karaka"}, {key: "avastha", label: "状态"}, {key: "marks", label: "标记"},
+    ], rows);
 }
 
 function renderVedicHouses(container, results) {
@@ -764,8 +830,8 @@ function renderVedicHouses(container, results) {
 function kpLordsHtml(data, nameOf) {
     const rows = Object.entries(data || {}).map(([key, r]) => ({
         name: nameOf(key),
-        sign: `${signAbbr(r.sign)}${r.dms ? ` ${r.dms}` : ""}`,
-        star: nakshatraText(r.star, r.star_cn),
+        sign: posCell(r.sign, r.dms),
+        star: r.star,
         sign_lord: r.sign_lord,
         star_lord: r.star_lord,
         sub_lord: r.sub_lord,
@@ -846,6 +912,8 @@ registerSystem({
         bindRotation();
         bindAspectSettings();
         bindCombustSettings();
+        bindJyotishSettings();
+        bindLazyTabs();
         bindYoga();
     },
     applyDefaults(calc) {
@@ -855,6 +923,7 @@ registerSystem({
         $("horaryNumber").value = calc.KP_HORARY?.number ?? 78;
         $("dashaDaysInYear").value = calc.dasha_days_in_year ?? 365.25;
         fillDashaStartOptions();
+        fillDashaSystemOptions();
         updateKpUI();
     },
     collectOptions() {
@@ -863,6 +932,7 @@ registerSystem({
             KP_HORARY: horaryPayload(),
             dasha_days_in_year: Number($("dashaDaysInYear").value || 365.25),
             dasha_start_planet: $("dashaStartPlanet").value || "Mo",
+            jyotish: backendJyotishOptions(),
         };
     },
     afterCalculate(kind, result) {
@@ -872,20 +942,35 @@ registerSystem({
         state.computedModules = state.chartModules[resultsKind()] || {};
         renderModuleResults();
         scheduleYogaRender();
+        markLazyTabs();
     },
     onDerivedReady() {
         scheduleYogaRender();          // Bhava 盘要等后端，算好后 Yoga 再按它算一次
     },
+    // 「原始参数」：共用的三类，再加特殊点、力量、历法的后端原始数据
+    rawSections: (r) => [
+        ...baseRawSections(r).map((sec) => (sec.key === "sun" ? {...sec, title: "日出 · Hora"} : sec)),
+        {key: "points", title: "特殊点", tables: [
+            {title: "Vishesha Lagna", data: r.vishesha_lagnas}, {title: "Upagraha", data: r.upagrahas},
+            {title: "行星战", data: Object.fromEntries((r.graha_yuddha || []).map((w, i) => [String(i + 1), w]))},
+        ]},
+        {key: "bala", title: "力量", tables: [{title: "", data: r.shadbala}]},
+        {key: "calendar", title: "历法", tables: [{title: "Panchanga", data: r.panchanga}, {title: "时段与年月", data: r.calendar}]},
+    ],
     renderPlanetTab: renderVedicPlanets,
     planetName: (code) => escapeHtml(code || "—"),
     renderHouseTab: renderVedicHouses,
-    renderChart(container, results, {emptyText, view}) {
-        updateRotationPicker(view);
+    renderChart(container, results, {emptyText, view, mini}) {
+        if (!mini) updateRotationPicker(view);
         const options = {style: state.chartStyle, emptyText, aspects: vedicAspects()};
+        if (rasiDrishtiOn()) options.rasiAspects = Jyotish.rasiAspects;
+        // 特殊点从这张盘所依据的那张盘（本命或过境）取
+        const base = view === "transit" ? state.charts.transit.results : state.charts.natal.results;
         if (view === "gochara") {
-            AstroChart.render(container, withRotation(results?.natal, view), {...options, gochara: results?.transit});
+            const natal = withExtras(withRotation(results?.natal, view), view, base);
+            AstroChart.render(container, natal, {...options, gochara: results?.transit});
         } else {
-            AstroChart.render(container, withRotation(results, view), options);
+            AstroChart.render(container, withExtras(withRotation(results, view), view, base), options);
         }
     },
     onNewChart() {
@@ -898,13 +983,20 @@ registerSystem({
     viewLabels: {natal: "Rashi", transit: "Transit"},
     derivedViews: buildDerivedViews(),
     viewMenu: buildViewMenu(),
+    // 三盘视角的小星盘：除 Rashi、Gochara 以外的所有盘
+    miniViews: [
+        {value: "transit", label: "Transit"}, {value: "moon", label: "Moon"}, {value: "bhava", label: "Bhava"},
+        ...VedicVargas.list().filter((v) => v.view !== "natal").map((v) => ({value: v.view, label: `${v.id} ${v.name}`})),
+    ],
+    miniDefaults: ["D9", "transit"],
     onProfileChange() {
         state.rotation = {};            // 换了人：各张盘的转宫都回到 Lagna
     },
     tabLabels: {tabSun: "历法"},
     // 结果区标签页的默认顺序；改动这里时把 tabOrderRev 加 1，旧的保存顺序就不再使用
-    defaultTabOrder: ["tabPlanets", "tabHouses", "tabDasha", "tabYoga", "tabSun", "tabKpPlanets", "tabKpHouses",
+    defaultTabOrder: ["tabPlanets", "tabHouses", "tabDasha", "tabYoga", "tabSun", "tabBala", "tabAv", "tabFriends",
+        "tabVargas", "tabLagnas", "tabUpagraha", "tabArudha", "tabKpPlanets", "tabKpHouses",
         "tabKpAbcd", "tabKp1234", "tabRuling", "tabProfile"],
-    tabOrderRev: 1,
+    tabOrderRev: 2,
     renderSunTab: renderPanchanga,
 });

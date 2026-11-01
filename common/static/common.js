@@ -83,6 +83,10 @@ const SYSTEM_HOOKS = {
     renderSunTab(container, results) { renderSunTable(container, results); },
     tabLabels: {},                      // 改写共用标签页的名称：{tabSun: "历法"}
     onDerivedReady(view) {},            // 一张要等后端的分盘（如 Bhava）刚算好、已经重画
+    // 三盘视角的小星盘可选哪些盘：[{value: 视图键, label}]；null = 这个体系没有三盘视角。
+    // 视图键可以是 "transit"，或 derivedViews 里的任何一张（form 为 transit 的除外）。
+    miniViews: null,
+    miniDefaults: [],                   // 两个小星盘的默认视图
 };
 let SYSTEM = {...SYSTEM_HOOKS};
 
@@ -419,7 +423,7 @@ function collectPayload(input = null) {
             ayanamsha_mode: $("ayanamshaMode").value,
             node_mode: $("nodeMode").value,
             house_system: $("houseSystem").value,
-            sunrise_rsmi: state.settings.calculation_defaults.sunrise_rsmi,
+            sunrise: state.settings.calculation_defaults.sunrise,
             ...SYSTEM.collectOptions(),
         },
     };
@@ -580,9 +584,165 @@ function renderAllResults() {
     SYSTEM.renderResults();
 }
 
+// ---------- 日出判定基准（两个体系共用，各自保存） ----------
+
+const SUNRISE_LIMB_TEXT = {upper: "上边缘", center: "日心", lower: "下边缘"};
+
+function sunriseSettings() {
+    const calc = state.settings.calculation_defaults;
+    calc.sunrise = {limb: "center", refraction: true, latitude: true, ...(calc.sunrise || {})};
+    return calc.sunrise;
+}
+
+function updateSunriseMeta() {
+    const cfg = sunriseSettings();
+    const hindu = cfg.limb === "center" && !cfg.refraction && !cfg.latitude;
+    $("sunriseMeta").textContent = hindu ? "Hindu" : [SUNRISE_LIMB_TEXT[cfg.limb], cfg.refraction ? "" : "无折射"].filter(Boolean).join(" · ");
+}
+
+function bindSunriseSettings() {
+    if (!$("sunriseLimb")) return;
+    const cfg = sunriseSettings();
+    $("sunriseLimb").value = cfg.limb;
+    $("sunriseRefraction").checked = cfg.refraction !== false;
+    $("sunriseLatitude").checked = cfg.latitude !== false;
+    updateSunriseMeta();
+    let chain = Promise.resolve();
+    const save = () => {
+        const next = {limb: $("sunriseLimb").value, refraction: $("sunriseRefraction").checked, latitude: $("sunriseLatitude").checked};
+        state.settings.calculation_defaults.sunrise = next;
+        updateSunriseMeta();
+        chain = chain
+            .then(() => api(systemApi("/calc-defaults"), {method: "POST", body: JSON.stringify({sunrise: next})}))
+            .catch((error) => showError(`日出设置没能保存：${error.message}`));
+        if (state.charts[chartKind()].results) ensureComputed();       // 计算设置变了：按原来的时刻重算
+    };
+    for (const id of ["sunriseLimb", "sunriseRefraction", "sunriseLatitude"]) $(id).addEventListener("change", save);
+}
+
+// ---------- 三盘视角：大星盘不动，右边一上一下两个小星盘 ----------
+// 两个小星盘各自选一张盘（体系的 miniViews）。顶栏的时间只跟大星盘走：小星盘选了 Transit 时，
+// 它用过境盘自己保存的时刻（第一次用时是现在的时间和默认地点），不改动顶栏。
+// 开关和两个选择只存在这台电脑的浏览器里。
+
+const TRIPLE_STORE = "quant-astro.triple.";
+
+function tripleKey(name) {
+    return `${TRIPLE_STORE}${state.system?.id || ""}.${name}`;
+}
+
+function tripleOn() {
+    return document.body.classList.contains("triple");
+}
+
+function miniSlots() {
+    return [{select: $("miniSelA"), box: $("miniBoxA")}, {select: $("miniSelB"), box: $("miniBoxB")}];
+}
+
+function miniShowing(view) {
+    return tripleOn() && miniSlots().some((slot) => slot.select.value === view);
+}
+
+function readStore(key, fallback) {
+    try {
+        const v = localStorage.getItem(key);
+        return v === null ? fallback : v;
+    } catch (_) {
+        return fallback;
+    }
+}
+
+function writeStore(key, value) {
+    try { localStorage.setItem(key, value); } catch (_) { /* 存不了就只在这一页里有效 */ }
+}
+
+function setTriple(on) {
+    document.body.classList.toggle("triple", on);
+    $("tripleBtn").setAttribute("aria-pressed", String(on));
+    writeStore(tripleKey("on"), on ? "1" : "0");
+    if (on) renderMiniCharts();
+    else miniSlots().forEach((slot) => { slot.box.innerHTML = ""; });
+}
+
+function bindTriple() {
+    const button = $("tripleBtn");
+    const options = SYSTEM.miniViews;
+    if (!button || !Array.isArray(options) || !options.length) return;
+    button.classList.remove("hidden");
+    miniSlots().forEach((slot, i) => {
+        fillSelect(slot.select, options);
+        const wanted = readStore(tripleKey(`v${i}`), SYSTEM.miniDefaults?.[i] || options[i % options.length].value);
+        slot.select.value = options.some((o) => o.value === wanted) ? wanted : options[0].value;
+        slot.select.addEventListener("change", () => {
+            writeStore(tripleKey(`v${i}`), slot.select.value);
+            renderMiniCharts();
+        });
+    });
+    button.addEventListener("click", () => setTriple(!tripleOn()));
+    if (readStore(tripleKey("on"), "0") === "1") setTriple(true);
+}
+
+// 过境盘还没有时刻：用现在的时间和默认地点（不改顶栏和设置抽屉里的表单）。
+function nowTransitInput() {
+    const loc = state.settings.default_location;
+    const m = DT_TEXT_RE.exec(localDateTimeString());
+    return {
+        parts: m.slice(1, 7).map((v, i) => String(v).padStart(i === 0 ? 4 : 2, "0")),
+        calendar: "g", timezone: timezoneOffsetString(),
+        latitude: String(loc.latitude), longitude: String(loc.longitude), locationInfo: "默认地点",
+    };
+}
+
+const miniPending = {natal: false, transit: false};
+
+// 小星盘要的那张盘（本命或过境）还没算、或计算设置改过：在后台用它自己保存的时刻算一次。
+function ensureMiniSource(kind) {
+    const chart = state.charts[kind];
+    if (kind === "natal" && !state.activeProfile) return;
+    if (chartKind() === kind) return;                 // 顶栏正对着这张盘：由「排盘」负责
+    if (!chart.input) {
+        if (kind !== "transit") return;
+        chart.input = nowTransitInput();
+    }
+    if (miniPending[kind] || (chart.results && chart.signature === currentSignature())) return;
+    miniPending[kind] = true;
+    calculateStored(kind).finally(() => { miniPending[kind] = false; });
+}
+
+function renderMiniCharts() {
+    if (!tripleOn() || !SYSTEM.miniViews) return;
+    for (const {select, box} of miniSlots()) {
+        const view = select.value;
+        if (view === "transit") {
+            ensureMiniSource("transit");
+            SYSTEM.renderChart(box, state.charts.transit.results, {emptyText: "计算中…", view, mini: true});
+            continue;
+        }
+        const derived = SYSTEM.derivedViews[view];
+        const base = state.charts.natal.results;
+        if (!derived || !base) {
+            ensureMiniSource("natal");
+            SYSTEM.renderChart(box, null, {emptyText: state.activeProfile ? "计算中…" : "选择人物后显示", view, mini: true});
+            continue;
+        }
+        const entry = derivedEntry(view, base);
+        if (entry.results) {
+            SYSTEM.renderChart(box, entry.results, {emptyText: "", view, mini: true});
+        } else {
+            box.innerHTML = `<p class="chart-empty">${escapeHtml(entry.error ? `算不出来：${entry.error}` : "计算中…")}</p>`;
+            if (entry.error) entry.errorShown = true;
+        }
+    }
+}
+
 // ---------- 星盘与外观 ----------
 
 function renderChart() {
+    renderMainChart();
+    renderMiniCharts();
+}
+
+function renderMainChart() {
     const view = state.view;
     const box = $("chartBox");
     const derived = SYSTEM.derivedViews[view];
@@ -1757,10 +1917,12 @@ function derivedEntry(view, base, transit = undefined) {
             .then((results) => { entry.results = results; })
             .catch((error) => { entry.error = error.message || String(error); })
             .finally(() => {
-                if (state.derived[view] === entry && state.view === view) {
-                    renderChart();
+                if (state.derived[view] !== entry) return;
+                if (state.view === view) {
+                    renderMainChart();
                     SYSTEM.onDerivedReady(view);
                 }
+                if (miniShowing(view)) renderMiniCharts();
             });
     } else {
         entry.results = output;
@@ -2144,6 +2306,8 @@ async function useProfileForNatal(profile, {calculate = true, save = true} = {})
         if (state.view !== "transit") {          // Gochara：表单是过境的，本命盘在后台换成这个人
             renderView();
             if (profile && calculate) await ensureComputed();
+        } else {
+            renderMiniCharts();                  // 三盘视角：小星盘里的本命分盘换成这个人
         }
     }
 }
@@ -4293,6 +4457,7 @@ async function init() {
         bindTimeStep();
         bindFolds();
         bindResultTabs();
+        bindSunriseSettings();
         bindDrawer();
         bindTabOrderDialog();
         bindRawDialog();
@@ -4304,6 +4469,7 @@ async function init() {
         bindProfileActions();
         bindTransitActions();
         renderViewButtons();
+        bindTriple();
         updateViewUI();
         renderView();
 

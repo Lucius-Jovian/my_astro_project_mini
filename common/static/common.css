@@ -33,6 +33,8 @@
     --c-retro: #e5776c;
     --c-transit: #a9b99c;        /* 鼠尾草绿：过境行星，与本命的米白、上升的灰粉、宫头的灰蓝都分得开 */
     --c-transit-deg: #8e9c82;
+    --c-extra: #b9a7c2;          /* 灰紫：星盘里的特殊点（Vishesha Lagna、Upagraha、Arudha），不抢行星的视线 */
+    --c-extra-deg: #978aa0;
     --c-good: #a3b9a8;           /* 表格里的「成立 / 有利」 */
     --c-bad: #cfa58e;            /* 表格里的「不利」 */
     --scrim: rgba(20, 18, 16, 0.38);
@@ -1784,4 +1786,72 @@ a.lm-item { text-decoration: none; cursor: pointer; }
 @media (max-width: 980px) {
     .topbar-main { flex-wrap: wrap; row-gap: 6px; }
     .chart-head, .chart-views { flex-wrap: wrap; }
+}
+
+/* ---------- 结果表：星座 + 度数对齐、首列固定 ----------
+   星座（符号或三字母缩写）占固定宽度，度数紧跟其后：同一列上下行的星座对星座、度数对度数，各自左对齐。
+   三分主星等多颗星的一格，每颗星占一个固定宽度的位置（缺的那一位留空），上下行也对齐。 */
+.pos { display: inline-grid; grid-template-columns: var(--pos-sign-w, 2.3em) auto; column-gap: 0.4em; align-items: baseline; }
+.pos-s { text-align: left; }
+.pos-glyph { --pos-sign-w: 1.2em; }
+.slots { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1.45em; }
+.slots > span { text-align: left; }
+
+/* 横向放不下时，第一列（名称）固定在左边，其余各列在它后面滚动；纯 CSS，不增加任何计算 */
+.info-table > thead > tr > th:first-child,
+.info-table > tbody > tr > :first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background-color: var(--surface);
+    box-shadow: inset -1px 0 0 var(--border);
+}
+.info-table > thead > tr > th:first-child { background-color: var(--subtle); z-index: 2; }
+.info-table > tbody > tr:hover > :first-child { background-image: linear-gradient(var(--hover), var(--hover)); }
+.kv-table > tbody > tr > :first-child { box-shadow: none; }
+
+/* 结果表里的标签组（特殊度数、行星战等）：几个短标签排成一行 */
+.tags { display: inline-flex; gap: 8px; }
+.tags .good { color: var(--c-good); font-weight: 600; }
+.tags .bad { color: var(--c-bad); font-weight: 600; }
+
+/* 标签页里的小切换（敌友表的五重 / 天然 / 临时） */
+.tab-tools { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.tab-tools .segmented.compact span { padding: 3px 12px; }
+.tab-note { font-size: 12px; color: var(--muted); }
+
+/* ---------- 三盘视角：大星盘 · 两个小星盘 · 结果区 ---------- */
+
+.triple-btn { width: 34px; height: 34px; border-radius: 8px; }
+.triple-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.triple-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); }
+
+.mini-panel { display: none; }
+body.triple {
+    --chart-size: max(300px, min(calc(100vh - var(--topbar-h) - 94px), max(540px, 40vw)));
+    --mini-size: calc((var(--chart-size) - 8px) / 2);
+}
+body.triple .layout {
+    grid-template-columns: calc(var(--chart-size) + 26px) calc(var(--mini-size) + 26px) minmax(0, 1fr);
+}
+/* 大星盘变窄：星盘上方一行的按钮收紧一点，仍然放在一行里 */
+body.triple .chart-head .segmented.compact span, body.triple #chartViews span { padding: 4px 8px; }
+body.triple .chart-head { gap: 6px; }
+body.triple .view-menu-main { padding: 0 8px 0 10px; }
+body.triple .view-menu-btn { padding: 0 6px; }
+/* 结果区变窄：标签页排成一行，横向滚动，不再挤成好几行 */
+body.triple .tab-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+body.triple .tab-bar button { flex: 0 0 auto; white-space: nowrap; }
+body.triple .mini-panel { display: flex; flex-direction: column; gap: 8px; padding: 12px; min-width: 0; min-height: 0; overflow-y: auto; }
+.mini-head { display: flex; gap: 6px; height: 32px; }
+.mini-head select { flex: 1 1 0; min-width: 0; height: 32px; margin: 0; padding-top: 0; padding-bottom: 0; font-size: 13px; }
+.mini-box { display: flex; justify-content: center; align-items: center; min-height: var(--mini-size); }
+.mini-box .astro-chart { width: var(--mini-size); }
+.mini-box .chart-empty { font-size: 12px; }
+
+@media (max-width: 980px) {
+    body.triple .layout { grid-template-columns: 1fr; }
+    body.triple { --mini-size: min(calc((100vw - 60px) / 2), 320px); }
+    body.triple .mini-panel { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+    body.triple .mini-head { flex: 1 0 100%; }
 }

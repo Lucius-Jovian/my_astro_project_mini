@@ -14,7 +14,7 @@ from . import bridge, routes
 
 SYSTEM = AstroSystem(
     id="western",
-    title="西方占星",
+    title="西占",
     blueprint=routes.bp,
     settings_defaults=bridge.DEFAULT_SYSTEM_SETTINGS,
     normalize_settings=bridge.normalize_system_settings,

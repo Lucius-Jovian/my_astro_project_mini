@@ -15,9 +15,13 @@ from common.astro import (
     calculate_planetary_hour,
     calculate_planets,
     calculate_sunrise_sunset,
+    DEFAULT_SUNRISE,
     clean_basic_calc,
+    clean_sunrise,
     house_system_options,
+    normalize_sunrise_defaults,
     parse_time_geo,
+    sunrise_option,
 )
 from common.web import safe_json
 
@@ -880,7 +884,8 @@ DEFAULT_SYSTEM_SETTINGS = {
         "ayanamsha_mode": "SIDM_LAHIRI",
         "node_mode": "mean",
         "house_system": "Placidus",
-        "sunrise_rsmi": int(swe.BIT_DISC_CENTER),
+        # 日出判定基准（上边缘 / 日心 / 下边缘、大气折射、太阳黄纬），见 common/astro/options.py
+        "sunrise": dict(DEFAULT_SUNRISE),
     },
     # 行星、小行星、恒星、Lot、特殊点、映点、配色：在网页上修改后自动写回。
     "points": DEFAULT_POINTS,
@@ -893,6 +898,7 @@ DEFAULT_SYSTEM_SETTINGS = {
 
 def normalize_system_settings(section):
     section = dict(section)
+    section["calculation_defaults"] = normalize_sunrise_defaults(section.get("calculation_defaults") or {})
     section["points"] = normalize_points(section.get("points"))
     section["aspects"] = normalize_aspects(section.get("aspects"))
     # 上一版叫 dignity，只有分值和三分设置：沿用它的内容。
@@ -937,8 +943,16 @@ def save_classical(store, updates):
 
 
 def save_calc_defaults(store, updates):
-    """计算设置（黄道、岁差、宫位制、月交点）一改就写回，下次打开沿用。"""
-    return dict(store.write(_keys("calculation_defaults"), clean_basic_calc(updates)))
+    """计算设置（黄道、岁差、宫位制、月交点、日出判定）一改就写回，下次打开沿用。"""
+    updates = dict(updates or {})
+    sunrise = updates.pop("sunrise", None)
+    clean = clean_basic_calc(updates)
+    if sunrise is not None:
+        clean["sunrise"] = clean_sunrise(sunrise, strict=True)
+    # 整节写回：顺手去掉旧版本留在文件里的 sunrise_rsmi（已换成 sunrise）
+    merged = {**store.system(SYSTEM_ID).get("calculation_defaults", {}), **clean}
+    merged.pop("sunrise_rsmi", None)
+    return dict(store.write(_keys("calculation_defaults"), merged, merge=False))
 
 
 def _required(payload, key):
@@ -1024,7 +1038,7 @@ def _normalize_input(payload):
             "ayanamsha_mode": options.get("ayanamsha_mode", "SIDM_KRISHNAMURTI"),
             "node_mode": str(options.get("node_mode", "mean")),
             "house_system": str(options.get("house_system", "Regiomontanus")),
-            "sunrise_rsmi": int(options.get("sunrise_rsmi", swe.BIT_DISC_CENTER)),
+            "sunrise_rsmi": sunrise_option(options),
             "points": normalize_points(options.get("points")),
             "aspects": normalize_aspects(options.get("aspects")),
             "classical": normalize_classical(options.get("classical")),

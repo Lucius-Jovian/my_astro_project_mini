@@ -69,6 +69,11 @@ def update_combust():
     return _save(bridge.save_combust, request.get_json(force=True) or {}, "combust settings")
 
 
+@bp.post("/api/jyotish")
+def update_jyotish():
+    return _save(bridge.save_jyotish, request.get_json(force=True) or {}, "jyotish settings")
+
+
 @bp.post("/api/yogas")
 def update_yogas():
     return _save(bridge.save_yogas, request.get_json(force=True) or {}, "yoga settings")

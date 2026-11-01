@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 
 import swisseph as swe
@@ -14,9 +15,13 @@ from common.astro import (
     calculate_planetary_hour,
     calculate_planets,
     calculate_sunrise_sunset,
+    DEFAULT_SUNRISE,
     clean_basic_calc,
+    clean_sunrise,
     house_system_options,
+    normalize_sunrise_defaults,
     parse_time_geo,
+    sunrise_option,
 )
 from common.web import safe_json
 
@@ -32,6 +37,8 @@ from .astro import (
 )
 from .astro import dasha as dasha_engine
 from .astro.panchanga import calculate_panchanga
+from .astro import jyotish
+from .astro.bala import shadbala
 
 
 # ---------------------------------------------------------------- 计算模块
@@ -77,11 +84,12 @@ DEFAULT_SYSTEM_SETTINGS = {
             "mode": "KS-N",
             "number": 78,
         },
-        "sunrise_rsmi": int(swe.BIT_DISC_CENTER),
+        # 日出判定基准（上边缘 / 日心 / 下边缘、大气折射、太阳黄纬），见 common/astro/options.py
+        "sunrise": dict(DEFAULT_SUNRISE),
         "dasha_days_in_year": 365.25,
         # 大运从哪颗行星起算（默认月亮；可选任何行星，包括罗睺 / 计都）。所有大运体系共用。
         "dasha_start_planet": "Mo",
-        # 打开 Dasha 标签页时先显示哪一种大运；只在 Dasha 标签页顶部切换，切换后自动记住。
+        # Dasha 标签页显示哪一种大运（计算设置 → Dasha → 体系）。
         "dasha_system": dasha_engine.DEFAULT_SYSTEM,
     },
     # 星盘样式：north 北印度 / south 南印度。
@@ -96,8 +104,9 @@ DEFAULT_SYSTEM_SETTINGS = {
         # 有哪些分盘、有哪些算法都登记在 static/vargas.js，这里只检查名称的写法。
         "methods": {},
     },
-    # 星盘相位：罗睺、计都是否投射第 5、7、9 个星座的相位（星盘点击高亮和 Yoga 的相位判断都按这里）。
-    "aspects": {"Ra": True, "Ke": True},
+    # 星盘相位：罗睺、计都是否投射第 5、7、9 个星座的相位（星盘点击高亮和 Yoga 的相位判断都按这里）；
+    # jaimini = 星盘改用 Jaimini 星座互看相位（只能点星座数字，高亮与它互看的星座）。
+    "aspects": {"Ra": True, "Ke": True, "jaimini": False},
     # 燃烧（Combust）：离太阳多少度以内算燃烧；Me_r、Ve_r 是水星、金星逆行时的度数。默认取 BPHS 常用值。
     "combust": {"Mo": 12.0, "Ma": 17.0, "Me": 14.0, "Me_r": 12.0, "Ju": 11.0, "Ve": 10.0, "Ve_r": 8.0, "Sa": 15.0},
     # Yoga：默认清单在 static/yogas_default.js；这里只存使用者的改动。
@@ -106,6 +115,146 @@ DEFAULT_SYSTEM_SETTINGS = {
     #   custom    自定义的 Yoga，以及改过的默认 Yoga（id 与默认的相同即覆盖默认的那一条）
     "yogas": {"disabled": [], "removed": [], "custom": []},
 }
+
+# ---------------------------------------------------------------- 尊贵、状态、特殊点等的设置
+#
+# 每一节的每一项：(类型, 参数)。bool 开关；choice 选项；num 数字范围；planets_num 七曜各一个数字；codes 特殊点代码列表。
+# 只有行星战、力量、特殊点的时点、历法由后端计算（改了会重新排盘）；其余在页面上计算，改了立即重画。
+
+P7 = ("Su", "Mo", "Ma", "Me", "Ju", "Ve", "Sa")
+POINT_CODES = (
+    "BL", "HL", "GL", "VG", "VL", "SL", "PP", "IL", "BB",
+    "Dh", "Vy", "Pv", "Ic", "Uk", "Kl", "Mr", "Ap", "Yg", "Gk", "Md",
+    "AL", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11", "UL",
+)
+TIME_POINTS = ("start", "middle", "end")
+
+JYOTISH_DEFAULTS = {
+    # 尊贵：极旺度数（擢升星座内的度数，BPHS）、极旺 / 极落的容许度、罗计的旺座、是否标出陷（入庙星座的对宫）
+    "dignity": {"deep": {"Su": 10.0, "Mo": 3.0, "Ma": 28.0, "Me": 15.0, "Ju": 5.0, "Ve": 27.0, "Sa": 20.0},
+                "orb": 1.0, "nodes": "taurus", "detriment": True},
+    # 行星状态：Chara Karaka 七个或八个；特殊度数；行星战
+    "status": {"karaka": "8", "mrityu": True, "mrityu_source": "phaladeepika", "span": "degree",
+               "pushkara_bhaga": True, "pushkara_navamsa": True, "gandanta": True, "gandanta_orb": 3.333333,
+               "war": True, "war_orb": 1.0, "war_rule": "latitude"},
+    # 特殊点：哪些画进星盘；BL/HL/GL 的起点；Kala Vela 取时点；Arudha 的例外规则与天蝎、水瓶的主星
+    "points": {"chart": [], "lagna_base": "sunrise", "gulika_at": "start", "mandi_at": "middle", "kalavela_at": "start",
+               "arudha_exception": True, "dual_lord": "stronger"},
+    "bala": {"mercury": "assoc"},
+    "av": {"columns": "sign"},
+    "friends": {"nodes": False},
+    "vargas": {"vimsopaka": "shodasha", "vaiseshikamsa": "dasha"},
+    "calendar": {"masa": "amanta", "samvatsara": "lunar", "ayana": "sidereal", "abhijit_wed": True},
+}
+DEFAULT_SYSTEM_SETTINGS["jyotish"] = JYOTISH_DEFAULTS
+
+VARGA_GROUPS = ("shad", "sapta", "dasha", "shodasha")
+JYOTISH_SPEC = {
+    "dignity": {"deep": ("planets_num", 0, 30), "orb": ("num", 0, 5), "nodes": ("choice", ("taurus", "gemini")),
+                "detriment": ("bool",)},
+    "status": {"karaka": ("choice", ("7", "8")), "mrityu": ("bool",),
+               "mrityu_source": ("choice", ("phaladeepika", "jataka_parijata")), "span": ("choice", ("degree", "half")),
+               "pushkara_bhaga": ("bool",), "pushkara_navamsa": ("bool",), "gandanta": ("bool",),
+               "gandanta_orb": ("num", 0, 5), "war": ("bool",), "war_orb": ("num", 0, 5),
+               "war_rule": ("choice", jyotish.WAR_RULES)},
+    "points": {"chart": ("codes", POINT_CODES), "lagna_base": ("choice", ("sunrise", "birth")),
+               "gulika_at": ("choice", TIME_POINTS), "mandi_at": ("choice", TIME_POINTS),
+               "kalavela_at": ("choice", TIME_POINTS), "arudha_exception": ("bool",),
+               "dual_lord": ("choice", ("stronger", "primary"))},
+    "bala": {"mercury": ("choice", ("assoc", "benefic"))},
+    "av": {"columns": ("choice", ("sign", "lagna"))},
+    "friends": {"nodes": ("bool",)},
+    "vargas": {"vimsopaka": ("choice", VARGA_GROUPS), "vaiseshikamsa": ("choice", VARGA_GROUPS)},
+    "calendar": {"masa": ("choice", ("amanta", "purnimanta")), "samvatsara": ("choice", ("lunar", "jovian")),
+                 "ayana": ("choice", ("sidereal", "tropical")), "abhijit_wed": ("bool",)},
+}
+
+
+def _copy_json(value):
+    return json.loads(json.dumps(value))
+
+
+def _clean_value(kind, value):
+    """一项设置的校验：返回 (是否合法, 整理后的值)。"""
+    t = kind[0]
+    if t == "bool":
+        return isinstance(value, bool), value
+    if t == "choice":
+        if isinstance(value, int) and not isinstance(value, bool):
+            value = str(value)
+        return value in kind[1], value
+    if t == "num":
+        if isinstance(value, bool):
+            return False, value
+        try:
+            v = float(value)
+        except (TypeError, ValueError):
+            return False, value
+        return kind[1] <= v <= kind[2], v
+    if t == "planets_num":
+        if not isinstance(value, dict):
+            return False, value
+        out = {}
+        for code, item in value.items():
+            ok, v = _clean_value(("num", kind[1], kind[2]), item)
+            if code not in P7 or not ok:
+                return False, value
+            out[code] = v
+        return True, out
+    if t == "codes":
+        if not isinstance(value, list) or any(c not in kind[1] for c in value):
+            return False, value
+        return True, [c for c in kind[1] if c in value]           # 按固定顺序、去重
+    return False, value
+
+
+def _clean_jyotish(raw, *, strict, base=None):
+    """strict=False 用于读文件：每一节都给出完整内容，不合法的项退回默认值。
+    strict=True 用于网页保存：只返回传来的那几节（在 base 的基础上改），任何不合法的项直接报错。"""
+    raw = raw if isinstance(raw, dict) else {}
+    base = base or JYOTISH_DEFAULTS
+    if strict:
+        unknown = set(raw) - set(JYOTISH_SPEC)
+        if unknown:
+            raise ValueError(f"未知的设置：{'、'.join(sorted(unknown))}")
+    out = {}
+    for section, spec in JYOTISH_SPEC.items():
+        if section not in raw:
+            if not strict:
+                out[section] = _copy_json(JYOTISH_DEFAULTS[section])
+            continue
+        given = raw[section]
+        if not isinstance(given, dict):
+            if strict:
+                raise ValueError(f"设置 {section} 必须是对象。")
+            given = {}
+        clean = {**_copy_json(JYOTISH_DEFAULTS[section]), **_copy_json(base.get(section) or {})}
+        for key, value in given.items():
+            if key not in spec:
+                if strict:
+                    raise ValueError(f"未知的设置：{section}.{key}")
+                continue
+            ok, v = _clean_value(spec[key], value)
+            if ok:
+                clean[key] = {**clean[key], **v} if spec[key][0] == "planets_num" else v
+            elif strict:
+                raise ValueError(f"设置 {section}.{key} 的值不合法：{value!r}")
+        out[section] = clean
+    return out
+
+
+def backend_jyotish(raw):
+    """排盘请求里由后端计算的那几项：行星战、力量、特殊点的时点、历法。
+    页面只发这几项（写法与 settings.json 相同，可以只发一部分），其余项不进请求，改了也不必重新排盘。"""
+    cfg = _clean_jyotish(raw, strict=False)
+    st, pt = cfg["status"], cfg["points"]
+    return {
+        "war": {"enabled": st["war"], "orb": st["war_orb"], "rule": st["war_rule"]},
+        "bala": cfg["bala"],
+        "points": {k: pt[k] for k in ("lagna_base", "gulika_at", "mandi_at", "kalavela_at")},
+        "calendar": cfg["calendar"],
+    }
+
 
 YOGA_ID_RE = re.compile(r"^[A-Za-z0-9_.-]{1,60}$")
 YOGA_TEXT_LIMITS = {"name": 80, "cn": 80, "cat": 40, "rule": 2000, "desc": 400, "effect": 400, "src": 120}
@@ -116,10 +265,10 @@ def _clean_aspects(raw, *, strict):
     raw = raw if isinstance(raw, dict) else {}
     clean = {}
     for key, value in raw.items():
-        if key in ("Ra", "Ke") and isinstance(value, bool):
+        if key in ("Ra", "Ke", "jaimini") and isinstance(value, bool):
             clean[key] = value
         elif strict:
-            raise ValueError("相位设置只能是 Ra / Ke: true / false。")
+            raise ValueError("相位设置只能是 Ra / Ke / jaimini: true / false。")
     return clean
 
 
@@ -300,6 +449,8 @@ def _clean_vedic_calc(updates, *, strict):
                     raise ValueError(f"未知的大运体系：{value}")
                 continue
             clean[key] = value
+        elif key == "sunrise":
+            clean[key] = clean_sunrise(value, strict=strict)
         elif strict:
             raise ValueError(f"未知的计算设置：{key}")
     return clean
@@ -316,13 +467,14 @@ def normalize_system_settings(section):
     for key in ("kp_enabled", "dasha_days_in_year", "dasha_start_planet", "dasha_system"):
         if not isinstance(calc.get(key), type(defaults[key])):
             calc[key] = defaults[key]
-    section["calculation_defaults"] = calc
+    section["calculation_defaults"] = normalize_sunrise_defaults(calc)
     if section.get("chart_style") not in CHART_STYLES:
         section["chart_style"] = "north"
     section["varga"] = {**DEFAULT_SYSTEM_SETTINGS["varga"], **_clean_varga(section.get("varga"), strict=False)}
     section["aspects"] = {**DEFAULT_SYSTEM_SETTINGS["aspects"], **_clean_aspects(section.get("aspects"), strict=False)}
     section["combust"] = {**DEFAULT_SYSTEM_SETTINGS["combust"], **_clean_combust(section.get("combust"), strict=False)}
     section["yogas"] = {**DEFAULT_SYSTEM_SETTINGS["yogas"], **_clean_yogas(section.get("yogas"), strict=False)}
+    section["jyotish"] = _clean_jyotish(section.get("jyotish"), strict=False)
     return section
 
 
@@ -338,7 +490,10 @@ def save_calc_defaults(store, updates):
     updates = dict(updates or {})
     clean = clean_basic_calc({k: v for k, v in updates.items() if k in BASIC_KEYS})
     clean.update(_clean_vedic_calc({k: v for k, v in updates.items() if k not in BASIC_KEYS}, strict=True))
-    return dict(store.write(_keys("calculation_defaults"), clean))
+    # 整节写回：顺手去掉旧版本留在文件里的 sunrise_rsmi（已换成 sunrise）
+    merged = {**store.system(SYSTEM_ID).get("calculation_defaults", {}), **clean}
+    merged.pop("sunrise_rsmi", None)
+    return dict(store.write(_keys("calculation_defaults"), merged, merge=False))
 
 
 def save_varga(store, updates):
@@ -371,6 +526,15 @@ def save_yogas(store, updates):
     return dict(store.write(_keys("yogas"), clean))
 
 
+def save_jyotish(store, updates):
+    """尊贵、状态、特殊点等：只改传来的几节里传来的几项。"""
+    current = store.system(SYSTEM_ID).get("jyotish") or JYOTISH_DEFAULTS
+    clean = _clean_jyotish(updates, strict=True, base=current)
+    if not clean:
+        raise ValueError("没有要保存的设置。")
+    return dict(store.write(_keys("jyotish"), clean))
+
+
 def save_chart_style(store, value):
     if value not in CHART_STYLES:
         raise ValueError("星盘样式只能是 north（北印度）或 south（南印度）。")
@@ -398,6 +562,7 @@ def public_options():
         "modules": [{"value": name, "label": label} for name, label in MODULES.items()],
         "kp_modules": list(KP_MODULES),
         "dasha_systems": dasha_engine.system_options(),
+        "jyotish_defaults": JYOTISH_DEFAULTS,
     }
 
 
@@ -438,7 +603,8 @@ def _normalize_input(payload):
                     {"is_active": False, "mode": "KS-N", "number": 78},
                 )
             ),
-            "sunrise_rsmi": int(options.get("sunrise_rsmi", swe.BIT_DISC_CENTER)),
+            "sunrise_rsmi": sunrise_option(options),
+            "jyotish": backend_jyotish(options.get("jyotish")),
             "dasha_days_in_year": float(options.get("dasha_days_in_year", 365.25)),
             "dasha_start_planet": str(options.get("dasha_start_planet") or "Mo"),
             "modules": resolve_modules(options.get("kp_enabled", True)),
@@ -587,6 +753,31 @@ def _calculate_dasha(context, planet_pos, options):
     }
 
 
+def _calculate_jyotish(context, options, planet_pos, house_result, sun_events, day_lord_result,
+                       planetary_hour_data, panchanga):
+    """日内时段、Vishesha Lagna、Upagraha、行星战、Shadbala，以及历法的太阴月 / 六十年 / 南北行。"""
+    cfg = options["jyotish"]
+    day_lord = day_lord_result["day_lord"]
+    day = jyotish.vedic_day(context, sun_events, options["sunrise_rsmi"])
+    asc = house_result["axes"]["Asc"]["lon"]
+    upa = jyotish.upagrahas(context, planet_pos, day, day_lord, options, cfg["points"])
+    lagnas = jyotish.special_lagnas(context, planet_pos, asc, day, options, cfg["points"])
+    wars = jyotish.graha_yuddha(context, planet_pos, cfg["war"])
+    ayanamsha = (jyotish.ayanamsha_value(context.jd_utc, options["ayanamsha_mode"], context.ephe_path)
+                 if options["ecliptic_mode"] == "sidereal" else 0.0)
+    bala = shadbala(context, planet_pos, house_result, day, day_lord,
+                    planetary_hour_data["planetary_hour_lord"], ayanamsha, wars, cfg["bala"])
+    calendar = jyotish.calendar_extras(context, day, day_lord, panchanga["tithi"]["paksha"], options["ayanamsha_mode"],
+                                       cfg["calendar"], jyotish.kalavela_segments(day, day_lord, context.jd_utc))
+    return {
+        "vishesha_lagnas": lagnas,
+        "upagrahas": upa["points"],
+        "graha_yuddha": wars,
+        "shadbala": bala,
+        "calendar": calendar,
+    }
+
+
 def calculate_bhava_houses(payload):
     """Bhava 盘用的宫头：与本命盘同一时刻、同样的黄道和岁差（KP 卜卦开着时同样按签号定上升点），
     只是宫位制换成 Bhava 盘自己的（payload["house_system"]）。只在页面上点开 Bhava 盘、
@@ -613,6 +804,9 @@ def calculate_full_chart(payload):
     house_result = _calculate_house_group(context, options)
     sun_events, day_lord_result, planetary_hour_data = _calculate_sun_group(context, options)
     kp = _calculate_kp_group(planet_pos, house_result, day_lord_result, modules)
+    panchanga = calculate_panchanga(context, day_lord_result["day_lord"], options["ayanamsha_mode"])
+    extra = _calculate_jyotish(context, options, planet_pos, house_result, sun_events, day_lord_result,
+                               planetary_hour_data, panchanga)
 
     result = {
         "context": context.to_dict(json_safe=True),
@@ -629,7 +823,8 @@ def calculate_full_chart(payload):
         "day_lord_result": day_lord_result,
         "planetary_hour_data": planetary_hour_data,
         # Panchanga：Nakshatra、Yoga 一律按恒星黄道（用所选岁差），与星盘选哪种黄道无关。
-        "panchanga": calculate_panchanga(context, day_lord_result["day_lord"], options["ayanamsha_mode"]),
+        "panchanga": panchanga,
+        **extra,
         **kp,
     }
     dasha = _calculate_dasha(context, planet_pos, options)

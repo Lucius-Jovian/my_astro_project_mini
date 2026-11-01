@@ -25,14 +25,14 @@
 - 安装依赖：`pip install -r requirements.txt`。其中 `sqlcipher3-wheels` 只在需要档案库加密时才用到，不装也能使用其他全部功能。
 - 启动：在命令行进入项目文件夹，运行 `python app.py`，然后用浏览器打开 `http://127.0.0.1:5300/`。用 WinPython 时，先打开 WinPython Command Prompt，再用 `cd /d 项目文件夹` 进入项目文件夹。
 - 退出：在命令行窗口按 `Ctrl + C`。
-- 顶栏最左边的下拉菜单切换「印度占星」和「西方占星」。两个体系的计算设置分开保存，人物档案是同一套。
+- 顶栏最左边的下拉菜单切换「印占」和「西占」。两个体系的计算设置分开保存，人物档案是同一套。
 - 改了时间、地点或设置之后，点右上角「排盘」重新计算。星体配置、古典设置等浮窗里点「完成」后会自动重算。
 - 设置抽屉里的各个设置一改就自动保存，下次打开程序沿用。
 
 ## 页面布局
 
 - 左边是星盘，右边是结果标签页。星盘大小跟着窗口高度走，剩下的宽度都给右边。窗口很窄时上下排列。
-- 顶栏只有一行，从左到右：体系、档案库、当前人物、时间条，右端是「排盘」和设置按钮（齿轮）。
+- 顶栏只有一行，从左到右：体系、档案库、当前人物、时间条，右端是三盘按钮（只在印占出现）、「排盘」和设置按钮（齿轮）。
   - 体系和档案库都是下拉菜单，点一下打开，点外面或按 Esc 收起。
   - 点人名打开「选择人物」，档案的选择、编辑、新建、删除都在这里（见「人物档案」）。
   - 时间条：本地日期时间、时间步进，看过境盘时还有 ↻（更新到现在）。时间条里的时间就是当前这张盘的时刻，本命和过境各自一份。顶栏的按钮不带鼠标悬停提示。
@@ -40,6 +40,16 @@
   - 「时间与地点」里也有一份本地日期时间，和顶栏的时间条是同一个时刻，在哪一边改都可以，另一边立刻跟着变。
 - 星盘上方只有一行：切换星盘，右端是体系自己的控件（印度占星：转宫、北 / 南）。
 - 结果表里宫位只写数字（1 到 12），不写「第 N 宫」。
+- 结果表横向放不下时，第一列（名称）固定在左边，其余各列在它后面横向滚动，对照不会错行。
+- 黄经一列里，星座（符号或三字母缩写）占固定宽度，度数紧跟其后：同一列上下行星座对星座、度数对度数，各自左对齐。西占的三分主星一列同样每颗星占固定的位置，缺的那一位留空。
+
+### 三盘视角（印占）
+
+- 点顶栏「排盘」左边的三盘按钮切换。大星盘不动，右边多出一栏，一上一下两个小星盘，结果标签页排在最右。再点一次回到原来的版面。开关和两个小星盘的选择只在这台电脑的浏览器里记住。
+- 这一栏顶上是两个下拉框，分别选上、下两个小星盘：Transit、Moon、Bhava 和全部 D 盘（Rashi、Gochara 除外）。
+- 顶栏的时间只跟大星盘走：大星盘是 Rashi（或分盘）时，时间条是本命的时刻；大星盘是 Transit 或 Gochara 时，是过境的时刻。小星盘选了 Transit 时，它用过境盘自己保存的时刻（第一次用时是现在的时间和默认地点），不改动顶栏。
+- 每张星盘各自记住自己的点击高亮，互不影响。转宫按盘记：大星盘转过的 D9，小星盘里的 D9 也是转过的。
+- 窗口很窄时三栏改为上下排列。
 
 ## 本命盘与过境盘
 
@@ -65,6 +75,16 @@
 - 「4 分钟」大约让上升点移动 1°，适合逐度检查上升点和宫头。
 - 步进前后的偏移显示在步进按钮旁边，点它回到起点。
 - 步进只改时间条里的时间，不会写进档案。要保存，打开「编辑档案」点「保存」。
+
+### 日出判定基准
+
+在设置抽屉「计算设置」的「日出」折叠栏里，两个体系各自保存。日出日落、次日日出、值日星、行星时，以及印占里依赖日出的各项（Panchanga 的 Vara、Kala Vela、Rahu Kala、Abhijit、Vishesha Lagna、Upagraha、Shadbala 的 Tribhaga 等）都按这里。
+
+- **判定基准**：太阳上边缘（天文年历的标准）、日心（默认）、太阳下边缘。
+- **大气折射**：关掉时按几何地平计算。
+- **计入太阳黄纬**：关掉时不计太阳的黄纬。
+- 印度传统的 Hindu rising 是「日心、不计折射、不计黄纬」，三项这样设好后折叠栏右侧显示 Hindu。
+- 默认值与以前版本相同（日心、计折射、计黄纬），升级后日出时刻不变。以前的设置文件里的 `sunrise_rsmi` 会自动换算成新写法。
 
 ### 时区、历法、经纬度
 
@@ -152,9 +172,17 @@
 - **KP**：勾选「启用 KP」后计算 KP 行星、KP 宫位、KP 行星 ABCD、KP 宫位 1234 和 KP 主宰星，对应的标签页一起出现。KP 卜卦也在这一栏，KS-N 签号 1 到 249，CIL-N 签号 1 到 2193。卜卦只在启用 KP 时起作用。
 - **分盘**：见下面的「分盘」一节。
 - **相位**：罗睺、计都是否投射第 5、7、9 个星座的相位，两项分开设置，默认都投射。星盘的点击高亮、Gochara 和 Yoga 里的相位都按这里计算。
+  - **Jaimini 星座互看**：开启后，星盘上的行星不能再点；点星座数字，这个格子和与它互看的星座格子高亮（动星座看定星座、定星座看动星座，相邻的除外；变星座互看）。Yoga 的相位不受这一项影响。
+- **尊贵**：七曜的极旺度数（擢升星座内的度数，默认 BPHS：Su 10、Mo 3、Ma 28、Me 15、Ju 5、Ve 27、Sa 20），极旺、极落的容许度（默认 1°），罗计的旺座（金牛 · 天蝎，或双子 · 射手；Yoga 的 `exalted` 等也按这里），是否标出陷。「恢复默认」改回 BPHS。
+- **行星状态**：Chara Karaka 用 8 个（含罗睺）还是 7 个；四种特殊度数各自开关（死度、吉度、吉分、甘丹塔），死度的出处（Phaladeepika 或 Jataka Parijata，两者只有月亮一行不同），度数范围（第 n 度即 n−1° 到 n°，或 n° 前后 0.5°），甘丹塔的宽度（默认 3°20′）；行星战的开关、相距度数（默认 1°）和胜负规则（黄纬偏北者胜、赤纬偏北者胜、较亮者胜）。
+- **特殊点**：哪些 Vishesha Lagna、Upagraha、Arudha 画进星盘（默认都不画）；BL、HL、GL、Vighati 的起点（日出时的太阳，或出生时的太阳）；Gulika、Mandi、其余 Kala Vela 各取那一段的起点、中点还是终点（默认 Gulika 起点、Mandi 中点、其余起点）；天蝎、水瓶的主星（两主星取较强者，或只用火星、土星）；Arudha 落在本宫或第 7 宫时是否改取第 10 宫。
+- **力量 · 八重点 · 敌友 · 分盘汇总**：Shadbala 里水星的吉凶（与凶星同宫为凶，或始终为吉）；八重点的列序（按星座，或从 Lagna 起）；罗计是否列入敌友表和分盘计分；Vimsopaka、Vaiseshikamsa 各用哪一组分盘（Shadvarga、Saptavarga、Dashavarga、Shodashavarga，默认分别是 Shodashavarga、Dashavarga）。
+- **历法**：太阴月按 Amanta（新月起）还是 Purnimanta（满月起）；六十年按南印太阴年还是北印木星年；南北行按恒星（Makara Sankranti 起）还是回归（冬至起）；周三是否不取 Abhijit。
+- 行星战、力量、特殊点的时点、历法由后端计算，改了以后按原来的时刻重新排盘；其余各项只在页面上计算，改了立即重画。
 - **燃烧**：行星离太阳多少度以内算燃烧（Combust）。默认按 BPHS：月 12°、火 17°、水 14°（逆行 12°）、木 11°、金 10°（逆行 8°）、土 15°。行星表的「燃烧」一栏和 Yoga 里的 `combust(P)` 都按这里，「恢复默认」改回上面的度数。
 - **Yoga**：「管理 Yoga」在这里，见下面的「Yoga」一节。
 - **Dasha**：见下面的「Dasha」一节。
+- **日出**：见「时间与地点」里的「日出判定基准」。
 
 ### 星盘
 
@@ -166,7 +194,8 @@
 - 每个格子代表一个星座，度数是星座内度数。北印度盘最上方的菱形是上升星座。南印度盘星座位置固定，上升星座的格子左上角有一道斜线。
 - 行星用两字母代码：Su 太阳、Mo 月亮、Me 水星、Ve 金星、Ma 火星、Ju 木星、Sa 土星、Ra 罗睺、Ke 计都。代码下有红线表示逆行。
 - Asc 是上升点。非整宫制下，H1 到 H12 是各宫宫头，连同度数放进它所在的星座。H1 与上升点相同时只画 H1，不同时（如 Equal/MC 宫制）另外画出 Asc。
-- 点一颗行星，高亮它投射相位的星座；点星座数字，高亮向这个星座投射相位的行星。相位按 Parashari 星座相位计算：所有行星看第 7 个星座，火星另看第 4、8 个，木星另看第 5、9 个，土星另看第 3、10 个；罗睺、计都默认另看第 5、9 个，可以在计算设置的「相位」里关掉。
+- 计算设置「特殊点」里勾选的点（Vishesha Lagna、Upagraha、Arudha）用灰紫色画进星盘，不能点。只有星座、没有度数的点（Indu Lagna、各个 Arudha）只写代号。分盘里，Vishesha Lagna 和 Upagraha 按分盘算法换算，Arudha 按这张分盘里各行星的位置重新计算；Bhava 盘里按宫头放进宫位格子。
+- 点一颗行星，高亮它投射相位的星座；点星座数字，高亮向这个星座投射相位的行星（开启 Jaimini 星座互看时改为高亮互看的星座）。相位按 Parashari 星座相位计算：所有行星看第 7 个星座，火星另看第 4、8 个，木星另看第 5、9 个，土星另看第 3、10 个；罗睺、计都默认另看第 5、9 个，可以在计算设置的「相位」里关掉。
 
 ### 分盘
 
@@ -301,12 +330,13 @@ all_in(P7, run(1, 7))                        七曜全在第 1 到第 7 宫（Na
 
 在设置抽屉「计算设置」的「Dasha」折叠栏里。
 
+- **体系**：Dasha 标签页显示哪一种大运。
 - **起算行星**：从哪颗行星所在的星宿起算，默认月亮。所有体系共用。
 - **一年的天数**：默认 365.25，可填 300 到 400。
 
 #### 查看
 
-- Dasha 标签页顶部的下拉框切换体系，切换时不用重新排盘。选过的体系会自动记住，下次打开先显示它。
+- 体系在计算设置「Dasha」折叠栏的「体系」里选，切换时不用重新排盘，选过的会自动记住。标签页顶部只写当前体系的名称和周期，以及 BPHS 的适用情形。
 - 先显示第一层，覆盖出生后约 120 年。当前所在的一段有底色和 ● 标记。
 - 点任意一段展开下一层，再点一次收起，可以一直往下展开。第 1、2 层只显示日期，第 3 层起显示到分钟。
 
@@ -333,13 +363,32 @@ all_in(P7, run(1, 7))                        七曜全在第 1 到第 7 宫（Na
 
 ### 结果表
 
-- 右边的标签页（默认顺序）：行星、宫位、Dasha、Yoga、历法、KP 行星、KP 宫位、KP 行星 ABCD、KP 宫位 1234、KP 主宰星、档案资料。KP 的五个标签页只在启用 KP 时出现，档案资料只在选中人物后出现。顺序可以在「工具」里调整。
-- 黄经写成三个字母的英文星座缩写加星座内度分秒（Ari Tau Gem Can Leo Vir Lib Sco Sag Cap Aqu Pis），行星、宫位和 KP 各表都一样；宫位只写数字；星宿写梵文名加中文宿名。Yoga 的条件说明是文字，仍写「第 N 宫」。
-- **行星**：黄经、星宿、宿主星、Pada、顺行或逆行、燃烧（按计算设置里的燃烧度数）。**宫位**：黄经、星宿、宿主星、Pada。
+- 右边的标签页（默认顺序）：行星、宫位、Dasha、Yoga、历法、力量、八重点、敌友、分盘汇总、Vishesha Lagna、Upagraha、Arudha、KP 行星、KP 宫位、KP 行星 ABCD、KP 宫位 1234、KP 主宰星、档案资料。KP 的五个标签页只在启用 KP 时出现，档案资料只在选中人物后出现。顺序可以在「工具」里调整。这次升级改了默认顺序，以前在「工具」里保存的顺序不再使用。
+- 黄经写成三个字母的英文星座缩写加星座内度分秒（Ari Tau Gem Can Leo Vir Lib Sco Sag Cap Aqu Pis），行星、宫位和 KP 各表都一样；宫位只写数字；星宿只写梵文名。Yoga 的条件说明是文字，仍写「第 N 宫」。
+- 力量、八重点、敌友、分盘汇总、Vishesha Lagna、Upagraha、Arudha 七个标签页只在切过去时才画，换盘或改设置后，下次显示时再画。
+- **行星**：黄经、尊贵、星宿、宿主星、Pada、顺行或逆行、燃烧（按计算设置里的燃烧度数）、Karaka、状态、标记。
+  - **尊贵**：一颗星只标一项，次序是极旺、旺、极落、落、根三方、庙、陷。极旺、极落按计算设置「尊贵」里的度数和容许度。水星在处女座前 15° 为旺、16° 到 20° 为根三方，月亮在金牛座前 4° 为旺、其后为根三方。罗计只标旺、落。
+  - **Karaka**：Jaimini 的 Chara Karaka（AK AmK BK MK PiK PK GK DK），按星座内度数从大到小排；8 个时罗睺参与，度数取 30° 减去星座内度数。
+  - **状态**：Baladi 与 Jagradadi 两种 Avastha，写成「壮 · 醒」。Baladi 每 6° 一段，奇数星座依次为婴、少、壮、老、死，偶数星座反过来。Jagradadi：庙、旺、根三方星座为醒，友或中性的星座为梦，敌的星座或落为眠（按天然友敌，罗计不算）。
+  - **标记**：死度（Mrityu Bhaga）、吉度（Pushkara Bhaga）、吉分（Pushkara Navamsa）、甘丹塔（Gandanta），以及行星战的「战胜 X」「战败 X」。
+- **宫位**：黄经、星宿、宿主星、Pada。
+- **力量**：Shadbala。第一张表是六项合计（单位 virupa）、Rupa、需要的最低值、比值（不足 1 时标色）、Ishta、Kashta；下面两张是 Sthana 和 Kala 的细项。
+  - Saptavargaja 一律用 Parashara 算法的 D1、D2、D3、D7、D9、D12、D30，与分盘设置无关；关系按五重友敌（天然加临时）。
+  - Kendradi 按整宫；Dig 按上升、天顶、下降、天底；Nathonnatha 按太阳时角；Paksha 月亮加倍；Ayana 太阳加倍；Abda、Masa 从 Kali Yuga 起算的日数推出；Hora 与历法里的 Hora 相同。
+  - Cheshta：火、水、木、金、土按 Cheshta Kendra（平均黄经取 J2000 平均根数），太阳取 Ayana、月亮取 Paksha（都不加倍）。Drik 用 BPHS 的分级相位，火、木、土的特殊相位另加。Yuddha 把行星战双方其余各项合计之差加给胜者、从败者减去。
+- **八重点**：七曜各自的 BAV 和合计的 SAV（BPHS 第 66 章，合计 337）。Lagna 所在的列标色。
+- **敌友**：顶部切换五重、天然、临时三种。一行是这颗星看别的星的关系。
+- **分盘汇总**：上升点和九曜在 16 张分盘里的星座（按当前的分盘算法），庙、旺、根三方星座标绿，落标红。最后两列：Vimsopaka（20 分制：庙、旺、根三方星座 20 分，其余按与星座主星的五重关系，大友 18、友 15、中 10、敌 7、大敌 5，再按所选分盘组的权重折算）；Vaiseshikamsa（所选分盘组里落在庙、旺、根三方星座的张数和名称，如 4 Gopura）。
+- **Vishesha Lagna**：Bhava Lagna、Hora Lagna、Ghati Lagna、Vighati Lagna、Varnada Lagna、Sree Lagna、Pranapada、Indu Lagna（只有星座）、Bhrigu Bindu。
+- **Upagraha**：太阳起算的 Dhuma、Vyatipata、Parivesha、Indrachapa、Upaketu，以及按昼夜八分起算的 Kala、Mrityu、Ardhaprahara、Yamaghantaka、Gulika、Mandi（那一段某个时刻的上升点）。
+- **Arudha**：AL（Arudha Lagna）、A2 到 A11、UL（Upapada），写本宫、所在星座、所在宫。
 - **历法**：
   - Panchanga 五支：Vara（日，按日出换日）、Tithi（月日，括号里是 1 到 30 的序号）、Nakshatra（月亮所在星宿和 Pada）、Yoga（日月黄经和的 27 分之一，括号里是序号）、Karana（半个 Tithi，括号里是 1 到 60 的序号），以及每一支结束的时刻（与盘同一天只写时分）。
   - Nakshatra、Yoga 一律按恒星黄道计算（用所选的岁差体系），与星盘选哪种黄道无关；Tithi、Karana 只看日月距角，与黄道无关。
   - 日出、日落、次日日出，以及当前的 Hora（行星时的主星、第几个、起止）。
+  - 凶时 · 吉时：当天白天的 Rahu Kala、Yamaganda、Gulika Kala（白天八分里按星期取一份），Abhijit（白天十五分的第 8 份，周三不取时变灰）。
+  - Kala Vela：出生所在的半天（昼或夜）八等分，Kala、Mrityu、Ardhaprahara、Yamaghantaka、Gulika 各自的起止。
+  - 年 · 月：Masa（太阴月，闰月写 Adhika）、Samvatsara（六十年的名称和序号）、Ayana（Uttarayana 或 Dakshinayana）。南印太阴年从 Chaitra 白分初一起，序号为 Shaka 年加 11 除以 60 的余数；北印木星年按平均木星（每 361.02 日一年）。
 - **KP 行星、KP 宫位**：黄经、星宿、星座主、宿主星、子主星、子子主星、Pada。子主星和子子主星查 `systems/vedic/astro/data/sub-sub.csv`，其他都由程序按黄经直接计算。
 
 ## 西方占星
@@ -396,7 +445,7 @@ all_in(P7, run(1, 7))                        七曜全在第 1 到第 7 宫（Na
 - 右边的标签页（默认顺序）：行星、相位、宫位、值日星 · 行星时、小行星、恒星、Lot、特殊点、映点与反映点、档案资料。没有启用任何一项的类别不显示。
 - **值日星 · 行星时**：值日星、行星时主星、日出、日落、次日日出、第几个行星时、行星时起止。
 - 行星只写符号。黄经写成星座符号加星座内度分秒；黄纬、赤经、赤纬也用度分秒；速度用小数（°/日）。
-- **行星**：黄经、三分主星、界主星、面主星、记分、速度（比平均速度快或慢多少）、顺行或逆行、得时、东出西入、日照、黄纬、赤经、赤纬。
+- **行星**：黄经、庙（所在星座的主星）、旺（所在星座的擢升主星，没有时留空）、三分主星、界主星、面主星、记分、速度（比平均速度快或慢多少）、顺行或逆行、得时、东出西入、日照、黄纬、赤经、赤纬。
 - **宫位**：黄经、赤经、赤纬、速度。
 - **小行星、特殊点**：黄经、黄纬、赤经、赤纬、速度。**恒星**最左一列是英文简称（与星盘上的符号相同），然后是名称、黄经、黄纬、赤经、赤纬、星等和拜耳命名，不列速度。
 - **Lot**：黄经、速度、公式、本次用的是日间还是夜间公式。**映点与反映点**：黄经、速度。
@@ -418,7 +467,7 @@ all_in(P7, run(1, 7))                        七曜全在第 1 到第 7 宫（Na
 ```
 app.py              启动入口
 common/             共用区：天文基础（星历、宫位、日出日落）、人物档案（前后端）、设置、页面外壳
-systems/vedic/      印度占星（KP、Dasha、南北印度盘、分盘、Gochara、Yoga）
+systems/vedic/      印度占星（KP、Dasha、南北印度盘、分盘、Gochara、Yoga、Shadbala、特殊点、历法）
 systems/western/    西方占星（小行星、恒星、Lot、相位、圆形星盘）
 tools/              导出单个体系、旧数据迁移
 user_data/          设置和档案库（不属于代码，备份时连同它一起备份）
@@ -442,6 +491,7 @@ user_data/          设置和档案库（不属于代码，备份时连同它一
 - `onProfileChange(人物)`：换了人（印度占星用它清掉转宫）。
 - `defaultTabOrder`、`tabOrderRev`：结果区标签页的默认顺序。改了默认顺序时把 `tabOrderRev` 加 1，之前在「工具」里保存的顺序（`settings.json` 的 `layout.tab_order_rev` 记着保存时的版本号）就不再使用，回到新的默认顺序。
 - `onDerivedReady(视图)`：一张要等后端的分盘刚算好、已经重画（印度占星用它在 Bhava 盘算好后刷新 Yoga）。
+- `miniViews`、`miniDefaults`：三盘视角的两个小星盘可选哪些盘（`[{value, label}]`，视图键可以是 `transit` 或 `derivedViews` 里的任何一张）和默认选哪两张。体系不提供时没有三盘按钮。`renderChart` 画小星盘时第三个参数里带 `mini: true`。
 - `viewMenu`：按钮条右边的分盘按钮，`{label, defaultValue, items: [{value, label, note, sub, title}]}`。左半边切到最近用过的那张（没用过时是 `defaultValue`），右半边打开菜单。分盘再多，页面上也只多一个按钮。
 
 换算结果按「本命结果 + signature」缓存在 `state.derived`，没点到的分盘永远不计算，所以分盘数量不影响页面速度。
@@ -455,6 +505,14 @@ user_data/          设置和档案库（不属于代码，备份时连同它一
 - 也可以在另一个文件里调用 `VedicVargas.addMethod(分盘, 键, 算法)` 或 `VedicVargas.register(分盘)`，这个文件要在 `vargas.js` 之后、`vedic.js` 之前加载。
 - 每张分盘的第一种算法是默认算法。设置里保存的算法被删掉时，自动退回默认算法。
 - D 盘默认都在分盘按钮里。想把某张 D 盘单独放到按钮条上，改 `systems/vedic/static/vedic.js` 里的 `PINNED_VARGAS`（顺序在 `BAR_ORDER`）；分盘按钮左半边的默认盘是 `buildViewMenu()` 里的 `defaultValue`。
+
+### 尊贵、状态、特殊点、力量、历法的文件
+
+- `systems/vedic/astro/jyotish.py`：需要星历或精确时刻的部分：印度日、Kala Vela、Upagraha、Vishesha Lagna、行星战、凶时吉时、太阴月、六十年、南北行。
+- `systems/vedic/astro/bala.py`：Shadbala（含 Shadbala 专用的 Parashara 分盘）。
+- `systems/vedic/static/jyotish.js`：只靠黄经就能算的部分（纯函数）：尊贵、Chara Karaka、Avastha、特殊度数、友敌、Ashtakavarga、Vimsopaka 与 Vaiseshikamsa、Arudha、Jaimini 星座互看。表格数据（死度表、BAV 表、分盘组权重等）都在这个文件开头。
+- `systems/vedic/static/vedic_extra.js`：这些功能的设置、七个按需绘制的标签页、星盘里的特殊点。
+- `common/astro/options.py`：日出判定基准（`clean_sunrise`、`sunrise_rsmi`），两个体系共用。
 
 ### Yoga 的文件
 
@@ -470,7 +528,8 @@ user_data/          设置和档案库（不属于代码，备份时连同它一
 - `POST /aspects`：保存相位设置（`{"Ra": true, "Ke": false}`）。
 - `POST /combust`：保存燃烧度数（`{"Mo": 12, "Me_r": 12, ...}`，0 到 30）。
 - `POST /yogas`：保存 Yoga 设置（`disabled`、`removed`、`custom`，传来的几项整项替换）。后端只检查格式，公式由页面上的引擎检查。
-- `POST /calc-defaults`、`POST /chart-style`、`POST /dasha/expand`。
+- `POST /jyotish`：保存尊贵、状态、特殊点、力量、八重点、敌友、分盘汇总、历法的设置（`{节: {项: 值}}`，只改传来的几项）。
+- `POST /calc-defaults`（含 `sunrise`）、`POST /chart-style`、`POST /dasha/expand`。
 
 分盘设置保存在 `settings.json` 的 `systems.vedic.varga`：
 
@@ -497,3 +556,23 @@ user_data/          设置和档案库（不属于代码，备份时连同它一
 ```
 
 `custom` 里 `id` 与某条默认 Yoga 相同的，表示改过的默认 Yoga。
+
+尊贵、状态等设置保存在 `systems.vedic.jyotish`，每一项的写法和合法值见 `bridge.py` 的 `JYOTISH_DEFAULTS` 和 `JYOTISH_SPEC`：
+
+```json
+"jyotish": {
+  "dignity": {"deep": {"Su": 10, "Mo": 3, "Ma": 28, "Me": 15, "Ju": 5, "Ve": 27, "Sa": 20}, "orb": 1, "nodes": "taurus", "detriment": true},
+  "status": {"karaka": "8", "mrityu": true, "mrityu_source": "phaladeepika", "span": "degree",
+             "pushkara_bhaga": true, "pushkara_navamsa": true, "gandanta": true, "gandanta_orb": 3.333333,
+             "war": true, "war_orb": 1, "war_rule": "latitude"},
+  "points": {"chart": [], "lagna_base": "sunrise", "gulika_at": "start", "mandi_at": "middle", "kalavela_at": "start",
+             "arudha_exception": true, "dual_lord": "stronger"},
+  "bala": {"mercury": "assoc"}, "av": {"columns": "sign"}, "friends": {"nodes": false},
+  "vargas": {"vimsopaka": "shodasha", "vaiseshikamsa": "dasha"},
+  "calendar": {"masa": "amanta", "samvatsara": "lunar", "ayana": "sidereal", "abhijit_wed": true}
+}
+```
+
+排盘请求里只带后端要用的几项（`options.jyotish`，写法相同，可以只带一部分）：行星战（`status.war*`）、`bala`、`points` 里的四个时点、`calendar`。
+
+两个体系的日出设置都在 `calculation_defaults.sunrise`：`{"limb": "upper" | "center" | "lower", "refraction": true, "latitude": true}`。

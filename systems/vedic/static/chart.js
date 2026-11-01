@@ -20,6 +20,14 @@
  * - 再点一次或点空白处取消。
  * - 各行星投射哪几个相位由 options.aspects 给出（印度占星的设置里可以关掉罗睺、计都的相位），默认见 ASPECTS。
  *
+ * Jaimini 星座互看（options.rasiAspects = 函数：星座 → 与它互看的星座列表）：行星不可点；
+ *   点星座数字 → 这个格子和与它互看的格子高亮。
+ *
+ * 特殊点（results.extra_points = [{code, lon, sign_only, title}]）：Vishesha Lagna、Upagraha、Arudha 等，
+ *   画法与宫头相同（不可点），sign_only 的只画代号、不画度数。
+ *
+ * 每个容器各自记住自己的选中（三盘视角里大小星盘互不影响）。
+ *
  * Gochara（options.gochara = 过境盘的排盘结果）：过境的九曜直接放进本命盘（Rashi）的格子里，
  *   排在同一格本命行星的后面，用另一种颜色（CSS 的 .layer-out）区分；过境的上升点不画。
  * - 点本命或过境的行星 → 它所在的格子和它投射相位的格子高亮。
@@ -153,6 +161,7 @@
 
     // 一个元素“Su 12°34'”在字号 1 时的宽度。
     function itemUnitWidth(item) {
+        if (!item.deg) return codeUnitWidth(item);
         return codeUnitWidth(item) + CODE_DEG_GAP + unitTextWidth(item.deg, 400) * DEG_SCALE;
     }
 
@@ -215,6 +224,15 @@
             }
         }
 
+        for (const x of results.extra_points || []) {
+            if (!Number.isFinite(Number(x.lon))) continue;
+            items.push({
+                key: `X:${x.code}`, kind: "extra", code: x.code, lon: norm360(x.lon),
+                deg: x.sign_only ? "" : degLabel(x.lon), sign: cellOf(x.code, x.lon), rank: ranks[x.code],
+                title: x.title || x.code,
+            });
+        }
+
         // 同一格子里按度数从小到大排，读盘顺序就是黄道顺序（给了 ranks 时按 ranks）。
         const rankOf = (it) => (Number.isFinite(it.rank) ? it.rank : it.lon % 30);
         items.sort((a, b) => a.sign - b.sign || rankOf(a) - rankOf(b));
@@ -265,8 +283,8 @@
 
     // ------------------------------------------------------------ 选中与高亮
 
-    // 当前选中：null | {type: "item", key} | {type: "sign", sign}
-    let selection = null;
+    // 每个容器的选中：null | {type: "item", key} | {type: "sign", sign}
+    const selections = new Map();
 
     // 当前使用的相位表（render 时按 options.aspects 设定）。
     let aspectTable = ASPECTS;
@@ -284,7 +302,7 @@
         return null;
     }
 
-    function applyHighlight(svg, data) {
+    function applyHighlight(svg, data, selection) {
         let selfSign = null;
         let aspectSigns = new Set();
         let selectedKey = null;
@@ -299,7 +317,8 @@
             }
         } else if (selection?.type === "sign") {
             selfSign = selection.sign;
-            aspectingKeys = new Set(aspectsTo(data, selection.sign).map((s) => s.item.key));
+            if (data.rasiAspects) aspectSigns = new Set(data.rasiAspects(selection.sign));
+            else aspectingKeys = new Set(aspectsTo(data, selection.sign).map((s) => s.item.key));
         }
 
         svg.querySelectorAll("[data-sign-cell]").forEach((cell) => {
@@ -321,7 +340,7 @@
     function drawItem(parent, item, x, y, size, onSelect) {
         const w = itemUnitWidth(item) * size;
         const h = LINE_H * size;
-        const clickable = item.kind === "planet";
+        const clickable = item.kind === "planet" && !item.noClick;
         const g = el("g", {
             class: `chart-item kind-${item.kind} layer-${item.layer || "in"}${clickable ? " clickable" : ""}`,
             "data-item-key": item.key,
@@ -338,7 +357,7 @@
         const baseline = y + h / 2 + size * 0.36;
         const t = el("text", {x, y: baseline, "font-size": size}, g);
         el("tspan", {class: "item-code"}, t).textContent = item.code;
-        el("tspan", {class: "item-deg", dx: size * CODE_DEG_GAP, "font-size": size * DEG_SCALE}, t).textContent = item.deg;
+        if (item.deg) el("tspan", {class: "item-deg", dx: size * CODE_DEG_GAP, "font-size": size * DEG_SCALE}, t).textContent = item.deg;
         if (item.retro) {
             el("line", {
                 class: "retro-mark",
@@ -692,9 +711,21 @@
     }
 
     // 一个格子的排法：先查规则表，规则表没有（或连最小字号都放不下）才自由排版。
+    // 同一形状的格子、同样宽度的一组元素，排法一定相同：缓存起来，换盘、三盘视角重画时不再重新搜索。
+    const layoutCache = new Map();
+
     function layoutNorthCell(cell, items) {
         const widths = items.map(itemUnitWidth);
-        const counts = ruleCounts(cell, items.length);
+        const key = `${cell.cacheKey}|${widths.map((w) => w.toFixed(4)).join(",")}`;
+        if (layoutCache.has(key)) return layoutCache.get(key);
+        const result = computeNorthLayout(cell, widths);
+        if (layoutCache.size > 2000) layoutCache.clear();
+        layoutCache.set(key, result);
+        return result;
+    }
+
+    function computeNorthLayout(cell, widths) {
+        const counts = ruleCounts(cell, widths.length);
         if (counts) {
             const e = evaluate(cell, {family: "rows", counts, points: latticePoints("rows", counts)}, widths);
             if (e.fit) return e;
@@ -765,8 +796,11 @@
         return {
             ...classifyCell(box),
             poly: box.poly, planes, bounds, group: symmetryGroup(box.poly), target, numPos,
+            cacheKey: box.poly.map((p) => p.join(",")).join(";"),
         };
     }
+
+    let northCells = null;          // 十二个格子的几何信息只算一次
 
     function renderNorth(svg, data, onSelect) {
         const S = NORTH_SIZE;
@@ -774,9 +808,9 @@
         const cellLayer = el("g", {class: "cells"}, svg);
         const labels = el("g", {class: "labels"}, svg);
 
-        const cells = northGeometry(S).map((box, i) => {
+        if (!northCells) northCells = northGeometry(S).map(prepareNorthCell);
+        const cells = northCells.map((cell, i) => {
             const sign = (data.lagnaSign + i) % 12;
-            const cell = prepareNorthCell(box);
             const items = data.bySign[sign];
             return {sign, cell, items, layout: items.length ? layoutNorthCell(cell, items) : null};
         });
@@ -899,7 +933,13 @@
             data.bySign = data.bySign.map((list, sign) => [...list, ...transit[sign]]);
             data.gochara = true;
         }
-        if (selection?.type === "item" && !findItem(data, selection.key)) selection = null;
+        if (typeof options.rasiAspects === "function") {
+            data.rasiAspects = options.rasiAspects;
+            data.bySign.forEach((list) => list.forEach((it) => { it.noClick = true; }));
+        }
+        let selection = selections.get(container) || null;
+        if (selection?.type === "item" && (data.rasiAspects || !findItem(data, selection.key))) selection = null;
+        selections.set(container, selection);
 
         const svg = el("svg", {
             class: `astro-chart ${style}${data.gochara ? " gochara" : ""}`, xmlns: SVG_NS, role: "img",
@@ -909,25 +949,28 @@
         container.append(svg);
 
         const onSelect = (target) => {
-            const same = selection && selection.type === target.type &&
-                (target.type === "item" ? selection.key === target.key : selection.sign === target.sign);
-            selection = same ? null : target;
-            applyHighlight(svg, data);
+            const current = selections.get(container);
+            const same = current && current.type === target.type &&
+                (target.type === "item" ? current.key === target.key : current.sign === target.sign);
+            selections.set(container, same ? null : target);
+            applyHighlight(svg, data, selections.get(container));
         };
         svg.addEventListener("click", () => {
-            selection = null;
-            applyHighlight(svg, data);
+            selections.set(container, null);
+            applyHighlight(svg, data, null);
         });
 
         if (style === "north") renderNorth(svg, data, onSelect);
         else renderSouth(svg, data, onSelect);
 
-        applyHighlight(svg, data);
+        applyHighlight(svg, data, selection);
         return data;
     }
 
-    function clearSelection() {
-        selection = null;
+    // 不给容器：清掉所有星盘的选中
+    function clearSelection(container = null) {
+        if (container) selections.delete(container);
+        else selections.clear();
     }
 
     window.AstroChart = {

@@ -18,7 +18,17 @@ from .core import (
     sidereal_sun_moon,
     set_ephemeris_path,
 )
-from .options import BASIC_CALC_KEYS, ayanamsha_options, clean_basic_calc, house_system_options
+from .options import (
+    BASIC_CALC_KEYS,
+    DEFAULT_SUNRISE,
+    ayanamsha_options,
+    clean_basic_calc,
+    clean_sunrise,
+    house_system_options,
+    normalize_sunrise_defaults,
+    sunrise_option,
+    sunrise_rsmi,
+)
 
 __all__ = [
     "AstroContext",
@@ -28,8 +38,13 @@ __all__ = [
     "MAIN_PLANETS",
     "WEEKDAY_LORDS",
     "BASIC_CALC_KEYS",
+    "DEFAULT_SUNRISE",
     "ayanamsha_options",
     "clean_basic_calc",
+    "clean_sunrise",
+    "normalize_sunrise_defaults",
+    "sunrise_option",
+    "sunrise_rsmi",
     "calculate_day_lord",
     "calculate_houses",
     "calculate_planetary_hour",

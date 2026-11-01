@@ -24,6 +24,8 @@ DOMICILE = ("Ma", "Ve", "Me", "Mo", "Su", "Me", "Ve", "Ma", "Ju", "Sa", "Sa", "J
 
 # 擢升：行星 → (星座, 擢升度数)
 EXALTATION = {"Su": (0, 19), "Mo": (1, 3), "Me": (5, 15), "Ve": (11, 27), "Ma": (9, 28), "Ju": (3, 15), "Sa": (6, 21)}
+# 每个星座的擢升主星（没有的为 None），行星表「旺」一栏用
+EXALTATION_RULER = tuple(next((p for p, (s, _) in EXALTATION.items() if s == sign), None) for sign in range(12))
 
 # 三分主星：元素（0 火 1 土 2 风 3 水）→ (日间主星, 夜间主星, 共管)
 # 共管可以是一颗星，也可以是 (日间共管, 夜间共管)。
@@ -290,6 +292,8 @@ def planet_rows(
         rows.append({
             "name": code,
             **position(lon),
+            "domicile": DOMICILE[sign_index(lon)],
+            "exaltation": EXALTATION_RULER[sign_index(lon)],
             "triplicity": triplicity_rulers(sign_index(lon), cfg.get("triplicity_system", "dorothean"), is_day),
             "term": term_ruler(lon, cfg.get("term_system", "egyptian")),
             "face": face_ruler(lon),
