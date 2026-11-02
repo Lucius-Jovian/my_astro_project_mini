@@ -995,6 +995,7 @@ def public_options():
         "orb_planets": list(ORB_PLANETS),
         "default_aspects": DEFAULT_ASPECTS,
         "default_classical": DEFAULT_CLASSICAL,
+        "default_sunrise": dict(DEFAULT_SUNRISE),
         "classical_options": {
             "scores": _opts({k: DIGNITY_LABELS[k] for k in DIGNITY_SCORE_KEYS}),
             "triplicity_systems": _opts(TRIPLICITY_SYSTEMS),

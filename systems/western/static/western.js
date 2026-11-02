@@ -160,6 +160,13 @@ const SETTINGS_DIALOGS = {
             sun: {title: "太阳光束", render: renderSunDialog, bulk: []},
         },
     },
+    // 日出判定基准存在计算设置（calculation_defaults.sunrise）里，浮窗放在「古典」一组
+    calc: {
+        endpoint: "/calc-defaults",
+        categories: {
+            sunrise: {title: "日出", render: renderSunriseDialog, bulk: []},
+        },
+    },
 };
 
 // 当前打开的浮窗：{section, category, draft, original}。draft 是整个 points / aspects 设置的副本。
@@ -188,7 +195,7 @@ function updateDraft(mutator, {rerender = true} = {}) {
 }
 
 function openSettingsDialog(section, category) {
-    const source = state[section];
+    const source = section === "calc" ? {sunrise: state.settings.calculation_defaults.sunrise} : state[section];
     settingsDialog = {section, category, draft: deepCopy(source), original: JSON.stringify(source)};
     $("pointsTitle").textContent = dialogMeta().title;
     showError("");
@@ -235,7 +242,8 @@ async function finishSettingsDialog() {
     try {
         showError("");
         const saved = await api(systemApi(SETTINGS_DIALOGS[section].endpoint), {method: "POST", body: JSON.stringify(payload)});
-        state[section] = saved;
+        if (section === "calc") state.settings.calculation_defaults = saved;
+        else state[section] = saved;
         closeSettingsDialog();
         renderSettingsEntries();
         updateTabVisibility();
@@ -250,6 +258,12 @@ async function finishSettingsDialog() {
 
 function restoreSettingsDefaults() {
     const {section, category} = settingsDialog;
+    if (section === "calc") {
+        settingsDialog.draft.sunrise = deepCopy(state.optionsMeta.default_sunrise);
+        renderSettingsDialog();
+        showNotice("已恢复默认（点「完成」后生效）。");
+        return;
+    }
     if (section === "classical") {
         const defaults = deepCopy(state.optionsMeta.default_classical);
         const keys = {dignity: ["scores", "triplicity_system", "triplicity_mode", "term_system"], sect: ["sect"], speed: ["speed"], sun: ["sun"]}[category];
@@ -371,6 +385,13 @@ function renderSettingsEntries() {
     document.querySelectorAll("[data-classical-dialog]").forEach((button) => {
         button.querySelector(".point-count").textContent = classical[button.dataset.classicalDialog] || "";
     });
+    const sr = state.settings.calculation_defaults.sunrise || {};
+    const limb = {upper: "上边缘", center: "日心", lower: "下边缘"}[sr.limb] || "";
+    const sunrise = sr.limb === "center" && !sr.refraction && !sr.latitude ? "Hindu"
+        : [limb, sr.refraction === false ? "无折射" : ""].filter(Boolean).join(" · ");
+    document.querySelectorAll("[data-calc-dialog]").forEach((button) => {
+        button.querySelector(".point-count").textContent = sunrise;
+    });
 }
 
 // ---------- 小工具 ----------
@@ -398,8 +419,10 @@ function dialogHint(body, html) {
     body.appendChild(p);
 }
 
-function sectionTitle(body, text) {
-    body.appendChild(el("div", {class: "dialog-section-title"}, text));
+function sectionTitle(body, text, unit = "") {
+    const title = el("div", {class: "dialog-section-title"}, text);
+    if (unit) title.appendChild(el("span", {class: "unit-note"}, unit));
+    body.appendChild(title);
 }
 
 // 星体符号里的 ☉ ♀ ♂ 等字符在部分系统上会显示成彩色表情：后面加 U+FE0E，强制按普通文字显示。
@@ -855,7 +878,7 @@ function orbInput(value, onChange) {
 
 function orbRow(table, label, value, onChange, extra = null) {
     const row = el("div", {class: "orb-row"});
-    row.append(el("span", {class: "orb-label"}, label), orbInput(value, onChange), el("span", {class: "orb-unit"}, "°"));
+    row.append(el("span", {class: "orb-label"}, label), orbInput(value, onChange), el("span", {class: "orb-unit"}));
     row.appendChild(extra || el("span"));
     table.appendChild(row);
 }
@@ -876,7 +899,7 @@ function renderAspectOrbsDialog(body) {
     body.appendChild(seg);
 
     const setOrb = (fn) => updateDraft(fn, {rerender: false});
-    sectionTitle(body, "行星（每颗单独设置）");
+    sectionTitle(body, "行星（每颗单独设置）", "单位：度");
     let table = el("div", {class: "orb-table"});
     for (const code of state.optionsMeta.orb_planets) {
         const meta = state.optionsMeta.planets.find((p) => p.value === code);
@@ -1001,6 +1024,9 @@ function bindSettingsDialogs() {
     });
     document.querySelectorAll("[data-classical-dialog]").forEach((button) => {
         button.addEventListener("click", () => openSettingsDialog("classical", button.dataset.classicalDialog));
+    });
+    document.querySelectorAll("[data-calc-dialog]").forEach((button) => {
+        button.addEventListener("click", () => openSettingsDialog("calc", button.dataset.calcDialog));
     });
     const dialog = $("pointsDialog");
     $("pointsRestoreBtn").addEventListener("click", restoreSettingsDefaults);
@@ -1267,13 +1293,28 @@ function renderSpeedDialog(body) {
     body.appendChild(table);
 }
 
+// 日出判定基准：判定用太阳哪一部分、是否计大气折射、是否计太阳黄纬
+function renderSunriseDialog(body) {
+    const sr = draft().sunrise;
+    radioGroup(body, "判定基准", "sunrise-limb",
+        [{value: "upper", label: "太阳上边缘"}, {value: "center", label: "日心"}, {value: "lower", label: "太阳下边缘"}],
+        sr.limb, (v) => updateDraft((d) => { d.sunrise.limb = v; }, {rerender: false}));
+    const grid = el("div", {class: "check-grid"});
+    for (const [key, label] of [["refraction", "大气折射"], ["latitude", "计入太阳黄纬"]]) {
+        const item = el("label", {class: "check-item"});
+        item.append(checkbox(sr[key] !== false, (on) => updateDraft((d) => { d.sunrise[key] = on; }, {rerender: false})), el("span", {}, label));
+        grid.appendChild(item);
+    }
+    body.appendChild(grid);
+}
+
 // 太阳光束：若干档，每档一个名称和一个度数。行星与太阳的黄经距离落在哪一档以内，就显示哪一档的名称；
 // 按度数从小到大判断，取最先满足的一档（例如 17′ 以内为日核，8.5° 以内为焦伤，17° 以内为光束下）。
 const MAX_SUN_PHASES = 6;
 
 function renderSunDialog(body) {
     const phases = draft().sun.phases;
-    sectionTitle(body, "名称与距离太阳的度数");
+    sectionTitle(body, "名称与距离太阳的度数", "单位：度");
     const list = el("div", {class: "sun-phase-list"});
     phases.forEach((phase, index) => {
         const row = el("div", {class: "sun-phase-row"});
@@ -1297,7 +1338,7 @@ function renderSunDialog(body) {
         });
         const remove = el("button", {type: "button", class: "icon-btn small", "aria-label": "删除这一档"}, "×");
         remove.addEventListener("click", () => updateDraft((d) => { d.sun.phases.splice(index, 1); }));
-        row.append(label, orb, el("span", {class: "orb-unit"}, "° 以内"), remove);
+        row.append(label, orb, el("span", {class: "orb-unit"}, "以内"), remove);
         list.appendChild(row);
     });
     if (!phases.length) list.appendChild(el("p", {class: "muted"}, "没有任何一档时，行星表的「日照」一栏留空。"));

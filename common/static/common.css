@@ -1839,9 +1839,6 @@ body.triple .chart-head .segmented.compact span, body.triple #chartViews span { 
 body.triple .chart-head { gap: 6px; }
 body.triple .view-menu-main { padding: 0 8px 0 10px; }
 body.triple .view-menu-btn { padding: 0 6px; }
-/* 结果区变窄：标签页排成一行，横向滚动，不再挤成好几行 */
-body.triple .tab-bar { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
-body.triple .tab-bar button { flex: 0 0 auto; white-space: nowrap; }
 body.triple .mini-panel { display: flex; flex-direction: column; gap: 8px; padding: 12px; min-width: 0; min-height: 0; overflow-y: auto; }
 .mini-head { display: flex; gap: 6px; height: 32px; }
 .mini-head select { flex: 1 1 0; min-width: 0; height: 32px; margin: 0; padding-top: 0; padding-bottom: 0; font-size: 13px; }
@@ -1855,3 +1852,38 @@ body.triple .mini-panel { display: flex; flex-direction: column; gap: 8px; paddi
     body.triple .mini-panel { flex-direction: row; flex-wrap: wrap; justify-content: center; }
     body.triple .mini-head { flex: 1 0 100%; }
 }
+
+/* ---------- 设置浮窗（两个体系共用的写法）：分组标题、单选条、勾选、数字格 ---------- */
+
+.points-modal { width: min(760px, calc(100vw - 32px)); }
+.dialog-section-title {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 14px 0 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+}
+.dialog-section-title:first-child { margin-top: 0; }
+.unit-note { font-size: 11.5px; font-weight: 400; color: var(--muted); }
+.check-item.wide { display: flex; gap: 8px; align-items: flex-start; line-height: 1.6; }
+.check-item.wide input { margin-top: 4px; }
+.classical-seg { flex-wrap: wrap; margin-bottom: 4px; }
+.num-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 16px; margin-bottom: 4px; }
+.num-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 5.2em;
+    gap: 8px;
+    align-items: center;
+    margin: 0;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text);
+}
+.num-row:hover { background: var(--hover); }
+.num-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.num-row input { margin: 0; padding: 3px 6px; text-align: left; font-variant-numeric: tabular-nums; }
+.num-row input.invalid { border-color: var(--danger); }
+.vdlg-body select { width: 100%; }

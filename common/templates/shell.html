@@ -250,21 +250,6 @@
                 </label>
             </div>
 
-            {# 日出判定基准：日出日落、值日星、行星时以及依赖日出的各项都按这里 #}
-            <details class="fold nested" id="foldSunrise">
-                <summary>日出 <span id="sunriseMeta" class="fold-meta"></span></summary>
-                <div class="fold-body">
-                    <label>判定基准
-                        <select id="sunriseLimb">
-                            <option value="upper">太阳上边缘</option>
-                            <option value="center">日心</option>
-                            <option value="lower">太阳下边缘</option>
-                        </select>
-                    </label>
-                    <label class="checkbox-row"><input id="sunriseRefraction" type="checkbox"> 大气折射</label>
-                    <label class="checkbox-row"><input id="sunriseLatitude" type="checkbox"> 计入太阳黄纬</label>
-                </div>
-            </details>
 
             {# 体系自己的计算设置 #}
             {% block calc_settings %}{% endblock %}

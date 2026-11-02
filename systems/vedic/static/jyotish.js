@@ -1,7 +1,7 @@
 "use strict";
 /*
  * 只靠黄经就能算的印度占星判断（纯函数，不碰页面）：
- *   尊贵（极旺、旺、根三方、庙、陷、落、极落）、Chara Karaka、Baladi / Jagradadi Avastha、
+ *   尊贵（极旺、旺、根三方、庙、落、极落；其余标出与星座主星的五重关系）、Chara Karaka、Baladi / Jagradadi Avastha、
  *   特殊度数（Mrityu Bhaga、Pushkara Bhaga、Pushkara Navamsa、Gandanta）、
  *   天然 / 临时 / 五重友敌、Ashtakavarga、分盘汇总（Vimsopaka、Vaiseshikamsa）、Arudha、Jaimini 星座互看。
  * 需要星历或精确时刻的（Vishesha Lagna、Upagraha、行星战、Shadbala、历法）在后端 astro/jyotish.py、astro/bala.py。
@@ -55,7 +55,7 @@
     }
 
     /*
-     * 行星表「尊贵」一栏：只给一个最重要的标签。优先次序：极旺、旺、极落、落、根三方、庙、陷。
+     * 行星表「尊贵」一栏：只给一个最重要的标签。优先次序：极旺、旺、极落、落、根三方、庙（印占不用陷）。
      * 水星在处女、月亮在金牛按度数分段（擢升段 → 根三方段 → 庙）。罗计只看旺、落。
      */
     function dignity(code, lon, cfg = {}) {
@@ -78,8 +78,16 @@
         }
         if (inMt) return {key: "mt", text: "根三方", cls: "good"};
         if (OWN[code]?.includes(s)) return {key: "own", text: "庙", cls: ""};
-        if (cfg.detriment !== false && OWN[code]?.some((o) => mod12(o + 6) === s)) return {key: "det", text: "陷", cls: "dim"};
         return null;
+    }
+
+    // 行星与所在星座主星的五重关系（2 大友 … -2 大敌）；罗计只在设置里让它们参与敌友时才算
+    function signLordRelation(pos, code, includeNodes) {
+        if (!pos[code] || (!P7.includes(code) && !includeNodes)) return null;
+        const lord = SIGN_LORD[signOf(pos[code].lon)];
+        if (lord === code || !pos[lord]) return null;
+        const signs = Object.fromEntries(Object.entries(pos).map(([k, v]) => [k, signOf(v.lon)]));
+        return naturalRel(code, lord) + temporalRel(signs, code, lord);
     }
 
     // 尊贵是否属于「自己的星座」一类（分盘汇总、Jagradadi 用）：庙、旺、根三方星座（按星座，不看度数）
@@ -324,7 +332,7 @@
     window.Jyotish = {
         P7, P9, SIGN_LORD, REL_TEXT, GROUPS, ARUDHA_CODES,
         signOf, degIn, naturalRel,
-        dignity, dignifiedSign, charaKarakas, baladi, jagradadi, specialDegrees,
+        dignity, dignifiedSign, signLordRelation, charaKarakas, baladi, jagradadi, specialDegrees,
         friendship, ashtakavarga, vargaSummary, arudhas, rasiAspects, exaltSign,
     };
 })();

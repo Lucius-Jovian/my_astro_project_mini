@@ -4,240 +4,106 @@
 {% block styles %}<link rel="stylesheet" href="{{ url_for('vedic.static', filename='vedic.css') }}">{% endblock %}
 
 {% block calc_settings %}
-                <details class="fold nested" id="foldKp">
-                    <summary>KP <span id="kpMeta" class="fold-meta"></span></summary>
-                    <div class="fold-body">
-                        <label class="checkbox-row"><input id="kpEnabled" type="checkbox"> 启用 KP</label>
-                        <div id="kpHoraryBox" class="kp-horary">
-                        <span class="field-label">KP 卜卦</span>
-                        <label class="checkbox-row"><input id="horaryActive" type="checkbox"> 启用卜卦</label>
-                        <div class="grid-2">
-                            <label>模式
-                                <select id="horaryMode">
-                                    <option value="KS-N">KS-N</option>
-                                    <option value="CIL-N">CIL-N</option>
-                                </select>
-                            </label>
-                            <label>数字<input id="horaryNumber" type="number" value="78" min="1" max="249"></label>
-                        </div>
-                        </div>
-                    </div>
-                </details>
-
-                <details class="fold nested" id="foldVarga">
-                    <summary>分盘 <span id="vargaMeta" class="fold-meta"></span></summary>
-                    <div class="fold-body">
-                        <label>Bhava 宫位制<select id="bhavaHouseSystem" title="Bhava 盘自己的宫位制，与上面的「宫位制」互不影响"></select></label>
-                        <div class="point-entries varga-entries">
-                            <button id="openVargaMethodsBtn" type="button" class="point-entry">
-                                <span class="point-entry-name">分盘算法</span>
-                                <span id="vargaMethodCount" class="point-count"></span>
-                                <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
-                            </button>
-                        </div>
-                    </div>
-                </details>
-
-                <details class="fold nested" id="foldAspects">
-                    <summary>相位 <span id="aspectMeta" class="fold-meta"></span></summary>
-                    <div class="fold-body">
-                        <label class="checkbox-row"><input id="aspectRa" type="checkbox"> 罗睺 5 · 7 · 9</label>
-                        <label class="checkbox-row"><input id="aspectKe" type="checkbox"> 计都 5 · 7 · 9</label>
-                        <label class="checkbox-row"><input id="aspectJaimini" type="checkbox"> Jaimini 星座互看</label>
-                    </div>
-                </details>
-
-                <details class="fold nested" id="foldCombust">
-                    <summary>燃烧 <span id="combustMeta" class="fold-meta"></span></summary>
-                    <div class="fold-body">
-                        {# 离太阳多少度以内算燃烧（Combust）；水星、金星逆行时另有一个度数 #}
-                        <div id="combustGrid" class="combust-grid"></div>
-                        <button id="combustResetBtn" type="button" class="small-btn">恢复默认</button>
-                    </div>
-                </details>
-
-                <details class="fold nested" id="foldDignity">
-                    <summary>尊贵 <span id="dignityMeta" class="fold-meta"></span></summary>
-                    <div class="fold-body">
-                        <span class="field-label">极旺度数</span>
-                        <div id="deepGrid" class="combust-grid"></div>
-                        <div class="grid-2">
-                            <label>极旺 · 极落容许<input data-jy="dignity.orb" type="number" min="0" max="5" step="0.25"></label>
-                            <label>罗计旺座
-                                <select data-jy="dignity.nodes">
-                                    <option value="taurus">金牛 · 天蝎</option>
-                                    <option value="gemini">双子 · 射手</option>
-                                </select>
-                            </label>
-                        </div>
-                        <label class="checkbox-row"><input data-jy="dignity.detriment" type="checkbox"> 标出陷</label>
-                        <button id="dignityResetBtn" type="button" class="small-btn">恢复默认</button>
-                    </div>
-                </details>
-
-                <details class="fold nested" id="foldStatus">
-                    <summary>行星状态</summary>
-                    <div class="fold-body">
-                        <label>Chara Karaka
-                            <select data-jy="status.karaka">
-                                <option value="8">8 个（含罗睺）</option>
-                                <option value="7">7 个</option>
-                            </select>
-                        </label>
-                        <span class="field-label">特殊度数</span>
-                        <div class="check-pair">
-                            <label class="checkbox-row"><input data-jy="status.mrityu" type="checkbox"> 死度</label>
-                            <label class="checkbox-row"><input data-jy="status.pushkara_bhaga" type="checkbox"> 吉度</label>
-                            <label class="checkbox-row"><input data-jy="status.pushkara_navamsa" type="checkbox"> 吉分</label>
-                            <label class="checkbox-row"><input data-jy="status.gandanta" type="checkbox"> 甘丹塔</label>
-                        </div>
-                        <div class="grid-2">
-                            <label>死度出处
-                                <select data-jy="status.mrityu_source">
-                                    <option value="phaladeepika">Phaladeepika</option>
-                                    <option value="jataka_parijata">Jataka Parijata</option>
-                                </select>
-                            </label>
-                            <label>度数范围
-                                <select data-jy="status.span">
-                                    <option value="degree">第 n 度</option>
-                                    <option value="half">n° ± 0.5°</option>
-                                </select>
-                            </label>
-                        </div>
-                        <label>甘丹塔宽度（°）<input data-jy="status.gandanta_orb" type="number" min="0" max="5" step="0.1"></label>
-                        <span class="field-label">行星战</span>
-                        <label class="checkbox-row"><input data-jy="status.war" type="checkbox"> 启用</label>
-                        <div class="grid-2">
-                            <label>相距（°）<input data-jy="status.war_orb" type="number" min="0" max="5" step="0.1"></label>
-                            <label>胜负
-                                <select data-jy="status.war_rule">
-                                    <option value="latitude">黄纬偏北者胜</option>
-                                    <option value="declination">赤纬偏北者胜</option>
-                                    <option value="brightness">较亮者胜</option>
-                                </select>
-                            </label>
-                        </div>
-                    </div>
-                </details>
-
-                <details class="fold nested" id="foldPoints">
-                    <summary>特殊点 <span id="pointsMeta" class="fold-meta"></span></summary>
-                    <div class="fold-body">
-                        <span class="field-label">画进星盘</span>
-                        <div id="pointChartGrid" class="point-chart-grid"></div>
-                        <label>BL · HL · GL 起点
-                            <select data-jy="points.lagna_base">
-                                <option value="sunrise">日出时的太阳</option>
-                                <option value="birth">出生时的太阳</option>
-                            </select>
-                        </label>
-                        <div class="grid-2">
-                            <label>Gulika 取时
-                                <select data-jy="points.gulika_at">
-                                    <option value="start">起点</option><option value="middle">中点</option><option value="end">终点</option>
-                                </select>
-                            </label>
-                            <label>Mandi 取时
-                                <select data-jy="points.mandi_at">
-                                    <option value="start">起点</option><option value="middle">中点</option><option value="end">终点</option>
-                                </select>
-                            </label>
-                        </div>
-                        <label>其余 Kala Vela 取时
-                            <select data-jy="points.kalavela_at">
-                                <option value="start">起点</option><option value="middle">中点</option><option value="end">终点</option>
-                            </select>
-                        </label>
-                        <label>天蝎 · 水瓶的主星
-                            <select data-jy="points.dual_lord">
-                                <option value="stronger">两主星取较强者</option>
-                                <option value="primary">只用火星 · 土星</option>
-                            </select>
-                        </label>
-                        <label class="checkbox-row"><input data-jy="points.arudha_exception" type="checkbox"> Arudha 落本宫或第 7 宫时取第 10 宫</label>
-                    </div>
-                </details>
-
-                <details class="fold nested" id="foldTables">
-                    <summary>力量 · 八重点 · 敌友 · 分盘汇总</summary>
-                    <div class="fold-body">
-                        <label>水星吉凶
-                            <select data-jy="bala.mercury">
-                                <option value="assoc">与凶星同宫为凶</option>
-                                <option value="benefic">始终为吉</option>
-                            </select>
-                        </label>
-                        <label>八重点列序
-                            <select data-jy="av.columns">
-                                <option value="sign">按星座</option>
-                                <option value="lagna">从 Lagna 起</option>
-                            </select>
-                        </label>
-                        <label class="checkbox-row"><input data-jy="friends.nodes" type="checkbox"> 罗计列入敌友与分盘计分</label>
-                        <div class="grid-2">
-                            <label>Vimsopaka
-                                <select data-jy="vargas.vimsopaka">
-                                    <option value="shad">Shadvarga</option><option value="sapta">Saptavarga</option>
-                                    <option value="dasha">Dashavarga</option><option value="shodasha">Shodashavarga</option>
-                                </select>
-                            </label>
-                            <label>Vaiseshikamsa
-                                <select data-jy="vargas.vaiseshikamsa">
-                                    <option value="shad">Shadvarga</option><option value="sapta">Saptavarga</option>
-                                    <option value="dasha">Dashavarga</option><option value="shodasha">Shodashavarga</option>
-                                </select>
-                            </label>
-                        </div>
-                    </div>
-                </details>
-
-                <details class="fold nested" id="foldCalendar">
-                    <summary>历法</summary>
-                    <div class="fold-body">
-                        <div class="grid-2">
-                            <label>太阴月
-                                <select data-jy="calendar.masa">
-                                    <option value="amanta">Amanta</option>
-                                    <option value="purnimanta">Purnimanta</option>
-                                </select>
-                            </label>
-                            <label>六十年
-                                <select data-jy="calendar.samvatsara">
-                                    <option value="lunar">南印 · 太阴年</option>
-                                    <option value="jovian">北印 · 木星年</option>
-                                </select>
-                            </label>
-                        </div>
-                        <label>南北行
-                            <select data-jy="calendar.ayana">
-                                <option value="sidereal">恒星（Makara Sankranti 起）</option>
-                                <option value="tropical">回归（冬至起）</option>
-                            </select>
-                        </label>
-                        <label class="checkbox-row"><input data-jy="calendar.abhijit_wed" type="checkbox"> 周三不取 Abhijit</label>
-                    </div>
-                </details>
-
                 <div class="point-settings">
-                    <span class="field-label">Yoga</span>
+                    <span class="field-label">体系</span>
                     <div class="point-entries">
-                        <button id="openYogaManagerBtn" type="button" class="point-entry">
-                            <span class="point-entry-name">管理 Yoga</span>
-                            <span id="yogaManagerCount" class="point-count"></span>
+                        <button type="button" class="point-entry" data-vdlg="kp">
+                            <span class="point-entry-name">KP</span>
+                            <span class="point-count"></span>
+                            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                        </button>
+                        <button type="button" class="point-entry" data-vdlg="varga">
+                            <span class="point-entry-name">分盘</span>
+                            <span class="point-count"></span>
+                            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                        </button>
+                        <button type="button" class="point-entry" data-vdlg="dasha">
+                            <span class="point-entry-name">Dasha</span>
+                            <span class="point-count"></span>
+                            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                        </button>
+                        <button type="button" class="point-entry" id="openYogaManagerBtn">
+                            <span class="point-entry-name">Yoga</span>
+                            <span class="point-count" id="yogaManagerCount"></span>
                             <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
                         </button>
                     </div>
                 </div>
-
-                <details class="fold nested" id="foldAdvanced">
-                    <summary>Dasha</summary>
-                    <div class="fold-body">
-                        <label>体系<select id="dashaSystem"></select></label>
-                        <label>起算行星<select id="dashaStartPlanet"></select></label>
-                        <label>一年的天数<input id="dashaDaysInYear" type="number" step="0.000001" value="365.25"></label>
+                <div class="point-settings">
+                    <span class="field-label">星盘</span>
+                    <div class="point-entries">
+                        <button type="button" class="point-entry" data-vdlg="aspects">
+                            <span class="point-entry-name">相位</span>
+                            <span class="point-count"></span>
+                            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                        </button>
+                        <button type="button" class="point-entry" data-vdlg="points">
+                            <span class="point-entry-name">特殊点</span>
+                            <span class="point-count"></span>
+                            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                        </button>
                     </div>
-                </details>
+                </div>
+                <div class="point-settings">
+                    <span class="field-label">行星</span>
+                    <div class="point-entries">
+                        <button type="button" class="point-entry" data-vdlg="dignity">
+                            <span class="point-entry-name">尊贵</span>
+                            <span class="point-count"></span>
+                            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                        </button>
+                        <button type="button" class="point-entry" data-vdlg="combust">
+                            <span class="point-entry-name">燃烧</span>
+                            <span class="point-count"></span>
+                            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                        </button>
+                        <button type="button" class="point-entry" data-vdlg="status">
+                            <span class="point-entry-name">行星状态</span>
+                            <span class="point-count"></span>
+                            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="point-settings">
+                    <span class="field-label">表格</span>
+                    <div class="point-entries">
+                        <button type="button" class="point-entry" data-vdlg="bala">
+                            <span class="point-entry-name">力量</span>
+                            <span class="point-count"></span>
+                            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                        </button>
+                        <button type="button" class="point-entry" data-vdlg="av">
+                            <span class="point-entry-name">八重点</span>
+                            <span class="point-count"></span>
+                            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                        </button>
+                        <button type="button" class="point-entry" data-vdlg="friends">
+                            <span class="point-entry-name">敌友</span>
+                            <span class="point-count"></span>
+                            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                        </button>
+                        <button type="button" class="point-entry" data-vdlg="vargas">
+                            <span class="point-entry-name">分盘汇总</span>
+                            <span class="point-count"></span>
+                            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="point-settings">
+                    <span class="field-label">历法</span>
+                    <div class="point-entries">
+                        <button type="button" class="point-entry" data-vdlg="sunrise">
+                            <span class="point-entry-name">日出</span>
+                            <span class="point-count"></span>
+                            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                        </button>
+                        <button type="button" class="point-entry" data-vdlg="calendar">
+                            <span class="point-entry-name">年月 · 吉时</span>
+                            <span class="point-count"></span>
+                            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                        </button>
+                    </div>
+                </div>
 {% endblock %}
 
 {% block chart_head %}
@@ -289,22 +155,37 @@
 {% endblock %}
 
 {% block dialogs %}
-<!-- 分盘算法：每张 D 盘选用哪一种算法（改了立即保存；正在看的分盘立即重画） -->
-<dialog id="vargaDialog" class="modal varga-modal" aria-labelledby="vargaTitle">
+<!-- 印占的设置浮窗：一个浮窗、按类别换内容（内容来自下面的 template）；修改只改浮窗里的表单，点「完成」才保存并重算 -->
+<dialog id="vedicDialog" class="modal points-modal" aria-labelledby="vedicDialogTitle" data-guarded>
     <div class="modal-head">
-        <h2 id="vargaTitle">分盘算法</h2>
-        <button type="button" class="icon-btn" data-close aria-label="关闭">×</button>
+        <h2 id="vedicDialogTitle"></h2>
+        <button id="vedicDialogClose" type="button" class="icon-btn" aria-label="取消">×</button>
     </div>
     <div class="modal-body">
         <p class="dialog-msg hidden" data-dialog-msg></p>
-        <div id="vargaMethodList" class="varga-list"></div>
+        <div id="vedicDialogBody" class="vdlg-body"></div>
     </div>
     <div class="modal-foot">
-        <button id="vargaResetBtn" type="button" class="small-btn">全部恢复默认</button>
+        <button id="vedicDialogRestore" type="button" class="small-btn">恢复默认</button>
         <span class="spacer"></span>
-        <button type="button" class="accent-btn" data-close>完成</button>
+        <button id="vedicDialogCancel" type="button" class="small-btn">取消</button>
+        <button id="vedicDialogDone" type="button" class="accent-btn">完成</button>
     </div>
 </dialog>
+<template id="vdlg-kp" data-title="KP"><div class="dialog-section-title">KP</div><label class="check-item wide"><input type="checkbox" data-set="calc.kp_enabled"><span>启用 KP</span></label><div class="dialog-section-title">卜卦</div><label class="check-item wide"><input type="checkbox" data-set="calc.KP_HORARY.is_active"><span>启用卜卦</span></label><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="calc.KP_HORARY.mode" data-set="calc.KP_HORARY.mode" value="KS-N"><span>KS-N（1–249）</span></label><label><input type="radio" name="calc.KP_HORARY.mode" data-set="calc.KP_HORARY.mode" value="CIL-N"><span>CIL-N（1–2193）</span></label></div><div class="num-grid"><label class="num-row"><span class="num-label">签号</span><input type="number" data-set="calc.KP_HORARY.number" min="1" max="2193" step="1"></label></div></template>
+<template id="vdlg-varga" data-title="分盘"><div class="dialog-section-title">Bhava 宫位制</div><select data-set="varga.bhava_house_system" data-fill="house_systems"></select><div class="dialog-section-title">分盘算法</div><div data-build="vargaMethods" class="varga-list"></div></template>
+<template id="vdlg-dasha" data-title="Dasha"><div class="dialog-section-title">体系</div><select data-set="calc.dasha_system" data-fill="dasha_systems"></select><div class="dialog-section-title">起算行星</div><div data-build="dashaStart"></div><div class="dialog-section-title">一年的天数</div><div class="num-grid"><label class="num-row"><span class="num-label">天数</span><input type="number" data-set="calc.dasha_days_in_year" min="300" max="400" step="any"></label></div></template>
+<template id="vdlg-aspects" data-title="相位"><div class="dialog-section-title">罗睺 · 计都</div><div class="check-grid"><label class="check-item wide"><input type="checkbox" data-set="aspects.Ra"><span>罗睺投射 5 · 7 · 9</span></label><label class="check-item wide"><input type="checkbox" data-set="aspects.Ke"><span>计都投射 5 · 7 · 9</span></label></div><div class="dialog-section-title">Jaimini</div><label class="check-item wide"><input type="checkbox" data-set="aspects.jaimini"><span>星盘改用 Jaimini 星座互看</span></label></template>
+<template id="vdlg-points" data-title="特殊点"><div class="dialog-section-title">画进星盘</div><div data-build="pointChart" class="point-chart-grid"></div><div class="dialog-section-title">BL · HL · GL 的起点</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.points.lagna_base" data-set="jy.points.lagna_base" value="sunrise"><span>日出时的太阳</span></label><label><input type="radio" name="jy.points.lagna_base" data-set="jy.points.lagna_base" value="birth"><span>出生时的太阳</span></label></div><div class="dialog-section-title">Gulika 取时</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.points.gulika_at" data-set="jy.points.gulika_at" value="start"><span>起点</span></label><label><input type="radio" name="jy.points.gulika_at" data-set="jy.points.gulika_at" value="middle"><span>中点</span></label><label><input type="radio" name="jy.points.gulika_at" data-set="jy.points.gulika_at" value="end"><span>终点</span></label></div><div class="dialog-section-title">Mandi 取时</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.points.mandi_at" data-set="jy.points.mandi_at" value="start"><span>起点</span></label><label><input type="radio" name="jy.points.mandi_at" data-set="jy.points.mandi_at" value="middle"><span>中点</span></label><label><input type="radio" name="jy.points.mandi_at" data-set="jy.points.mandi_at" value="end"><span>终点</span></label></div><div class="dialog-section-title">其余 Kala Vela 取时</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.points.kalavela_at" data-set="jy.points.kalavela_at" value="start"><span>起点</span></label><label><input type="radio" name="jy.points.kalavela_at" data-set="jy.points.kalavela_at" value="middle"><span>中点</span></label><label><input type="radio" name="jy.points.kalavela_at" data-set="jy.points.kalavela_at" value="end"><span>终点</span></label></div><div class="dialog-section-title">Arudha</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.points.dual_lord" data-set="jy.points.dual_lord" value="stronger"><span>天蝎 · 水瓶取较强的主星</span></label><label><input type="radio" name="jy.points.dual_lord" data-set="jy.points.dual_lord" value="primary"><span>只用火星 · 土星</span></label></div><label class="check-item wide"><input type="checkbox" data-set="jy.points.arudha_exception"><span>落在本宫或第 7 宫时取第 10 宫</span></label></template>
+<template id="vdlg-dignity" data-title="尊贵"><div class="dialog-section-title">极旺度数<span class="unit-note">单位：度</span></div><div data-build="deepGrid" class="num-grid"></div><div class="dialog-section-title">极旺 · 极落容许<span class="unit-note">单位：度</span></div><div class="num-grid"><label class="num-row"><span class="num-label">容许</span><input type="number" data-set="jy.dignity.orb" min="0" max="5" step="0.25"></label></div><div class="dialog-section-title">罗计旺座</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.dignity.nodes" data-set="jy.dignity.nodes" value="taurus"><span>金牛 · 天蝎</span></label><label><input type="radio" name="jy.dignity.nodes" data-set="jy.dignity.nodes" value="gemini"><span>双子 · 射手</span></label></div><div class="dialog-section-title">敌友</div><label class="check-item wide"><input type="checkbox" data-set="jy.dignity.relation"><span>不在庙、旺、落时，标出与星座主星的五重关系</span></label></template>
+<template id="vdlg-combust" data-title="燃烧"><div class="dialog-section-title">离太阳的度数<span class="unit-note">单位：度</span></div><div data-build="combustGrid" class="num-grid"></div></template>
+<template id="vdlg-status" data-title="行星状态"><div class="dialog-section-title">Chara Karaka</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.status.karaka" data-set="jy.status.karaka" value="8"><span>8 个（含罗睺）</span></label><label><input type="radio" name="jy.status.karaka" data-set="jy.status.karaka" value="7"><span>7 个</span></label></div><div class="dialog-section-title">特殊度数</div><div class="check-grid"><label class="check-item wide"><input type="checkbox" data-set="jy.status.mrityu"><span>死度</span></label><label class="check-item wide"><input type="checkbox" data-set="jy.status.pushkara_bhaga"><span>吉度</span></label><label class="check-item wide"><input type="checkbox" data-set="jy.status.pushkara_navamsa"><span>吉分</span></label><label class="check-item wide"><input type="checkbox" data-set="jy.status.gandanta"><span>甘丹塔</span></label></div><div class="dialog-section-title">死度出处</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.status.mrityu_source" data-set="jy.status.mrityu_source" value="phaladeepika"><span>Phaladeepika</span></label><label><input type="radio" name="jy.status.mrityu_source" data-set="jy.status.mrityu_source" value="jataka_parijata"><span>Jataka Parijata</span></label></div><div class="dialog-section-title">度数范围</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.status.span" data-set="jy.status.span" value="degree"><span>第 n 度</span></label><label><input type="radio" name="jy.status.span" data-set="jy.status.span" value="half"><span>n° 前后 0.5°</span></label></div><div class="dialog-section-title">甘丹塔宽度<span class="unit-note">单位：度</span></div><div class="num-grid"><label class="num-row"><span class="num-label">宽度</span><input type="number" data-set="jy.status.gandanta_orb" min="0" max="5" step="0.1"></label></div><div class="dialog-section-title">行星战</div><label class="check-item wide"><input type="checkbox" data-set="jy.status.war"><span>启用</span></label><div class="num-grid"><label class="num-row"><span class="num-label">相距（度）</span><input type="number" data-set="jy.status.war_orb" min="0" max="5" step="0.1"></label></div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.status.war_rule" data-set="jy.status.war_rule" value="latitude"><span>黄纬偏北者胜</span></label><label><input type="radio" name="jy.status.war_rule" data-set="jy.status.war_rule" value="declination"><span>赤纬偏北者胜</span></label><label><input type="radio" name="jy.status.war_rule" data-set="jy.status.war_rule" value="brightness"><span>较亮者胜</span></label></div></template>
+<template id="vdlg-bala" data-title="力量"><div class="dialog-section-title">水星吉凶</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.bala.mercury" data-set="jy.bala.mercury" value="assoc"><span>与凶星同宫为凶</span></label><label><input type="radio" name="jy.bala.mercury" data-set="jy.bala.mercury" value="benefic"><span>始终为吉</span></label></div></template>
+<template id="vdlg-av" data-title="八重点"><div class="dialog-section-title">列序</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.av.columns" data-set="jy.av.columns" value="sign"><span>按星座</span></label><label><input type="radio" name="jy.av.columns" data-set="jy.av.columns" value="lagna"><span>从 Lagna 起</span></label></div></template>
+<template id="vdlg-friends" data-title="敌友"><div class="dialog-section-title">罗计</div><label class="check-item wide"><input type="checkbox" data-set="jy.friends.nodes"><span>罗计列入敌友表、尊贵的敌友标注和分盘计分</span></label></template>
+<template id="vdlg-vargas" data-title="分盘汇总"><div class="dialog-section-title">Vimsopaka 分盘组</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.vargas.vimsopaka" data-set="jy.vargas.vimsopaka" value="shad"><span>Shadvarga</span></label><label><input type="radio" name="jy.vargas.vimsopaka" data-set="jy.vargas.vimsopaka" value="sapta"><span>Saptavarga</span></label><label><input type="radio" name="jy.vargas.vimsopaka" data-set="jy.vargas.vimsopaka" value="dasha"><span>Dashavarga</span></label><label><input type="radio" name="jy.vargas.vimsopaka" data-set="jy.vargas.vimsopaka" value="shodasha"><span>Shodashavarga</span></label></div><div class="dialog-section-title">Vaiseshikamsa 分盘组</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.vargas.vaiseshikamsa" data-set="jy.vargas.vaiseshikamsa" value="shad"><span>Shadvarga</span></label><label><input type="radio" name="jy.vargas.vaiseshikamsa" data-set="jy.vargas.vaiseshikamsa" value="sapta"><span>Saptavarga</span></label><label><input type="radio" name="jy.vargas.vaiseshikamsa" data-set="jy.vargas.vaiseshikamsa" value="dasha"><span>Dashavarga</span></label><label><input type="radio" name="jy.vargas.vaiseshikamsa" data-set="jy.vargas.vaiseshikamsa" value="shodasha"><span>Shodashavarga</span></label></div></template>
+<template id="vdlg-sunrise" data-title="日出"><div class="dialog-section-title">判定基准</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="calc.sunrise.limb" data-set="calc.sunrise.limb" value="upper"><span>太阳上边缘</span></label><label><input type="radio" name="calc.sunrise.limb" data-set="calc.sunrise.limb" value="center"><span>日心</span></label><label><input type="radio" name="calc.sunrise.limb" data-set="calc.sunrise.limb" value="lower"><span>太阳下边缘</span></label></div><div class="check-grid"><label class="check-item wide"><input type="checkbox" data-set="calc.sunrise.refraction"><span>大气折射</span></label><label class="check-item wide"><input type="checkbox" data-set="calc.sunrise.latitude"><span>计入太阳黄纬</span></label></div></template>
+<template id="vdlg-calendar" data-title="年月 · 吉时"><div class="dialog-section-title">太阴月</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.calendar.masa" data-set="jy.calendar.masa" value="amanta"><span>Amanta</span></label><label><input type="radio" name="jy.calendar.masa" data-set="jy.calendar.masa" value="purnimanta"><span>Purnimanta</span></label></div><div class="dialog-section-title">六十年</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.calendar.samvatsara" data-set="jy.calendar.samvatsara" value="lunar"><span>南印 · 太阴年</span></label><label><input type="radio" name="jy.calendar.samvatsara" data-set="jy.calendar.samvatsara" value="jovian"><span>北印 · 木星年</span></label></div><div class="dialog-section-title">南北行</div><div class="segmented classical-seg" role="radiogroup"><label><input type="radio" name="jy.calendar.ayana" data-set="jy.calendar.ayana" value="sidereal"><span>恒星（Makara Sankranti 起）</span></label><label><input type="radio" name="jy.calendar.ayana" data-set="jy.calendar.ayana" value="tropical"><span>回归（冬至起）</span></label></div><div class="dialog-section-title">Abhijit</div><label class="check-item wide"><input type="checkbox" data-set="jy.calendar.abhijit_wed"><span>周三不取</span></label></template>
 
 <!-- 管理 Yoga：启用 / 停用、新建、修改、删除；改动立即保存 -->
 <dialog id="yogaDialog" class="modal yoga-modal" aria-labelledby="yogaDialogTitle">
@@ -367,5 +248,6 @@
 <script src="{{ url_for('vedic.static', filename='chart.js') }}"></script>
 <script src="{{ url_for('vedic.static', filename='vedic.js') }}"></script>
 <script src="{{ url_for('vedic.static', filename='vedic_extra.js') }}"></script>
+<script src="{{ url_for('vedic.static', filename='vedic_settings.js') }}"></script>
 <script src="{{ url_for('vedic.static', filename='yoga.js') }}"></script>
 {% endblock %}

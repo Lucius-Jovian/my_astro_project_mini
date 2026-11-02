@@ -50,99 +50,12 @@ function applyNodeExalt() {
     }
 }
 
-let jySaveChain = Promise.resolve();
-
-function saveJyotish(changes) {
-    const cfg = jyotishSettings();
-    for (const [section, values] of Object.entries(changes)) {
-        const merged = {...(cfg[section] || {})};
-        for (const [k, v] of Object.entries(values)) {
-            merged[k] = v && typeof v === "object" && !Array.isArray(v) ? {...(merged[k] || {}), ...v} : v;
-        }
-        cfg[section] = merged;
-    }
-    jySaveChain = jySaveChain
-        .then(() => api(systemApi("/jyotish"), {method: "POST", body: JSON.stringify(changes)}))
-        .catch((error) => showError(`设置没能保存：${error.message}`));
-    applyNodeExalt();
-    updateJyotishMeta();
-    // 后端计算的几项改了：排盘请求跟着变，ensureComputed 按原来的时刻重算；其余的直接重画。
-    if (state.charts[chartKind()].results) ensureComputed();
-    renderView();
-}
-
-function readJyInput(el) {
-    if (el.type === "checkbox") return el.checked;
-    if (el.type === "number") return Number(el.value);
-    return el.value;
-}
-
-function jyValue(path) {
-    return path.split(".").reduce((node, key) => node?.[key], jyotishSettings());
-}
-
-function fillJyInputs() {
-    document.querySelectorAll("[data-jy]").forEach((el) => {
-        const v = jyValue(el.dataset.jy);
-        if (el.type === "checkbox") el.checked = Boolean(v);
-        else el.value = v ?? "";
-    });
-    const chosen = new Set(jyotishSettings().points?.chart || []);
-    document.querySelectorAll("[data-jy-code]").forEach((el) => { el.checked = chosen.has(el.dataset.jyCode); });
-}
-
 // 星盘里可以画的特殊点（顺序 = 设置里的顺序 = 后端 POINT_CODES）
 const POINT_GROUPS = [
     {label: "Vishesha Lagna", codes: ["BL", "HL", "GL", "VG", "VL", "SL", "PP", "IL", "BB"]},
     {label: "Upagraha", codes: ["Dh", "Vy", "Pv", "Ic", "Uk", "Kl", "Mr", "Ap", "Yg", "Gk", "Md"]},
     {label: "Arudha", codes: ["AL", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11", "UL"]},
 ];
-
-function updateJyotishMeta() {
-    const cfg = jyotishSettings();
-    const d = jyotishDefaults().dignity || {};
-    const same = Number(cfg.dignity?.orb) === Number(d.orb) &&
-        Jyotish.P7.every((p) => Number(cfg.dignity?.deep?.[p]) === Number(d.deep?.[p]));
-    $("dignityMeta").textContent = same ? "BPHS" : "自定义";
-    const n = (cfg.points?.chart || []).length;
-    $("pointsMeta").textContent = n ? `星盘 ${n}` : "";
-}
-
-function bindJyotishSettings() {
-    $("deepGrid").innerHTML = Jyotish.P7.map((p) => `
-        <label class="combust-field"><span>${p}</span>
-            <input type="number" min="0" max="30" step="0.5" data-jy="dignity.deep.${p}">°</label>`).join("");
-    $("pointChartGrid").innerHTML = POINT_GROUPS.map((g) => `
-        <span class="pc-group">${escapeHtml(g.label)}</span>
-        ${g.codes.map((c) => `<label><input type="checkbox" data-jy-code="${c}">${c}</label>`).join("")}`).join("");
-    fillJyInputs();
-    updateJyotishMeta();
-    applyNodeExalt();
-
-    document.querySelectorAll("[data-jy]").forEach((el) => {
-        el.addEventListener("change", () => {
-            const [section, key, sub] = el.dataset.jy.split(".");
-            const value = readJyInput(el);
-            if (el.type === "number") {
-                const min = Number(el.min), max = Number(el.max);
-                if (!Number.isFinite(value) || value < min || value > max || el.value === "") {
-                    showError(`请填 ${min} 到 ${max} 之间的数字。`);
-                    fillJyInputs();
-                    return;
-                }
-            }
-            saveJyotish({[section]: sub ? {[key]: {[sub]: value}} : {[key]: value}});
-        });
-    });
-    $("pointChartGrid").addEventListener("change", () => {
-        const chart = [...document.querySelectorAll("[data-jy-code]")].filter((el) => el.checked).map((el) => el.dataset.jyCode);
-        saveJyotish({points: {chart}});
-    });
-    $("dignityResetBtn").addEventListener("click", () => {
-        saveJyotish({dignity: JSON.parse(JSON.stringify(jyotishDefaults().dignity))});
-        fillJyInputs();
-    });
-}
 
 // ---------------------------------------------------------------- 星盘里的特殊点
 

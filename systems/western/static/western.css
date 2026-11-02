@@ -69,7 +69,6 @@
 
 /* ---------- 星体配置（计算设置里的入口 + 浮窗） ---------- */
 
-.points-modal { width: min(760px, calc(100vw - 32px)); }
 .point-hint code, .lot-help code { background: var(--subtle); padding: 0 4px; border-radius: 3px; font-size: 12px; }
 
 .point-list { display: grid; gap: 4px; }
@@ -163,17 +162,8 @@
 /* ---------- 设置浮窗：批量操作、分组标题、符号输入 ---------- */
 
 .bulk-bar { display: flex; gap: 6px; margin-bottom: 10px; }
-.dialog-section-title {
-    margin: 14px 0 6px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-2);
-}
-.dialog-section-title:first-child { margin-top: 0; }
 .symbol-input { text-align: center; padding-left: 4px !important; padding-right: 4px !important; }
 .point-row .symbol-input, .lot-head .symbol-input { margin: 0; padding-top: 4px; padding-bottom: 4px; }
-.check-item.wide { display: flex; gap: 8px; align-items: flex-start; line-height: 1.6; }
-.check-item.wide input { margin-top: 4px; }
 .lot-sect-select { margin: 0; padding: 4px 8px; font-size: 12.5px; }
 
 /* 容许度 */
@@ -358,7 +348,6 @@ table.aspect-matrix .am-sym { font: inherit; }
 .check-grid.colored.planet-grid .check-label span { white-space: nowrap; }
 
 /* 古典设置浮窗 */
-.classical-seg { flex-wrap: wrap; margin-bottom: 4px; }
 .sect-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px 16px; }
 .sect-row { display: flex; align-items: center; gap: 10px; }
 .sect-name { width: 22px; text-align: center; }

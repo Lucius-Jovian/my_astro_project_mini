@@ -584,42 +584,6 @@ function renderAllResults() {
     SYSTEM.renderResults();
 }
 
-// ---------- 日出判定基准（两个体系共用，各自保存） ----------
-
-const SUNRISE_LIMB_TEXT = {upper: "上边缘", center: "日心", lower: "下边缘"};
-
-function sunriseSettings() {
-    const calc = state.settings.calculation_defaults;
-    calc.sunrise = {limb: "center", refraction: true, latitude: true, ...(calc.sunrise || {})};
-    return calc.sunrise;
-}
-
-function updateSunriseMeta() {
-    const cfg = sunriseSettings();
-    const hindu = cfg.limb === "center" && !cfg.refraction && !cfg.latitude;
-    $("sunriseMeta").textContent = hindu ? "Hindu" : [SUNRISE_LIMB_TEXT[cfg.limb], cfg.refraction ? "" : "无折射"].filter(Boolean).join(" · ");
-}
-
-function bindSunriseSettings() {
-    if (!$("sunriseLimb")) return;
-    const cfg = sunriseSettings();
-    $("sunriseLimb").value = cfg.limb;
-    $("sunriseRefraction").checked = cfg.refraction !== false;
-    $("sunriseLatitude").checked = cfg.latitude !== false;
-    updateSunriseMeta();
-    let chain = Promise.resolve();
-    const save = () => {
-        const next = {limb: $("sunriseLimb").value, refraction: $("sunriseRefraction").checked, latitude: $("sunriseLatitude").checked};
-        state.settings.calculation_defaults.sunrise = next;
-        updateSunriseMeta();
-        chain = chain
-            .then(() => api(systemApi("/calc-defaults"), {method: "POST", body: JSON.stringify({sunrise: next})}))
-            .catch((error) => showError(`日出设置没能保存：${error.message}`));
-        if (state.charts[chartKind()].results) ensureComputed();       // 计算设置变了：按原来的时刻重算
-    };
-    for (const id of ["sunriseLimb", "sunriseRefraction", "sunriseLatitude"]) $(id).addEventListener("change", save);
-}
-
 // ---------- 三盘视角：大星盘不动，右边一上一下两个小星盘 ----------
 // 两个小星盘各自选一张盘（体系的 miniViews）。顶栏的时间只跟大星盘走：小星盘选了 Transit 时，
 // 它用过境盘自己保存的时刻（第一次用时是现在的时间和默认地点），不改动顶栏。
@@ -4457,7 +4421,6 @@ async function init() {
         bindTimeStep();
         bindFolds();
         bindResultTabs();
-        bindSunriseSettings();
         bindDrawer();
         bindTabOrderDialog();
         bindRawDialog();

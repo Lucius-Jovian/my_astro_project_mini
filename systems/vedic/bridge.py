@@ -130,9 +130,10 @@ POINT_CODES = (
 TIME_POINTS = ("start", "middle", "end")
 
 JYOTISH_DEFAULTS = {
-    # 尊贵：极旺度数（擢升星座内的度数，BPHS）、极旺 / 极落的容许度、罗计的旺座、是否标出陷（入庙星座的对宫）
+    # 尊贵：极旺度数（擢升星座内的度数，BPHS）、极旺 / 极落的容许度、罗计的旺座、
+    # 不在庙旺落时是否标出与星座主星的五重敌友关系
     "dignity": {"deep": {"Su": 10.0, "Mo": 3.0, "Ma": 28.0, "Me": 15.0, "Ju": 5.0, "Ve": 27.0, "Sa": 20.0},
-                "orb": 1.0, "nodes": "taurus", "detriment": True},
+                "orb": 1.0, "nodes": "taurus", "relation": True},
     # 行星状态：Chara Karaka 七个或八个；特殊度数；行星战
     "status": {"karaka": "8", "mrityu": True, "mrityu_source": "phaladeepika", "span": "degree",
                "pushkara_bhaga": True, "pushkara_navamsa": True, "gandanta": True, "gandanta_orb": 3.333333,
@@ -151,7 +152,7 @@ DEFAULT_SYSTEM_SETTINGS["jyotish"] = JYOTISH_DEFAULTS
 VARGA_GROUPS = ("shad", "sapta", "dasha", "shodasha")
 JYOTISH_SPEC = {
     "dignity": {"deep": ("planets_num", 0, 30), "orb": ("num", 0, 5), "nodes": ("choice", ("taurus", "gemini")),
-                "detriment": ("bool",)},
+                "relation": ("bool",)},
     "status": {"karaka": ("choice", ("7", "8")), "mrityu": ("bool",),
                "mrityu_source": ("choice", ("phaladeepika", "jataka_parijata")), "span": ("choice", ("degree", "half")),
                "pushkara_bhaga": ("bool",), "pushkara_navamsa": ("bool",), "gandanta": ("bool",),
@@ -228,7 +229,9 @@ def _clean_jyotish(raw, *, strict, base=None):
             if strict:
                 raise ValueError(f"设置 {section} 必须是对象。")
             given = {}
-        clean = {**_copy_json(JYOTISH_DEFAULTS[section]), **_copy_json(base.get(section) or {})}
+        # 只留 SPEC 里有的项（旧版本留下的、已经不用的项在这里去掉）
+        clean = {**_copy_json(JYOTISH_DEFAULTS[section]),
+                 **{k: v for k, v in _copy_json(base.get(section) or {}).items() if k in spec}}
         for key, value in given.items():
             if key not in spec:
                 if strict:
@@ -563,6 +566,8 @@ def public_options():
         "kp_modules": list(KP_MODULES),
         "dasha_systems": dasha_engine.system_options(),
         "jyotish_defaults": JYOTISH_DEFAULTS,
+        # 设置浮窗「恢复默认」用（Yoga 的清单另有自己的恢复）
+        "system_defaults": {k: v for k, v in DEFAULT_SYSTEM_SETTINGS.items() if k != "yogas"},
     }
 
 

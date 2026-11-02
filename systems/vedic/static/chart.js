@@ -88,8 +88,13 @@
     // 北印度盘（viewBox 边长 = 南印度盘的宽度）
     const SOUTH_COL_W = 140;         // 南印度盘每列宽度（4 列）
     const NORTH_SIZE = SOUTH_COL_W * 4;
-    const FONT_MAX = ITEM_FONT_MAX;
-    const FONT_UNIFORM_MIN = 16;     // 全盘统一字号的下限：低于它的格子单独缩小，不拖累别的格子
+    const UNIFORM_MIN_BASE = 16;     // 全盘统一字号的下限：低于它的格子单独缩小，不拖累别的格子
+    // 小星盘（三盘视角）只画代号、不画度数，字号放大到 MINI_SCALE 倍（挤的格子照样自动缩小）
+    const MINI_SCALE = 1.7;
+    // 本次绘制用的字号上限和统一字号下限（render 时按大盘 / 小盘设定）
+    let FONT_MAX = ITEM_FONT_MAX;
+    let FONT_UNIFORM_MIN = UNIFORM_MIN_BASE;
+    let codesOnly = false;
     const FONT_MIN = 7;              // 最挤的格子最小缩到多少
     const NORTH_PAD = 4;             // 文字与格子边线的最小距离
     const MAX_PER_LINE = 4;          // 自由排版时一行 / 一列最多几个元素
@@ -100,7 +105,7 @@
     const MAX_CANDIDATES = 800;
 
     // 南印度盘
-    const SOUTH_FONT = ITEM_FONT_MAX;
+    let SOUTH_FONT = ITEM_FONT_MAX;
     const SOUTH_PAD_X = 8;           // 元素与格子左右边线的最小距离
     const SOUTH_PAD_Y = 6;           // 元素与格子上下边线（以及右上角星座数字）的最小距离
     const SOUTH_FONT_MIN = 8;        // 一个格子挤得再满，元素也不小于这个字号
@@ -194,7 +199,7 @@
             const retro = !isNode && Number(p.speed) < 0;
             items.push({
                 key: `P:${code}`, kind: "planet", code, retro,
-                lon: norm360(p.lon), deg: degLabel(p.lon), sign: cellOf(code, p.lon), rank: ranks[code],
+                lon: norm360(p.lon), deg: codesOnly ? "" : degLabel(p.lon), sign: cellOf(code, p.lon), rank: ranks[code],
                 title: `${code} ${PLANET_NAMES[code] || ""}${retro ? "（逆行）" : ""}  ${SIGN_NAMES[signOf(p.lon)]} ${degLabel(p.lon)}${noteOf(code)}`,
             });
         }
@@ -206,7 +211,7 @@
                 Math.abs(((norm360(ascLon) - norm360(cusp1) + 540) % 360) - 180) < 1 / 120;
             if (wholeSign || !sameAsCusp) {
                 items.push({
-                    key: "A:Asc", kind: "asc", code: "Asc", lon: norm360(ascLon), deg: degLabel(ascLon),
+                    key: "A:Asc", kind: "asc", code: "Asc", lon: norm360(ascLon), deg: codesOnly ? "" : degLabel(ascLon),
                     sign: cellOf("Asc", ascLon), rank: ranks.Asc,
                     title: `上升点 Asc  ${SIGN_NAMES[signOf(ascLon)]} ${degLabel(ascLon)}${noteOf("Asc")}`,
                 });
@@ -218,7 +223,7 @@
                 const c = house.houses?.[`house ${n}`];
                 if (c?.lon === undefined) continue;
                 items.push({
-                    key: `H:${n}`, kind: "cusp", code: `H${n}`, lon: norm360(c.lon), deg: degLabel(c.lon), sign: signOf(c.lon),
+                    key: `H:${n}`, kind: "cusp", code: `H${n}`, lon: norm360(c.lon), deg: codesOnly ? "" : degLabel(c.lon), sign: signOf(c.lon),
                     title: `第 ${n} 宫宫头  ${SIGN_NAMES[signOf(c.lon)]} ${degLabel(c.lon)}`,
                 });
             }
@@ -228,7 +233,7 @@
             if (!Number.isFinite(Number(x.lon))) continue;
             items.push({
                 key: `X:${x.code}`, kind: "extra", code: x.code, lon: norm360(x.lon),
-                deg: x.sign_only ? "" : degLabel(x.lon), sign: cellOf(x.code, x.lon), rank: ranks[x.code],
+                deg: x.sign_only || codesOnly ? "" : degLabel(x.lon), sign: cellOf(x.code, x.lon), rank: ranks[x.code],
                 title: x.title || x.code,
             });
         }
@@ -716,7 +721,7 @@
 
     function layoutNorthCell(cell, items) {
         const widths = items.map(itemUnitWidth);
-        const key = `${cell.cacheKey}|${widths.map((w) => w.toFixed(4)).join(",")}`;
+        const key = `${cell.cacheKey}|${FONT_MAX}|${widths.map((w) => w.toFixed(4)).join(",")}`;
         if (layoutCache.has(key)) return layoutCache.get(key);
         const result = computeNorthLayout(cell, widths);
         if (layoutCache.size > 2000) layoutCache.clear();
@@ -926,6 +931,11 @@
         }
 
         aspectTable = options.aspects || ASPECTS;
+        codesOnly = Boolean(options.mini);
+        const scale = options.mini ? MINI_SCALE : 1;
+        FONT_MAX = ITEM_FONT_MAX * scale;
+        FONT_UNIFORM_MIN = UNIFORM_MIN_BASE * scale;
+        SOUTH_FONT = ITEM_FONT_MAX * scale;
         const data = buildItems(results);
         if (options.gochara) {
             // 过境的行星排在同一格本命行星的后面

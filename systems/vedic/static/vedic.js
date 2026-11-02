@@ -19,33 +19,6 @@ state.computedModules = {};
 // 星盘样式：north 北印度 / south 南印度
 state.chartStyle = "north";
 
-// 大运体系：在计算设置 → Dasha 里选，Dasha 标签页只显示结果。
-function fillDashaSystemOptions() {
-    fillSelect($("dashaSystem"), dashaSystemOptions());
-    $("dashaSystem").value = currentDashaSystem();
-}
-
-// 大运起算行星：所有行星（包括罗睺 / 计都）都可以选。
-function fillDashaStartOptions() {
-    const planets = state.optionsMeta.main_planets;
-    fillSelect($("dashaStartPlanet"), planets.map((code) => ({value: code, label: code})));
-    const wanted = state.settings.calculation_defaults.dasha_start_planet || "Mo";
-    $("dashaStartPlanet").value = planets.includes(wanted) ? wanted : "Mo";
-}
-
-// KS-N 上限 249，CIL-N 上限 2193（对应 kp.py 的 get_horary_ascendant）。
-function updateHoraryRange() {
-    const mode = $("horaryMode").value;
-    const max = mode === "CIL-N" ? 2193 : 249;
-    const input = $("horaryNumber");
-    input.max = String(max);
-    input.placeholder = `1-${max}`;
-
-    const current = Number(input.value);
-    if (!current || current < 1) input.value = "1";
-    else if (current > max) input.value = String(max);
-}
-
 // ---------- 可开关的模块 ----------
 // 每个模块：结果放在哪个容器、用哪个后端结果键、怎么画。Dasha 单独处理（逐层展开）。
 const MODULE_VIEWS = {
@@ -74,35 +47,6 @@ function resolveModules(kpOn) {
     return result;
 }
 
-function kpEnabled() {
-    return $("kpEnabled").checked;
-}
-
-// KP 面板：右边的摘要，以及启用 KP 之前卜卦设置变灰。
-function updateKpUI() {
-    const on = kpEnabled();
-    const horary = $("horaryActive").checked ? ` · 卜卦 ${$("horaryMode").value} ${$("horaryNumber").value}` : "";
-    $("kpMeta").textContent = on ? `已启用${horary}` : "未启用";
-    $("kpHoraryBox").classList.toggle("disabled", !on);
-    for (const id of ["horaryActive", "horaryMode", "horaryNumber"]) $(id).disabled = !on;
-}
-
-// 「启用 KP」一改：关掉的模块结果马上清掉、标签页隐藏；已经排过盘时立即按新设置重算一次
-// （卜卦会改变宫位，所以关掉 KP 也要重算）。
-function setKpEnabled(on) {
-    state.modules = resolveModules(on);
-    for (const [m, keys] of Object.entries(MODULE_RESULT_KEYS)) {
-        if (state.modules[m]) continue;
-        keys.forEach((k) => delete state.results[k]);
-        state.computedModules[m] = false;
-    }
-    updateKpUI();
-    updateTabVisibility();
-    renderModuleResults();
-    saveVedicCalc({kp_enabled: on});
-    if (state.charts[chartKind()].results) ensureComputed();     // Gochara 时本命、过境两张盘都要按新设置重算
-}
-
 // 计算设置里本体系自己的选项（启用 KP、卜卦、大运）一改就写回 settings.json，下次打开沿用。
 // 排队依次发送：连续快速修改时，后改的一定在先改的之后写入。
 let vedicCalcSaveChain = Promise.resolve();
@@ -115,36 +59,6 @@ function saveVedicCalc(changes) {
             });
         })
         .catch((error) => showError(`计算设置没能保存：${error.message}`));
-}
-
-function horaryPayload() {
-    return {
-        is_active: $("horaryActive").checked,
-        mode: $("horaryMode").value,
-        number: Number($("horaryNumber").value || 1),
-    };
-}
-
-function bindVedicCalc() {
-    $("kpEnabled").addEventListener("change", () => setKpEnabled(kpEnabled()));
-    $("horaryMode").addEventListener("change", updateHoraryRange);
-    for (const id of ["horaryActive", "horaryMode", "horaryNumber"]) {
-        $(id).addEventListener("change", () => {
-            if (id === "horaryNumber") updateHoraryRange();
-            updateKpUI();
-            saveVedicCalc({KP_HORARY: horaryPayload()});
-        });
-    }
-    $("dashaStartPlanet").addEventListener("change", () => saveVedicCalc({dasha_start_planet: $("dashaStartPlanet").value}));
-    $("dashaSystem").addEventListener("change", () => selectDashaSystem($("dashaSystem").value));
-    $("dashaDaysInYear").addEventListener("change", () => {
-        const days = Number($("dashaDaysInYear").value);
-        if (!Number.isFinite(days) || days < 300 || days > 400) {
-            showError("Dasha 年长度必须是 300–400 之间的天数。");
-            return;
-        }
-        saveVedicCalc({dasha_days_in_year: days});
-    });
 }
 
 function renderModuleResults() {
@@ -361,17 +275,6 @@ function vargaMethod(id) {
 }
 
 // 分盘设置一改就写回 settings.json（排队依次发送）；页面上以本地状态为准，不等后端返回。
-let vargaSaveChain = Promise.resolve();
-
-function saveVarga(changes) {
-    Object.assign(vargaSettings(), changes);
-    vargaSaveChain = vargaSaveChain
-        .then(() => api(systemApi("/varga"), {method: "POST", body: JSON.stringify(changes)}))
-        .catch((error) => showError(`分盘设置没能保存：${error.message}`));
-    updateVargaMeta();
-    renderChart();          // 正在看的盘受影响时立即重画（别的分盘等点到时再按新设置换算）
-    yogaSettingsChanged();  // 分盘算法、Bhava 宫位制会影响对应分盘的 Yoga
-}
 
 // Moon：行星位置不变，以月亮所在星座为第一宫；不画宫头。
 function deriveMoonChart(natal) {
@@ -506,66 +409,6 @@ function buildViewMenu() {
 
 // ---------- 计算设置 → 分盘 ----------
 
-function updateVargaMeta() {
-    $("vargaMeta").textContent = `Bhava ${bhavaHouseSystem()}`;
-    const vargas = VedicVargas.list().filter((v) => v.view !== "natal");
-    const changed = vargas.filter((v) => vargaMethod(v.id) !== VedicVargas.defaultMethod(v.id)).length;
-    $("vargaMethodCount").textContent = changed ? `${changed} 张非默认` : `${vargas.length} 张`;
-}
-
-function fillVargaSelects() {
-    fillSelect($("bhavaHouseSystem"), state.optionsMeta.house_systems);
-    $("bhavaHouseSystem").value = bhavaHouseSystem();
-    updateVargaMeta();
-}
-
-function renderVargaDialog() {
-    const list = $("vargaMethodList");
-    list.innerHTML = "";
-    for (const varga of VedicVargas.list()) {
-        if (varga.view === "natal") continue;
-        const keys = Object.keys(varga.methods);
-        const current = vargaMethod(varga.id);
-        const row = document.createElement("div");
-        row.className = "varga-row";
-        row.innerHTML = `
-            <span class="varga-id">${escapeHtml(varga.id)}</span>
-            <span class="varga-name">${escapeHtml(varga.name)}<span class="muted"> · ${escapeHtml(varga.topic)}</span></span>
-            <select aria-label="${escapeHtml(varga.id)} 的算法" ${keys.length > 1 ? "" : "disabled"}></select>
-            <span class="varga-note muted"></span>`;
-        const select = row.querySelector("select");
-        fillSelect(select, keys.map((k) => ({value: k, label: varga.methods[k].label})));
-        select.value = current;
-        const note = row.querySelector(".varga-note");
-        const showNote = () => {
-            const m = varga.methods[select.value];
-            note.textContent = [m.note, m.source ? `出处：${m.source}` : ""].filter(Boolean).join("。");
-        };
-        showNote();
-        select.addEventListener("change", () => {
-            showNote();
-            const methods = {...(vargaSettings().methods || {})};
-            if (select.value === VedicVargas.defaultMethod(varga.id)) delete methods[varga.id];
-            else methods[varga.id] = select.value;
-            saveVarga({methods});
-        });
-        list.appendChild(row);
-    }
-}
-
-function bindVargaSettings() {
-    fillVargaSelects();
-    $("bhavaHouseSystem").addEventListener("change", () => saveVarga({bhava_house_system: $("bhavaHouseSystem").value}));
-    $("openVargaMethodsBtn").addEventListener("click", () => {
-        renderVargaDialog();
-        openDialog("vargaDialog");
-    });
-    $("vargaResetBtn").addEventListener("click", () => {
-        saveVarga({methods: {}});
-        renderVargaDialog();
-    });
-}
-
 // ---------- 计算设置 → 相位（罗睺、计都是否投射相位） ----------
 
 function aspectSettings() {
@@ -582,49 +425,18 @@ function vedicAspects() {
     return table;
 }
 
-function updateAspectMeta() {
-    const cfg = aspectSettings();
-    if (cfg.jaimini) {
-        $("aspectMeta").textContent = "Jaimini";
-        return;
-    }
-    const on = ["Ra", "Ke"].filter((k) => cfg[k] !== false).map((k) => (k === "Ra" ? "罗睺" : "计都"));
-    $("aspectMeta").textContent = on.length ? `${on.join("、")}投射相位` : "罗计不投射相位";
-}
-
 // Jaimini 星座互看开着时，星盘只能点星座数字（高亮与它互看的星座）
 function rasiDrishtiOn() {
     return Boolean(aspectSettings().jaimini);
-}
-
-function bindAspectSettings() {
-    const cfg = aspectSettings();
-    $("aspectRa").checked = cfg.Ra !== false;
-    $("aspectKe").checked = cfg.Ke !== false;
-    $("aspectJaimini").checked = Boolean(cfg.jaimini);
-    updateAspectMeta();
-    let chain = Promise.resolve();
-    for (const [id, key] of [["aspectRa", "Ra"], ["aspectKe", "Ke"], ["aspectJaimini", "jaimini"]]) {
-        $(id).addEventListener("change", () => {
-            const changes = {[key]: $(id).checked};
-            Object.assign(aspectSettings(), changes);
-            updateAspectMeta();
-            AstroChart.clearSelection();
-            renderChart();
-            if (key !== "jaimini") yogaSettingsChanged();
-            chain = chain
-                .then(() => api(systemApi("/aspects"), {method: "POST", body: JSON.stringify(changes)}))
-                .catch((error) => showError(`相位设置没能保存：${error.message}`));
-        });
-    }
 }
 
 // ---------- 计算设置 → 燃烧（离太阳多少度以内算燃烧） ----------
 
 const COMBUST_DEFAULT = {Mo: 12, Ma: 17, Me: 14, Me_r: 12, Ju: 11, Ve: 10, Ve_r: 8, Sa: 15};
 const COMBUST_FIELDS = [
-    ["Mo", "Mo"], ["Ma", "Ma"], ["Me", "Me"], ["Me_r", "Me 逆"],
-    ["Ju", "Ju"], ["Ve", "Ve"], ["Ve_r", "Ve 逆"], ["Sa", "Sa"],
+    // 水星、金星逆行时另有一个度数（BPHS：水星 14° / 逆行 12°，金星 10° / 逆行 8°）
+    ["Mo", "Mo"], ["Ma", "Ma"], ["Me", "Me"], ["Ju", "Ju"], ["Ve", "Ve"], ["Sa", "Sa"],
+    ["Me_r", "Me 逆行时"], ["Ve_r", "Ve 逆行时"],
 ];
 
 function combustSettings() {
@@ -646,46 +458,6 @@ function combustInfo(results, code) {
     const orb = (retro && table[`${code}_r`]) || table[code];
     const dist = Math.abs(((p.lon - su.lon) % 360 + 540) % 360 - 180);
     return {dist, combust: dist < orb};
-}
-
-function updateCombustMeta() {
-    const cfg = combustSettings();
-    const same = Object.keys(COMBUST_DEFAULT).every((k) => Number(cfg[k]) === COMBUST_DEFAULT[k]);
-    $("combustMeta").textContent = same ? "BPHS" : "自定义";
-}
-
-function bindCombustSettings() {
-    const grid = $("combustGrid");
-    const cfg = combustSettings();
-    grid.innerHTML = COMBUST_FIELDS.map(([key, label]) => `
-        <label class="combust-field"><span>${label}</span>
-            <input type="number" min="0" max="30" step="0.5" data-combust="${key}" value="${cfg[key]}">°</label>`).join("");
-    let chain = Promise.resolve();
-    const save = (changes) => {
-        Object.assign(combustSettings(), changes);
-        updateCombustMeta();
-        yogaSettingsChanged();
-        renderView();                    // 行星表的「燃烧」一栏跟着变
-        chain = chain
-            .then(() => api(systemApi("/combust"), {method: "POST", body: JSON.stringify(changes)}))
-            .catch((error) => showError(`燃烧度数没能保存：${error.message}`));
-    };
-    grid.addEventListener("change", (event) => {
-        const key = event.target.dataset.combust;
-        if (!key) return;
-        const v = Number(event.target.value);
-        if (!Number.isFinite(v) || v < 0 || v > 30) {
-            showError("燃烧度数要在 0° 到 30° 之间。");
-            event.target.value = combustSettings()[key];
-            return;
-        }
-        save({[key]: v});
-    });
-    $("combustResetBtn").addEventListener("click", () => {
-        grid.querySelectorAll("[data-combust]").forEach((input) => { input.value = COMBUST_DEFAULT[input.dataset.combust]; });
-        save({...COMBUST_DEFAULT});
-    });
-    updateCombustMeta();
 }
 
 // ---------- 历法（Panchanga） ----------
@@ -803,7 +575,15 @@ function renderVedicPlanets(container, results) {
         const c = combustInfo(results, r.name);
         row.combust = c?.combust ? {text: "燃烧", cls: "bad"} : "";
         const dig = Jyotish.dignity(r.name, r.lon, cfg.dignity);
-        row.dignity = dig ? {text: dig.text, cls: dig.cls} : "";
+        if (dig) {
+            row.dignity = {text: dig.text, cls: dig.cls};
+        } else if (cfg.dignity?.relation !== false) {
+            // 不在庙、旺、根三方、落时：标出它与所在星座主星的五重关系
+            const rel = Jyotish.signLordRelation(pos, r.name, Boolean(cfg.friends?.nodes));
+            row.dignity = rel === null ? "" : {text: Jyotish.REL_TEXT[rel], cls: rel > 0 ? "good" : rel < 0 ? "bad" : "dim"};
+        } else {
+            row.dignity = "";
+        }
         row.karaka = karakas[r.name] || "";
         const jag = Jyotish.jagradadi(r.name, r.lon, cfg.dignity);
         row.avastha = [Jyotish.baladi(r.lon), jag].filter(Boolean).join(" · ");
@@ -842,10 +622,10 @@ function kpLordsHtml(data, nameOf) {
         {key: "name", label: "名称"},
         {key: "sign", label: "黄经"},
         {key: "star", label: "星宿"},
-        {key: "sign_lord", label: "星座主"},
-        {key: "star_lord", label: "宿主星"},
-        {key: "sub_lord", label: "子主星"},
-        {key: "sub_sub_lord", label: "子子主星"},
+        {key: "sign_lord", label: "RL"},
+        {key: "star_lord", label: "NL"},
+        {key: "sub_lord", label: "SL"},
+        {key: "sub_sub_lord", label: "SSL"},
         {key: "pada", label: "Pada"},
     ], rows);
 }
@@ -869,9 +649,9 @@ function kpHouseSigsHtml(data) {
 }
 
 const RULING_LABELS = {
-    Asc_Sign_Lord: "上升星座主", Asc_Star_Lord: "上升宿主星", Asc_Sub_Lord: "上升子主星",
-    Moon_Sign_Lord: "月亮星座主", Moon_Star_Lord: "月亮宿主星", Moon_Sub_Lord: "月亮子主星",
-    Day_Lord: "值日星",
+    Asc_Sign_Lord: "Lagna Rashi Lord", Asc_Star_Lord: "Lagna Nakshatra Lord", Asc_Sub_Lord: "Lagna Sub Lord",
+    Moon_Sign_Lord: "Moon Rashi Lord", Moon_Star_Lord: "Moon Nakshatra Lord", Moon_Sub_Lord: "Moon Sub Lord",
+    Day_Lord: "Day Lord",
 };
 
 function kpRulingHtml(data) {
@@ -904,34 +684,20 @@ registerSystem({
         state.chartStyle = state.settings.chart_style === "south" ? "south" : "north";
     },
     bind() {
-        updateHoraryRange();
-        bindVedicCalc();
-        updateKpUI();
         bindChartStyle();
-        bindVargaSettings();
         bindRotation();
-        bindAspectSettings();
-        bindCombustSettings();
-        bindJyotishSettings();
+        bindVedicSettings();
         bindLazyTabs();
         bindYoga();
     },
-    applyDefaults(calc) {
-        $("kpEnabled").checked = calc.kp_enabled !== false;
-        $("horaryActive").checked = Boolean(calc.KP_HORARY?.is_active);
-        $("horaryMode").value = calc.KP_HORARY?.mode || "KS-N";
-        $("horaryNumber").value = calc.KP_HORARY?.number ?? 78;
-        $("dashaDaysInYear").value = calc.dasha_days_in_year ?? 365.25;
-        fillDashaStartOptions();
-        fillDashaSystemOptions();
-        updateKpUI();
-    },
+    // 本体系自己的计算选项都从设置里取（设置在浮窗里改，点「完成」才写回）
     collectOptions() {
+        const calc = state.settings.calculation_defaults;
         return {
-            kp_enabled: kpEnabled(),
-            KP_HORARY: horaryPayload(),
-            dasha_days_in_year: Number($("dashaDaysInYear").value || 365.25),
-            dasha_start_planet: $("dashaStartPlanet").value || "Mo",
+            kp_enabled: calc.kp_enabled !== false,
+            KP_HORARY: {is_active: false, mode: "KS-N", number: 78, ...(calc.KP_HORARY || {})},
+            dasha_days_in_year: Number(calc.dasha_days_in_year || 365.25),
+            dasha_start_planet: calc.dasha_start_planet || "Mo",
             jyotish: backendJyotishOptions(),
         };
     },
@@ -962,7 +728,7 @@ registerSystem({
     renderHouseTab: renderVedicHouses,
     renderChart(container, results, {emptyText, view, mini}) {
         if (!mini) updateRotationPicker(view);
-        const options = {style: state.chartStyle, emptyText, aspects: vedicAspects()};
+        const options = {style: state.chartStyle, emptyText, aspects: vedicAspects(), mini: Boolean(mini)};
         if (rasiDrishtiOn()) options.rasiAspects = Jyotish.rasiAspects;
         // 特殊点从这张盘所依据的那张盘（本命或过境）取
         const base = view === "transit" ? state.charts.transit.results : state.charts.natal.results;
