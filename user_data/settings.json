@@ -20,7 +20,7 @@
       "测试专用": 1,
       "婚姻本命盘": 1
     },
-    "last_system": "western",
+    "last_system": "vedic",
     "profile_sort": {
       "本命": {
         "sort": "opened",
@@ -72,11 +72,6 @@
           "arudha_exception": true,
           "dual_lord": "stronger"
         }
-      },
-      "aspects": {
-        "Ra": false,
-        "Ke": false,
-        "jaimini": false
       }
     },
     "western": {

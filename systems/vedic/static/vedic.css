@@ -259,6 +259,11 @@ dialog.modal.yoga-modal { width: min(900px, calc(100vw - 32px)); height: min(820
 
 /* 结果表：代号 + 名称。所有表格的列一律左对齐 */
 .code-tag { display: inline-block; min-width: 2.6em; font-weight: 700; color: var(--text); }
-.av-table th.lagna-col { color: var(--c-asc); }
 .av-table tr.sav-row th, .av-table tr.sav-row td { border-top: 1px solid var(--border-strong); font-weight: 650; color: var(--text); }
 .dasha-system-name { font-size: 13px; font-weight: 650; color: var(--text); }
+
+/* 所有结果表（行星、宫位、KP 五张、力量、八重点、敌友、分盘汇总……）第一列一样宽，切换标签页时名称列不跳动。
+   名称本身更长的表（如 KP 主宰星、Vishesha Lagna）按内容撑开。 */
+.tab-panel .info-table:not(.kv-table) > thead > tr > th:first-child { width: 4.5em; min-width: 4.5em; }
+/* 敌友表：五重、天然、临时三种切换时每一列宽度不变 */
+.rel-table { table-layout: fixed; }

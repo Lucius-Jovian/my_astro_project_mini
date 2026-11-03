@@ -1900,10 +1900,8 @@ function viewLabel(view) {
 }
 
 function renderView() {
-    const chart = state.charts[resultsKind()];
-    state.results = chart.results || {};
+    state.results = state.charts[resultsKind()].results || {};
     renderAllResults();
-
 }
 
 // 星盘上方：常用的几张盘做成按钮条；分盘很多时，其余的放进按钮条右边的下拉菜单（SYSTEM.viewMenu）。

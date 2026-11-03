@@ -1827,18 +1827,13 @@ a.lm-item { text-decoration: none; cursor: pointer; }
 .triple-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); }
 
 .mini-panel { display: none; }
+/* 三盘：大星盘一栏与单盘时完全相同（同一个 --chart-size），只是右边结果区变窄，让出中间的小星盘一栏 */
 body.triple {
-    --chart-size: max(300px, min(calc(100vh - var(--topbar-h) - 94px), max(540px, 40vw)));
     --mini-size: calc((var(--chart-size) - 8px) / 2);
 }
 body.triple .layout {
     grid-template-columns: calc(var(--chart-size) + 26px) calc(var(--mini-size) + 26px) minmax(0, 1fr);
 }
-/* 大星盘变窄：星盘上方一行的按钮收紧一点，仍然放在一行里 */
-body.triple .chart-head .segmented.compact span, body.triple #chartViews span { padding: 4px 8px; }
-body.triple .chart-head { gap: 6px; }
-body.triple .view-menu-main { padding: 0 8px 0 10px; }
-body.triple .view-menu-btn { padding: 0 6px; }
 body.triple .mini-panel { display: flex; flex-direction: column; gap: 8px; padding: 12px; min-width: 0; min-height: 0; overflow-y: auto; }
 .mini-head { display: flex; gap: 6px; height: 32px; }
 .mini-head select { flex: 1 1 0; min-width: 0; height: 32px; margin: 0; padding-top: 0; padding-bottom: 0; font-size: 13px; }

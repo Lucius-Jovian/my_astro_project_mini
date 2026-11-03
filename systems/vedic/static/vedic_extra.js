@@ -206,7 +206,7 @@ function renderAvTab(box, results) {
     const lagna = Jyotish.signOf(asc);
     const byLagna = jyotishSettings().av?.columns === "lagna";
     const order = Array.from({length: 12}, (_, i) => (byLagna ? (lagna + i) % 12 : i));
-    const head = order.map((s, i) => `<th class="${s === lagna ? "lagna-col" : ""}">${byLagna ? i + 1 : SIGN_ABBR_LIST[s]}</th>`).join("");
+    const head = order.map((s, i) => `<th>${byLagna ? i + 1 : SIGN_ABBR_LIST[s]}</th>`).join("");
     const row = (name, values, cls = "") => {
         const total = values.reduce((a, b) => a + b, 0);
         return `<tr class="${cls}"><th>${name}</th>${order.map((s) => `<td>${values[s]}</td>`).join("")}<td>${total}</td></tr>`;

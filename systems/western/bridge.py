@@ -898,7 +898,9 @@ DEFAULT_SYSTEM_SETTINGS = {
 
 def normalize_system_settings(section):
     section = dict(section)
-    section["calculation_defaults"] = normalize_sunrise_defaults(section.get("calculation_defaults") or {})
+    calc = normalize_sunrise_defaults(section.get("calculation_defaults") or {})
+    calc.pop("returns", None)        # 曾短暂存在的日返 / 月返设置，已移除
+    section["calculation_defaults"] = calc
     section["points"] = normalize_points(section.get("points"))
     section["aspects"] = normalize_aspects(section.get("aspects"))
     # 上一版叫 dignity，只有分值和三分设置：沿用它的内容。

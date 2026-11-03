@@ -95,6 +95,9 @@
     let FONT_MAX = ITEM_FONT_MAX;
     let FONT_UNIFORM_MIN = UNIFORM_MIN_BASE;
     let codesOnly = false;
+    // 星座数字的字号：小星盘放大到 MINI_NUM_SCALE 倍
+    const MINI_NUM_SCALE = 1.6;
+    let signNumSize = SIGN_NUM_SIZE;
     const FONT_MIN = 7;              // 最挤的格子最小缩到多少
     const NORTH_PAD = 4;             // 文字与格子边线的最小距离
     const MAX_PER_LINE = 4;          // 自由排版时一行 / 一列最多几个元素
@@ -781,16 +784,16 @@
     }
 
     // 为一个格子准备排版所需的几何信息（类型、星座数字位置、可用区域、对称群、重心）。
-    function prepareNorthCell(box) {
+    function prepareNorthCell(box, numSize = SIGN_NUM_SIZE) {
         const target = polygonCentroid(box.poly);
         const dx = target[0] - box.anchor[0];
         const dy = target[1] - box.anchor[1];
         const len = Math.hypot(dx, dy) || 1;
         const ux = dx / len, uy = dy / len;
-        const dist = box.poly.length === 4 ? 15 : 14;
+        const dist = (box.poly.length === 4 ? 15 : 14) * numSize / SIGN_NUM_SIZE;
         const numPos = [box.anchor[0] + ux * dist, box.anchor[1] + uy * dist];
         // 切掉星座数字所在的尖角：只保留 (p - anchor)·u >= dist + 半个数字 + 1 的部分。
-        const cut = dist + SIGN_NUM_SIZE * 0.55 + 1;
+        const cut = dist + numSize * 0.55 + 1;
         const planes = halfPlanes(box.poly);
         planes.push({nx: -ux, ny: -uy, d: -(ux * box.anchor[0] + uy * box.anchor[1] + cut) + NORTH_PAD});
         const xs = box.poly.map((p) => p[0]), ys = box.poly.map((p) => p[1]);
@@ -801,11 +804,11 @@
         return {
             ...classifyCell(box),
             poly: box.poly, planes, bounds, group: symmetryGroup(box.poly), target, numPos,
-            cacheKey: box.poly.map((p) => p.join(",")).join(";"),
+            cacheKey: `${numSize}|${box.poly.map((p) => p.join(",")).join(";")}`,
         };
     }
 
-    let northCells = null;          // 十二个格子的几何信息只算一次
+    const northCells = new Map();   // 十二个格子的几何信息：每种星座数字字号只算一次
 
     function renderNorth(svg, data, onSelect) {
         const S = NORTH_SIZE;
@@ -813,8 +816,8 @@
         const cellLayer = el("g", {class: "cells"}, svg);
         const labels = el("g", {class: "labels"}, svg);
 
-        if (!northCells) northCells = northGeometry(S).map(prepareNorthCell);
-        const cells = northCells.map((cell, i) => {
+        if (!northCells.has(signNumSize)) northCells.set(signNumSize, northGeometry(S).map((box) => prepareNorthCell(box, signNumSize)));
+        const cells = northCells.get(signNumSize).map((cell, i) => {
             const sign = (data.lagnaSign + i) % 12;
             const items = data.bySign[sign];
             return {sign, cell, items, layout: items.length ? layoutNorthCell(cell, items) : null};
@@ -828,7 +831,7 @@
                 class: "sign-cell", "data-sign-cell": sign,
                 points: cell.poly.map((p) => p.join(",")).join(" "),
             }, cellLayer);
-            drawSignNumber(labels, sign, cell.numPos[0], cell.numPos[1], SIGN_NUM_SIZE, onSelect);
+            drawSignNumber(labels, sign, cell.numPos[0], cell.numPos[1], signNumSize, onSelect);
             drawCellItems(labels, cell, items, layout, uniform, onSelect);
         }
     }
@@ -883,7 +886,7 @@
         el("rect", {class: "center-box", x: W, y: W, width: W * 2, height: W * 2}, cells);
 
         // 右上角星座数字占掉的高度：元素列的上下各留出这么多，列居中时就不会碰到数字。
-        const numberBand = SIGN_NUM_SIZE + SOUTH_PAD_Y;
+        const numberBand = signNumSize + SOUTH_PAD_Y;
 
         for (let s = 0; s < 12; s++) {
             const [r, c] = SOUTH_POS[s];
@@ -895,7 +898,7 @@
                 el("line", {class: "lagna-mark", x1: x, y1: y + 16, x2: x + 16, y2: y}, labels);
             }
             // 星座数字：右上角，右对齐。
-            drawSignNumber(labels, s, x + W - 7, y + 5 + SIGN_NUM_SIZE * 0.5, SIGN_NUM_SIZE, onSelect, "end");
+            drawSignNumber(labels, s, x + W - 7, y + 5 + signNumSize * 0.5, signNumSize, onSelect, "end");
 
             const items = data.bySign[s];
             if (!items.length) continue;
@@ -936,6 +939,7 @@
         FONT_MAX = ITEM_FONT_MAX * scale;
         FONT_UNIFORM_MIN = UNIFORM_MIN_BASE * scale;
         SOUTH_FONT = ITEM_FONT_MAX * scale;
+        signNumSize = SIGN_NUM_SIZE * (options.mini ? MINI_NUM_SCALE : 1);
         const data = buildItems(results);
         if (options.gochara) {
             // 过境的行星排在同一格本命行星的后面
