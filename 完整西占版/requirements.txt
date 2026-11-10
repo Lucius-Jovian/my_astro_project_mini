@@ -1,0 +1,3 @@
+flask>=3.0
+pysweph>=2.10.3
+sqlcipher3-wheels>=0.5.7   # 档案库加密（SQLCipher），并自带较新的 SQLite；不装也能使用其它全部功能

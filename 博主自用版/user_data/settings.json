@@ -1,0 +1,692 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 5300
+  },
+  "default_location": {
+    "latitude": 23.0331389,
+    "longitude": 113.1010556,
+    "timezone": "+08:00",
+    "label": "默认地点"
+  },
+  "birth_defaults": {
+    "calendar": "g"
+  },
+  "session": {
+    "library": "卜卦",
+    "last_profile": {
+      "本命": 8,
+      "卜卦": 9,
+      "测试专用": 2,
+      "婚姻本命盘": 1
+    },
+    "last_system": "western",
+    "profile_sort": {
+      "本命": {
+        "sort": "opened",
+        "order": "desc"
+      },
+      "卜卦": {
+        "sort": "birth",
+        "order": "desc"
+      }
+    }
+  },
+  "appearance": {
+    "coord_format": "dms"
+  },
+  "systems": {
+    "vedic": {
+      "calculation_defaults": {
+        "ecliptic_mode": "sidereal",
+        "ayanamsha_mode": "SIDM_LAHIRI",
+        "node_mode": "mean",
+        "house_system": "Whole Sign",
+        "KP_HORARY": {
+          "is_active": false,
+          "mode": "KS-N",
+          "number": 78
+        },
+        "sunrise_rsmi": 256,
+        "dasha_days_in_year": 365.25,
+        "dasha_start_planet": "Mo",
+        "kp_enabled": true,
+        "dasha_system": "vimshottari"
+      },
+      "modules": {
+        "kp_planet_lords": true,
+        "kp_house_lords": true,
+        "kp_planet_sigs": true,
+        "kp_house_sigs": true,
+        "kp_ruling": true,
+        "dasha": true
+      },
+      "chart_style": "north",
+      "jyotish": {
+        "points": {
+          "chart": [],
+          "lagna_base": "sunrise",
+          "gulika_at": "start",
+          "mandi_at": "middle",
+          "kalavela_at": "start",
+          "arudha_exception": true,
+          "dual_lord": "stronger"
+        }
+      }
+    },
+    "western": {
+      "calculation_defaults": {
+        "ecliptic_mode": "tropical",
+        "ayanamsha_mode": "SIDM_LAHIRI",
+        "node_mode": "mean",
+        "house_system": "Regiomontanus",
+        "sunrise_rsmi": 256
+      },
+      "points": {
+        "planets": [
+          "Su",
+          "Mo",
+          "Me",
+          "Ve",
+          "Ma",
+          "Ju",
+          "Sa",
+          "Ra",
+          "Ke"
+        ],
+        "asteroids": [
+          {
+            "number": 3,
+            "label": "婚神星",
+            "symbol": "⚵",
+            "color": "#c9a3b8",
+            "enabled": false
+          },
+          {
+            "number": 2,
+            "label": "智神星",
+            "symbol": "⚴",
+            "color": "#a9bfa3",
+            "enabled": false
+          },
+          {
+            "number": 1,
+            "label": "谷神星",
+            "symbol": "⚳",
+            "color": "#c9b38a",
+            "enabled": false
+          },
+          {
+            "number": 4,
+            "label": "灶神星",
+            "symbol": "⚶",
+            "color": "#d9a383",
+            "enabled": false
+          },
+          {
+            "number": 2060,
+            "label": "凯龙星",
+            "symbol": "⚷",
+            "color": "#a8b6c4",
+            "enabled": false
+          },
+          {
+            "number": 433,
+            "label": "爱神星",
+            "symbol": "Ero",
+            "color": "#d69aa6",
+            "enabled": false
+          }
+        ],
+        "stars": [
+          {
+            "query": ",bePer",
+            "label": "大陵五",
+            "symbol": "Alg",
+            "color": "#e6c46a",
+            "enabled": true
+          },
+          {
+            "query": ",etTau",
+            "label": "昴宿六",
+            "symbol": "Alc",
+            "color": "#e6c46a",
+            "enabled": true
+          },
+          {
+            "query": ",alTau",
+            "label": "毕宿五",
+            "symbol": "Ald",
+            "color": "#e6c46a",
+            "enabled": true
+          },
+          {
+            "query": ",alAur",
+            "label": "五车二",
+            "symbol": "Cap",
+            "color": "#e6c46a",
+            "enabled": true
+          },
+          {
+            "query": ",alCMa",
+            "label": "天狼星",
+            "symbol": "Sir",
+            "color": "#e6c46a",
+            "enabled": true
+          },
+          {
+            "query": ",alCMi",
+            "label": "南河三",
+            "symbol": "Pro",
+            "color": "#e6c46a",
+            "enabled": true
+          },
+          {
+            "query": ",alLeo",
+            "label": "轩辕十四",
+            "symbol": "Reg",
+            "color": "#e6c46a",
+            "enabled": true
+          },
+          {
+            "query": ",deCrv",
+            "label": "轸宿四",
+            "symbol": "Alr",
+            "color": "#e6c46a",
+            "enabled": true
+          },
+          {
+            "query": ",alVir",
+            "label": "角宿一",
+            "symbol": "Spi",
+            "color": "#e6c46a",
+            "enabled": true
+          },
+          {
+            "query": ",alBoo",
+            "label": "大角星",
+            "symbol": "Arc",
+            "color": "#e6c46a",
+            "enabled": true
+          },
+          {
+            "query": ",alCrB",
+            "label": "贯索四",
+            "symbol": "Alp",
+            "color": "#e6c46a",
+            "enabled": true
+          },
+          {
+            "query": ",alSco",
+            "label": "心宿二",
+            "symbol": "Ant",
+            "color": "#e6c46a",
+            "enabled": true
+          },
+          {
+            "query": ",alLyr",
+            "label": "织女一",
+            "symbol": "Veg",
+            "color": "#e6c46a",
+            "enabled": true
+          },
+          {
+            "query": ",deCap",
+            "label": "垒壁阵四",
+            "symbol": "DAl",
+            "color": "#e6c46a",
+            "enabled": true
+          },
+          {
+            "query": ",alPsA",
+            "label": "北落师门",
+            "symbol": "Fom",
+            "color": "#e6c46a",
+            "enabled": true
+          }
+        ],
+        "lots": {
+          "items": [
+            {
+              "code": "Fortune",
+              "label": "福点",
+              "symbol": "⊗",
+              "color": "#e0c27a",
+              "day": "Asc + Mo - Su",
+              "night": "Asc + Su - Mo",
+              "sect_mode": "day",
+              "enabled": true
+            },
+            {
+              "code": "Spirit",
+              "label": "精神点",
+              "symbol": "Spi",
+              "color": "#b9c6e0",
+              "day": "Asc + Su - Mo",
+              "night": "Asc + Mo - Su",
+              "sect_mode": "auto",
+              "enabled": false
+            },
+            {
+              "code": "Resignation",
+              "label": "解雇点",
+              "symbol": "Res",
+              "color": "#d3a0b2",
+              "day": "Sa + Ju - Su",
+              "night": "Sa + Su - Ju",
+              "sect_mode": "auto",
+              "enabled": false
+            }
+          ]
+        },
+        "specials": [],
+        "antiscia": [
+          {
+            "planet": "Su",
+            "type": "antiscion",
+            "enabled": true,
+            "symbol": "☉′",
+            "color": "#a8c4b8"
+          },
+          {
+            "planet": "Mo",
+            "type": "antiscion",
+            "enabled": true,
+            "symbol": "☽′",
+            "color": "#a8c4b8"
+          },
+          {
+            "planet": "Me",
+            "type": "antiscion",
+            "enabled": true,
+            "symbol": "☿′",
+            "color": "#a8c4b8"
+          },
+          {
+            "planet": "Ve",
+            "type": "antiscion",
+            "enabled": true,
+            "symbol": "♀′",
+            "color": "#a8c4b8"
+          },
+          {
+            "planet": "Ma",
+            "type": "antiscion",
+            "enabled": true,
+            "symbol": "♂′",
+            "color": "#a8c4b8"
+          },
+          {
+            "planet": "Ju",
+            "type": "antiscion",
+            "enabled": true,
+            "symbol": "♃′",
+            "color": "#a8c4b8"
+          },
+          {
+            "planet": "Sa",
+            "type": "antiscion",
+            "enabled": true,
+            "symbol": "♄′",
+            "color": "#a8c4b8"
+          },
+          {
+            "planet": "Ur",
+            "type": "antiscion",
+            "enabled": false,
+            "symbol": "♅′",
+            "color": "#a8c4b8"
+          },
+          {
+            "planet": "Ne",
+            "type": "antiscion",
+            "enabled": false,
+            "symbol": "♆′",
+            "color": "#a8c4b8"
+          },
+          {
+            "planet": "Pl",
+            "type": "antiscion",
+            "enabled": false,
+            "symbol": "♇′",
+            "color": "#a8c4b8"
+          },
+          {
+            "planet": "Su",
+            "type": "contra",
+            "enabled": true,
+            "symbol": "☉″",
+            "color": "#c4b0a0"
+          },
+          {
+            "planet": "Mo",
+            "type": "contra",
+            "enabled": true,
+            "symbol": "☽″",
+            "color": "#c4b0a0"
+          },
+          {
+            "planet": "Me",
+            "type": "contra",
+            "enabled": true,
+            "symbol": "☿″",
+            "color": "#c4b0a0"
+          },
+          {
+            "planet": "Ve",
+            "type": "contra",
+            "enabled": true,
+            "symbol": "♀″",
+            "color": "#c4b0a0"
+          },
+          {
+            "planet": "Ma",
+            "type": "contra",
+            "enabled": true,
+            "symbol": "♂″",
+            "color": "#c4b0a0"
+          },
+          {
+            "planet": "Ju",
+            "type": "contra",
+            "enabled": true,
+            "symbol": "♃″",
+            "color": "#c4b0a0"
+          },
+          {
+            "planet": "Sa",
+            "type": "contra",
+            "enabled": true,
+            "symbol": "♄″",
+            "color": "#c4b0a0"
+          },
+          {
+            "planet": "Ur",
+            "type": "contra",
+            "enabled": false,
+            "symbol": "♅″",
+            "color": "#c4b0a0"
+          },
+          {
+            "planet": "Ne",
+            "type": "contra",
+            "enabled": false,
+            "symbol": "♆″",
+            "color": "#c4b0a0"
+          },
+          {
+            "planet": "Pl",
+            "type": "contra",
+            "enabled": false,
+            "symbol": "♇″",
+            "color": "#c4b0a0"
+          }
+        ],
+        "special_styles": {
+          "MeanApog": {
+            "symbol": "⚸",
+            "color": "#d8b886"
+          },
+          "MeanPerig": {
+            "symbol": "Pri",
+            "color": "#d8b886"
+          },
+          "TrueApog": {
+            "symbol": "⚸T",
+            "color": "#d8b886"
+          },
+          "TruePerig": {
+            "symbol": "PriT",
+            "color": "#d8b886"
+          },
+          "IntpApog": {
+            "symbol": "⚸N",
+            "color": "#d8b886"
+          },
+          "IntpPerig": {
+            "symbol": "PriN",
+            "color": "#d8b886"
+          },
+          "Syzygy": {
+            "symbol": "Syz",
+            "color": "#d8b886"
+          },
+          "Vertex": {
+            "symbol": "Vx",
+            "color": "#d8b886"
+          },
+          "AntiVertex": {
+            "symbol": "AVx",
+            "color": "#d8b886"
+          },
+          "EastPoint": {
+            "symbol": "EP",
+            "color": "#d8b886"
+          }
+        },
+        "planet_colors": {
+          "Su": "#e6be72",
+          "Mo": "#d5dde6",
+          "Me": "#a7bbd1",
+          "Ve": "#d2dfbf",
+          "Ma": "#e68d73",
+          "Ju": "#8bc5ba",
+          "Sa": "#a5aeb4",
+          "Ur": "#9ecdd9",
+          "Ne": "#9dacde",
+          "Pl": "#c898aa",
+          "Ra": "#c3b2d9",
+          "Ke": "#b1a5c1"
+        },
+        "retro_color": "#e5776c",
+        "sign_colors": [
+          "#e7ada3",
+          "#dbd39f",
+          "#e7c6b3",
+          "#a2c6a2",
+          "#e39885",
+          "#a5b1cd",
+          "#d39cb0",
+          "#d4a986",
+          "#d9be7c",
+          "#c4a49d",
+          "#93c2dc",
+          "#d1e4e7"
+        ]
+      },
+      "aspects": {
+        "selection": {
+          "excluded": [
+            "#1",
+            "#4",
+            "#2060",
+            "#433",
+            "#3"
+          ],
+          "axes": [
+            "Asc",
+            "MC"
+          ],
+          "skip_fixed": true
+        },
+        "orbs": {
+          "rule": "moiety",
+          "planets": {
+            "Su": 15.0,
+            "Mo": 12.0,
+            "Me": 7.0,
+            "Ve": 7.0,
+            "Ma": 8.0,
+            "Ju": 9.0,
+            "Sa": 9.0,
+            "Ur": 5.0,
+            "Ne": 5.0,
+            "Pl": 5.0
+          },
+          "nodes": 3.0,
+          "asteroids": {},
+          "asteroid_default": 3.0,
+          "axes": 5.0,
+          "specials": 3.0,
+          "stars": 1.5,
+          "lots": 3.0,
+          "antiscia": 2.0,
+          "exclusive": {
+            "specials": true,
+            "stars": true,
+            "lots": true,
+            "antiscia": true
+          }
+        },
+        "types": [
+          {
+            "id": "conjunction",
+            "name": "合相",
+            "angle": 0,
+            "symbol": "☌",
+            "groups": [
+              "main",
+              "specials",
+              "stars",
+              "lots",
+              "antiscia"
+            ],
+            "builtin": true
+          },
+          {
+            "id": "sextile",
+            "name": "六分",
+            "angle": 60,
+            "symbol": "⚹",
+            "groups": [
+              "main",
+              "specials"
+            ],
+            "builtin": true
+          },
+          {
+            "id": "square",
+            "name": "四分",
+            "angle": 90,
+            "symbol": "□",
+            "groups": [
+              "main",
+              "specials"
+            ],
+            "builtin": true
+          },
+          {
+            "id": "trine",
+            "name": "三分",
+            "angle": 120,
+            "symbol": "△",
+            "groups": [
+              "main",
+              "specials"
+            ],
+            "builtin": true
+          },
+          {
+            "id": "opposition",
+            "name": "对冲",
+            "angle": 180,
+            "symbol": "☍",
+            "groups": [
+              "main",
+              "specials"
+            ],
+            "builtin": true
+          }
+        ],
+        "cross_sign": false
+      },
+      "dignity": {
+        "scores": {
+          "domicile": 5,
+          "exaltation": 4,
+          "triplicity": 3,
+          "term": 2,
+          "face": 1,
+          "detriment": -5,
+          "fall": -4,
+          "peregrine": -5
+        },
+        "triplicity_system": "dorothean",
+        "triplicity_mode": "all"
+      },
+      "classical": {
+        "scores": {
+          "domicile": 5,
+          "exaltation": 4,
+          "triplicity": 3,
+          "term": 2,
+          "face": 1,
+          "detriment": -5,
+          "fall": -4,
+          "peregrine": -5
+        },
+        "triplicity_system": "dorothean",
+        "triplicity_mode": "all",
+        "term_system": "egyptian",
+        "sect": {
+          "day_rule": "geometric",
+          "planets": {
+            "Su": "diurnal",
+            "Mo": "nocturnal",
+            "Me": "oriental",
+            "Ve": "nocturnal",
+            "Ma": "nocturnal",
+            "Ju": "diurnal",
+            "Sa": "diurnal",
+            "Ur": "none",
+            "Ne": "none",
+            "Pl": "none"
+          }
+        },
+        "speed": {
+          "preset": "astronomical",
+          "compare": "abs",
+          "custom": {}
+        },
+        "sun": {
+          "enabled": true,
+          "cazimi": 0.283333,
+          "combust": 8.5,
+          "beams": 17
+        }
+      },
+      "palette_rev": 2
+    }
+  },
+  "layout": {
+    "tab_order": {
+      "vedic": [
+        "tabPlanets",
+        "tabHouses",
+        "tabSun",
+        "tabDasha",
+        "tabKpPlanets",
+        "tabKpHouses",
+        "tabKpAbcd",
+        "tabKp1234",
+        "tabRuling",
+        "tabProfile"
+      ],
+      "western": [
+        "tabPlanets",
+        "tabAspects",
+        "tabHouses",
+        "tabSun",
+        "tabAsteroids",
+        "tabStars",
+        "tabLots",
+        "tabSpecials",
+        "tabAntiscia",
+        "tabProfile"
+      ]
+    },
+    "tab_order_rev": {
+      "western": 0
+    }
+  }
+}

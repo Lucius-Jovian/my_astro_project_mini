@@ -1,0 +1,70 @@
+{% extends "manual_base.html" %}
+{# 印度占星手册：共用部分来自 common/templates/manual_base.html #}
+
+{% block toc %}
+        <li><a href="#calc">计算设置</a></li>
+        <li><a href="#dasha">Dasha</a></li>
+        <li><a href="#chart">星盘</a></li>
+        <li><a href="#results">结果表</a></li>
+{% endblock %}
+
+{% block body %}
+    <h2 id="calc">计算设置</h2>
+    <ul>
+        <li><b>黄道体系</b>：恒星黄道（Sidereal）或回归黄道（Tropical）。星盘、KP、Dasha 都在所选黄道的黄经上计算。</li>
+        <li><b>岁差体系</b>：KP 通常用 Krishnamurti，传统 Parashari 常用 Lahiri。</li>
+        <li><b>宫位制</b>、<b>月交点</b>（平交点或真交点）。</li>
+        <li><b>启用 KP</b>：勾选后计算 KP 行星、KP 宫位、行星 ABCD、宫位 1234 和主宰星，对应的标签页一起出现。KP 卜卦也在这一栏，KS-N 签号 1 到 249，CIL-N 签号 1 到 2193。</li>
+        <li><b>Dasha</b>：见下一节。</li>
+    </ul>
+
+    <h2 id="dasha">Dasha</h2>
+    <h3>设置</h3>
+    <p>在左侧「Dasha」折叠栏里。</p>
+    <ul>
+        <li><b>起算行星</b>：从哪颗行星所在的星宿起算，默认月亮。所有体系共用。</li>
+        <li><b>一年的天数</b>：默认 365.25。</li>
+    </ul>
+    <h3>查看</h3>
+    <ul>
+        <li>Dasha 标签页顶部的下拉框切换体系，切换时不用重新排盘。选过的体系会自动记住，下次打开先显示它。</li>
+        <li>先显示第一层，覆盖出生后约 120 年。当前所在的一段有底色和 ● 标记。</li>
+        <li>点任意一段展开下一层，再点一次收起，可以一直往下展开。第 3 层起显示到分钟。</li>
+    </ul>
+    <h3>各体系</h3>
+    <p>都以起算行星所在的星宿决定出生时的第一位主星。出生时已走过的部分，按它在本主星所辖星宿里走过的比例计算。下级的分法都是从本段的主星开始，按各主星年数的比例循环一遍。</p>
+    <table>
+        <tr><th>体系</th><th>周期</th><th>主星与年数</th><th>BPHS 的适用情形</th></tr>
+        <tr><td>Vimshottari</td><td>120 年</td><td>Ke 7、Ve 20、Su 6、Mo 10、Ma 7、Ra 18、Ju 16、Sa 19、Me 17</td><td>通用</td></tr>
+        <tr><td>Yogini</td><td>36 年</td><td>Mangala（Mo）1、Pingala（Su）2、Dhanya（Ju）3、Bhramari（Ma）4、Bhadrika（Me）5、Ulka（Sa）6、Siddha（Ve）7、Sankata（Ra）8</td><td>通用</td></tr>
+        <tr><td>Ashtottari</td><td>108 年</td><td>Su 6、Mo 15、Ma 8、Me 17、Sa 10、Ju 19、Ra 12、Ve 21</td><td>罗睺不在命主星的角宫或三方宫</td></tr>
+        <tr><td>Shodashottari</td><td>116 年</td><td>Su 11、Ma 12、Ju 13、Sa 14、Ke 15、Mo 16、Me 17、Ve 18</td><td>黑分日生，或白分夜生</td></tr>
+        <tr><td>Dwadashottari</td><td>112 年</td><td>Su 7、Ju 9、Ke 11、Me 13、Ra 15、Ma 17、Sa 19、Mo 21</td><td>上升在金星的 Navamsa</td></tr>
+        <tr><td>Panchottari</td><td>105 年</td><td>Su 12、Me 13、Sa 14、Ma 15、Ve 16、Mo 17、Ju 18</td><td>上升巨蟹且在巨蟹的 Dwadashamsa</td></tr>
+        <tr><td>Shatabdika</td><td>100 年</td><td>Su 5、Mo 5、Ve 10、Me 10、Ju 20、Ma 20、Sa 30</td><td>上升 Vargottama</td></tr>
+        <tr><td>Chaturashiti Sama</td><td>84 年</td><td>Su、Mo、Ma、Me、Ju、Ve、Sa 各 12</td><td>第十宫主星在第十宫</td></tr>
+        <tr><td>Dwisaptati Sama</td><td>72 年</td><td>Su、Mo、Ma、Me、Ju、Ve、Sa、Ra 各 9</td><td>上升主星在第一宫或第七宫</td></tr>
+        <tr><td>Shattrimsha Sama</td><td>36 年</td><td>Mo 1、Su 2、Ju 3、Ma 4、Me 5、Sa 6、Ve 7、Ra 8</td><td>日生上升在太阳的 Hora，或夜生上升在月亮的 Hora</td></tr>
+    </table>
+    <ul>
+        <li>第一位主星的定法：Vimshottari 从 Ashwini 起每个星宿依次归一位主星；Yogini 用（星宿序号 + 3）除以 8 的余数；Ashtottari 从 Ardra 起依次分给各主星 4、3、4、3、4、3、4、3 个星宿（土星一组含 Abhijit）；其余按 BPHS 从规定的星宿数到出生星宿（Dwadashottari 是从出生星宿数到 Revati），除以主星个数取余。</li>
+        <li>适用情形只作参考，程序不自动判断，也不会因此隐藏某种体系。</li>
+        <li>周期短于 120 年的体系（如 Yogini、Shattrimsha Sama）会连续排几个周期。</li>
+    </ul>
+
+    <h2 id="chart">星盘</h2>
+    <ul>
+        <li>星盘右上角切换北印度和南印度样式。星盘左上角除了本命和过境，还有月亮盘（以月亮所在星座为第一宫）和九分盘。</li>
+        <li>每个格子代表一个星座，度数是星座内度数。北印度盘最上方的菱形是上升星座；南印度盘星座位置固定，上升星座的格子有一道斜线。</li>
+        <li>行星用两字母代码：Su 太阳、Mo 月亮、Me 水星、Ve 金星、Ma 火星、Ju 木星、Sa 土星、Ra 罗睺、Ke 计都。代码下有红线表示逆行。As 是上升点，H1 到 H12 是非整宫制下的宫头。</li>
+        <li>点一颗行星，高亮它投射相位的星座；点星座数字，高亮向这个星座投射相位的行星。相位按 Parashari 星座相位计算：所有行星看第 7 个星座，火星另看第 4、8，木星和罗睺计都另看第 5、9，土星另看第 3、10。</li>
+    </ul>
+
+    <h2 id="results">结果表</h2>
+    <ul>
+        <li>星盘下方的标签页：Dasha、行星、宫位、值日星 · 行星时，启用 KP 后还有 KP 行星、KP 宫位、KP 行星 ABCD、KP 宫位 1234、KP 主宰星，以及档案资料。</li>
+        <li>黄经写成中文星座加星座内度分秒；宫位写「第 N 宫」；星宿写梵文名加中文宿名。</li>
+        <li><b>行星</b>：黄经、星宿、宿主星、Pada、顺行逆行。<b>宫位</b>：黄经、星宿、宿主星、Pada。</li>
+        <li><b>KP 行星、KP 宫位</b>：黄经、星宿、星座主、宿主星、子主星、子子主星、Pada。子主星和子子主星查 <code>systems/vedic/astro/data/sub-sub.csv</code>，其他都由程序按黄经直接计算。</li>
+    </ul>
+{% endblock %}

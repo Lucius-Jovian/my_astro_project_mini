@@ -1,0 +1,25 @@
+"""印度占星体系。
+
+整个文件夹可以单独交给别的组维护：它只依赖 common/（共用区），不 import 其它体系。
+  astro/       本体系专用的计算（KP、Vimshottari Dasha）和数据表 data/*.csv
+  bridge.py    设置的默认值与校验、排盘计算的组织
+  routes.py    页面和接口（/vedic/、/vedic/api/...）
+  static/      vedic.js（本体系的前端逻辑）、chart.js（南北印度盘，含 Gochara 外圈）、vargas.js（分盘）、
+               yoga_engine.js / yogas_default.js / yoga.js（Yoga 引擎、默认清单、标签页与管理浮窗）、vedic.css
+  templates/   vedic/index.html（页面）
+"""
+
+from common.system import AstroSystem
+
+from . import bridge, routes
+
+SYSTEM = AstroSystem(
+    id="vedic",
+    title="印占",
+    blueprint=routes.bp,
+    settings_defaults=bridge.DEFAULT_SYSTEM_SETTINGS,
+    normalize_settings=bridge.normalize_system_settings,
+    bootstrap=routes.bootstrap,
+    attach=routes.attach,
+    order=10,
+)

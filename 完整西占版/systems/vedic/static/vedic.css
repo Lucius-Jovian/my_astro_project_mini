@@ -1,0 +1,269 @@
+/*
+ * 印度占星专用的样式：南北印度盘、Vimshottari Dasha。
+ * 共用样式在 common/static/common.css，这里只引用其中的颜色变量。
+ */
+
+/* ---------- 南北印度盘 ---------- */
+
+/* 星盘大小由共用布局的 --chart-size 决定（左栏的宽度跟着它走）；南北两种盘、Gochara 都一样大。 */
+.astro-chart {
+    width: min(100%, var(--chart-size));
+    height: auto;
+    user-select: none;
+}
+
+
+/* Gochara：过境的行星和本命同在一个格子里，用另一种颜色区分 */
+.astro-chart .layer-out .item-code { fill: var(--c-transit); }
+.astro-chart .layer-out .item-deg { fill: var(--c-transit-deg); }
+
+/* 格子默认透明，只有点击查看相位时才着色。 */
+.astro-chart .sign-cell {
+    fill: transparent;
+    stroke: var(--chart-line);
+    stroke-width: 1.3;
+    stroke-linejoin: round;
+    transition: fill 0.15s;
+}
+
+.astro-chart .sign-cell.hl-self { fill: var(--hl-self); }
+.astro-chart .sign-cell.hl-aspect { fill: var(--hl-aspect); }
+
+.astro-chart .center-box { fill: transparent; stroke: var(--chart-line); stroke-width: 1.3; }
+.astro-chart .lagna-mark { stroke: var(--c-asc); stroke-width: 1.6; }
+.astro-chart .sign-number { fill: var(--chart-num); font-weight: 600; pointer-events: none; }
+
+/* 星座数字可点击：查看哪些行星相位这个星座 */
+.astro-chart .sign-num { cursor: pointer; }
+.astro-chart .sign-num-hit { fill: transparent; }
+.astro-chart .sign-num:hover .sign-num-hit { fill: var(--hover); }
+.astro-chart .sign-num:hover .sign-number { fill: var(--text-2); }
+.astro-chart .sign-num.selected .sign-num-hit { fill: var(--hl-self); stroke: var(--c-asc); stroke-width: 0.8; }
+.astro-chart .sign-num.selected .sign-number { fill: var(--c-asc); }
+
+.astro-chart .chart-item { cursor: default; }
+.astro-chart .chart-item.clickable { cursor: pointer; }
+.astro-chart .item-hit { fill: transparent; }
+.astro-chart .chart-item.clickable:hover .item-hit { fill: var(--hover); }
+.astro-chart .chart-item.selected .item-hit { fill: var(--hover); stroke: var(--c-asc); stroke-width: 0.8; }
+/* 点星座数字时：向这个星座投射相位的行星 */
+.astro-chart .chart-item.aspecting .item-hit { fill: var(--hl-aspect); stroke: var(--c-cusp); stroke-width: 0.9; }
+
+.astro-chart .item-code { font-weight: 700; fill: var(--c-planet); }
+.astro-chart .item-deg { fill: var(--c-deg); }
+.astro-chart .retro-mark { stroke: var(--c-retro); stroke-linecap: round; }
+
+.astro-chart .kind-asc .item-code { fill: var(--c-asc); }
+.astro-chart .kind-cusp .item-code,
+.astro-chart .kind-cusp .item-deg { fill: var(--c-cusp); }
+.astro-chart .chart-item.overflow .item-code { fill: var(--danger); }
+
+/* ---------- Dasha ---------- */
+
+.dasha-level {
+    margin-left: 16px;
+    border-left: 2px solid var(--border);
+    padding-left: 10px;
+}
+
+#dashaResult > .dasha-level { margin-left: 0; border-left: 0; padding-left: 0; }
+
+.dasha-row {
+    display: grid;
+    grid-template-columns: 34px minmax(52px, max-content) max-content max-content;
+    justify-content: start;
+    column-gap: 28px;
+    align-items: center;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.dasha-row:hover { background: var(--hover); }
+.dasha-planet { font-weight: 600; white-space: nowrap; min-width: 52px; }
+#dashaResult[data-wide] .dasha-planet { min-width: 9.5em; }
+.dasha-row.current-dasha { background: var(--hl-self); }
+
+.dasha-level-tag {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-2);
+    background: var(--subtle);
+    border-radius: 4px;
+    text-align: center;
+}
+
+.dasha-now-mark { margin-left: 6px; font-size: 10px; color: var(--c-asc); }
+
+
+/* ---------- Dasha 补充 ---------- */
+
+.dasha-time { white-space: nowrap; min-width: 6.5em; }
+
+
+/* ---------- 计算设置：KP ---------- */
+
+.kp-note { margin: 2px 0 8px; line-height: 1.6; }
+.kp-horary { margin-top: 6px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.kp-horary.disabled { opacity: 0.5; }
+
+/* Dasha 标签页顶部：体系切换 */
+.dasha-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.dasha-head select { width: auto; min-width: 14em; margin: 0; }
+.dasha-condition { font-size: 12px; color: var(--muted); }
+
+/* ---------- 计算设置：分盘 ---------- */
+
+.varga-entries { margin-top: 8px; }
+
+/* 分盘算法浮窗：每张分盘一行（编号 · 名称 · 算法 · 说明） */
+dialog.modal.varga-modal { width: min(640px, calc(100vw - 32px)); }
+.varga-list { display: grid; gap: 2px; }
+.varga-row {
+    display: grid;
+    grid-template-columns: 3.2em minmax(9em, 1fr) minmax(12em, 15em);
+    column-gap: 10px;
+    row-gap: 2px;
+    align-items: center;
+    padding: 7px 4px;
+    border-bottom: 1px solid var(--border);
+}
+.varga-row:last-child { border-bottom: 0; }
+.varga-id { font-weight: 700; font-variant-numeric: tabular-nums; }
+.varga-name { font-size: 13px; }
+.varga-row select { margin: 0; width: 100%; }
+.varga-note { grid-column: 2 / -1; font-size: 12px; line-height: 1.5; }
+@media (max-width: 560px) {
+    .varga-row { grid-template-columns: 3.2em 1fr; }
+    .varga-row select { grid-column: 2; }
+}
+
+/* ---------- 星盘上方：转宫（第一宫）+ 南北印度 ---------- */
+
+.chart-tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lagna-pick { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; color: var(--muted); }
+.lagna-pick[hidden] { display: none; }
+.lagna-pick select { width: auto; min-width: 4.8em; height: 32px; margin: 0; padding-top: 0; padding-bottom: 0; font-size: 13px; }
+/* 转了宫：提醒一下，免得忘了自己转过 */
+.lagna-pick.is-rotated select { border-color: var(--c-asc); color: var(--text); }
+
+/* 燃烧度数：两列小输入框 */
+.combust-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin-bottom: 8px; }
+.combust-field { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--text-2); }
+.combust-field span { width: 3.4em; }
+.combust-field input { width: 4.8em; margin: 0; padding: 4px 6px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* 浮窗标题左边的返回按钮 */
+
+/* ---------- Yoga 标签页 ----------
+   分类标题是一条带底色的窄条（小字、全大写式字距），Yoga 是下面缩进的条目，两者一眼就能分开。 */
+
+.yoga-head { display: flex; align-items: baseline; gap: 8px; margin: 0 0 10px; }
+.yoga-scope { font-size: 13px; font-weight: 650; color: var(--text); }
+.yoga-total {
+    min-width: 22px; padding: 0 7px; border-radius: 999px;
+    background: var(--accent-soft); color: var(--text-2);
+    font-size: 12px; text-align: center; font-variant-numeric: tabular-nums;
+}
+.yoga-err-count { margin-left: auto; padding: 2px 8px; border: 0; background: transparent; color: var(--danger); font-size: 12px; }
+.yoga-err-count:hover { background: var(--danger-soft); }
+
+.yoga-group { margin: 0 0 14px; }
+.yoga-group > summary {
+    display: flex; align-items: center; gap: 8px;
+    padding: 5px 10px; border-radius: 6px;
+    background: var(--subtle); cursor: pointer; list-style: none;
+    font-size: 11.5px; font-weight: 650; letter-spacing: 0.06em; color: var(--muted);
+}
+.yoga-group > summary::-webkit-details-marker { display: none; }
+.yoga-group > summary::before {
+    content: ""; width: 0; height: 0;
+    border-left: 4px solid currentColor; border-top: 3.5px solid transparent; border-bottom: 3.5px solid transparent;
+    transition: transform 0.15s;
+}
+.yoga-group[open] > summary::before { transform: rotate(90deg); }
+.yoga-group-name { flex: 1 1 auto; }
+.yoga-group-count { font-variant-numeric: tabular-nums; }
+
+.yoga-items { padding: 4px 0 0 10px; }
+.yoga-row { padding: 7px 10px 8px; border-left: 2px solid var(--border); }
+.yoga-row + .yoga-row { margin-top: 2px; }
+.yoga-row:hover { border-left-color: var(--c-asc); background: var(--hover); border-radius: 0 6px 6px 0; }
+.yoga-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.yoga-name { font-size: 13.5px; font-weight: 650; color: var(--text); }
+.yoga-cn { font-size: 12.5px; color: var(--text-2); }
+.yoga-effect { margin-left: auto; font-size: 12px; color: var(--muted); }
+.yoga-desc { margin-top: 3px; font-size: 12px; line-height: 1.55; color: var(--muted); }
+.yoga-badge { padding: 0 6px; border-radius: 999px; background: var(--accent-soft); color: var(--text-2); font-size: 11px; }
+.yoga-error { color: var(--danger); }
+
+/* ---------- 管理 Yoga 浮窗 ---------- */
+
+dialog.modal.yoga-modal { width: min(900px, calc(100vw - 32px)); height: min(820px, calc(100vh - 48px)); }
+.yoga-toolbar { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.yoga-toolbar input[type="search"] { flex: 1 1 220px; margin: 0; }
+.yoga-toolbar select { width: auto; margin: 0; }
+.yoga-manage-list { display: grid; gap: 0; }
+.ym-row {
+    cursor: pointer;
+    display: grid; grid-template-columns: 20px minmax(0, 1fr) auto auto;
+    align-items: center; column-gap: 10px;
+    padding: 7px 4px; border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.ym-row:hover { background: var(--hover); }
+.ym-row.disabled .ym-main { opacity: 0.5; }
+.ym-del { width: 28px; height: 28px; font-size: 0; opacity: 0.55; }
+.ym-del svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+.ym-row:hover .ym-del { opacity: 1; }
+.ym-del:hover { color: var(--danger); background: var(--danger-soft); }
+.ym-rule { font-family: Consolas, "Cascadia Mono", monospace; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ym-cat { font-size: 12px; white-space: nowrap; }
+.ym-row .small-btn { margin: 0; }
+@media (max-width: 640px) {
+    .ym-row { grid-template-columns: 20px minmax(0, 1fr) auto; }
+    .ym-cat { display: none; }
+}
+
+.yoga-editor { display: flex; flex-direction: column; gap: 6px; }
+.yoga-editor.hidden { display: none; }
+.yoga-editor textarea { font-family: Consolas, "Cascadia Mono", monospace; font-size: 13px; resize: vertical; }
+.yoga-check { min-height: 1.4em; margin: 0; font-size: 12.5px; }
+.yoga-check.ok { color: var(--c-good); }
+.yoga-check.bad { color: var(--danger); }
+.yoga-editor-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.yoga-ref { font-size: 12.5px; line-height: 1.7; }
+.yoga-ref p { margin: 0 0 6px; }
+.yoga-ref h4 { margin: 10px 0 4px; font-size: 13px; }
+.yoga-ref code { background: var(--subtle); padding: 0 4px; border-radius: 3px; font-size: 12px; }
+.yoga-ref-table { border-collapse: collapse; width: 100%; }
+.yoga-ref-table td { padding: 3px 8px 3px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+.yoga-ref-table td:first-child { white-space: nowrap; }
+
+/* 历法：无表头的两三列表 */
+.kv-table th { width: 9em; font-weight: 600; color: var(--text-2); }
+.kv-table .kv-end { width: 9em; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* 特殊点（Vishesha Lagna、Upagraha、Arudha）：比行星淡一档，与宫头同一类画法 */
+.astro-chart .kind-extra .item-code { fill: var(--c-extra); font-weight: 600; }
+.astro-chart .kind-extra .item-deg { fill: var(--c-extra-deg); }
+
+/* 设置：四个特殊度数开关两列排；特殊点勾选按组排成小网格 */
+.check-pair { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; }
+.check-pair .checkbox-row { margin: 4px 0; }
+.point-chart-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px 6px; margin-bottom: 8px; }
+.point-chart-grid .pc-group { grid-column: 1 / -1; margin-top: 6px; font-size: 11.5px; color: var(--muted); }
+.point-chart-grid label { display: flex; align-items: center; gap: 5px; margin: 0; font-size: 12.5px; color: var(--text-2); }
+.point-chart-grid input { width: auto; margin: 0; }
+
+/* 结果表：代号 + 名称。所有表格的列一律左对齐 */
+.code-tag { display: inline-block; min-width: 2.6em; font-weight: 700; color: var(--text); }
+.av-table tr.sav-row th, .av-table tr.sav-row td { border-top: 1px solid var(--border-strong); font-weight: 650; color: var(--text); }
+.dasha-system-name { font-size: 13px; font-weight: 650; color: var(--text); }
+
+/* 所有结果表（行星、宫位、KP 五张、力量、八重点、敌友、分盘汇总……）第一列一样宽，切换标签页时名称列不跳动。
+   名称本身更长的表（如 KP 主宰星、Vishesha Lagna）按内容撑开。 */
+.tab-panel .info-table:not(.kv-table) > thead > tr > th:first-child { width: 4.5em; min-width: 4.5em; }
+/* 敌友表：五重、天然、临时三种切换时每一列宽度不变 */
+.rel-table { table-layout: fixed; }

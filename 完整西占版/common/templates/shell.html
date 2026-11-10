@@ -1,0 +1,494 @@
+{#
+  两个占星体系共用的页面外壳。体系的页面（systems/<体系>/templates/<体系>/index.html）
+  用 {% extends "shell.html" %} 继承它，只填自己的几个 block。
+#}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quant Astro · {{ system_title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='common.css') }}">
+    {% block styles %}{% endblock %}
+</head>
+<body data-system="{{ current_system }}">
+<header class="topbar">
+    {# 一行放下：设置抽屉、体系切换、档案库、人物、时间（日期时间 + 步进 + 现在），右端是「排盘」 #}
+    <div class="topbar-main">
+        {# 占星体系：下拉选择（职业占星师一般只专注一个体系，不必常驻两个按钮）；切换时保留当前档案库和选中的人物 #}
+        <div class="sys-switch">
+            {% for s in systems if s.id == current_system %}
+            <button id="systemBtn" type="button" class="top-chip system-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="systemMenu">
+                <span>{{ s.title }}</span>
+                <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
+            </button>
+            {% endfor %}
+            <div id="systemMenu" class="library-menu system-menu" role="menu" aria-label="占星体系" hidden>
+                {% for s in systems %}
+                <a href="{{ s.url }}" role="menuitemradio" data-system="{{ s.id }}" class="lm-item{{ ' current' if s.id == current_system else '' }}" aria-checked="{{ 'true' if s.id == current_system else 'false' }}">
+                    <span class="lm-check">{% if s.id == current_system %}<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5"/></svg>{% endif %}</span>
+                    <span class="lm-name">{{ s.title }}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {# 档案库 #}
+        <div class="lib-switch top-lib">
+            <button id="libraryBtn" type="button" class="library-btn top-chip" data-lib-btn aria-haspopup="menu" aria-expanded="false" aria-controls="libraryMenu">
+                <svg class="lib-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4.5h4l1.2 1.5h5.8v6.5h-11z"/></svg>
+                <span class="lib-name"></span>
+                <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
+            </button>
+            <div id="libraryMenu" class="library-menu" role="menu" aria-label="档案库" hidden></div>
+        </div>
+        {# 人物：点一下打开「选择人物」（选人、编辑、新建、导入导出都在那里） #}
+        <button id="personChip" type="button" class="person-chip top-chip">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="5.5" r="2.8"/><path d="M2.8 14c0-2.9 2.3-4.8 5.2-4.8s5.2 1.9 5.2 4.8"/></svg>
+            <span id="personName">选择人物</span>
+            <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5"/></svg>
+        </button>
+        {# 时间：当前这张盘的时刻（本命 / 过境各自一份）；设置抽屉的「时区与地点」里还有一份，两边同步 #}
+        <div id="timeStrip" class="time-strip">
+            <div id="localTime" class="dt-input" role="group" aria-label="本地日期时间">
+                <input data-part="year" class="dt-year" type="text" inputmode="numeric" placeholder="年" aria-label="年" autocomplete="off">
+                <span class="dt-sep">-</span>
+                <input data-part="month" type="text" inputmode="numeric" placeholder="月" aria-label="月" autocomplete="off">
+                <span class="dt-sep">-</span>
+                <input data-part="day" type="text" inputmode="numeric" placeholder="日" aria-label="日" autocomplete="off">
+                <span class="dt-gap"></span>
+                <input data-part="hour" type="text" inputmode="numeric" placeholder="时" aria-label="时" autocomplete="off">
+                <span class="dt-sep">:</span>
+                <input data-part="minute" type="text" inputmode="numeric" placeholder="分" aria-label="分" autocomplete="off">
+                <span class="dt-sep">:</span>
+                <input data-part="second" class="dt-second" type="text" inputmode="decimal" placeholder="秒" aria-label="秒（可带 3 位小数）" autocomplete="off">
+            </div>
+            <div class="time-step" role="group" aria-label="时间步进">
+                <button id="stepBackBtn" type="button" class="step-btn" aria-label="往前一个步长">−</button>
+                <select id="stepSize" aria-label="步长">
+                    <option value="y:1">1 年</option>
+                    <option value="M:6">半年</option>
+                    <option value="M:1">1 月</option>
+                    <option value="d:7">1 周</option>
+                    <option value="d:1" selected>1 天</option>
+                    <option value="s:43200">12 时</option>
+                    <option value="s:3600">1 时</option>
+                    <option value="s:600">10 分</option>
+                    <option value="s:240">4 分</option>
+                    <option value="s:60">1 分</option>
+                </select>
+                <button id="stepFwdBtn" type="button" class="step-btn" aria-label="往后一个步长">＋</button>
+                <button id="stepResetBtn" type="button" class="step-reset hidden"><span id="stepOffset" class="step-offset"></span> ↺</button>
+            </div>
+            <button id="nowBtn" type="button" class="icon-btn now-btn hidden" aria-label="更新到现在">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 3.5V8.5H15.5"/></svg>
+            </button>
+            <p id="localTimeHint" class="dt-hint"></p>
+        </div>
+    </div>
+    <div class="topbar-actions">
+        <span id="statusBadge" class="status-badge">初始化中</span>
+        {# 三盘视角：体系提供 miniViews 时才出现（印占） #}
+        <button id="tripleBtn" type="button" class="icon-btn triple-btn hidden" aria-pressed="false" aria-label="三盘">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="10" height="15" rx="1.5"/><rect x="14.5" y="4.5" width="7" height="6.8" rx="1.2"/><rect x="14.5" y="12.7" width="7" height="6.8" rx="1.2"/></svg>
+        </button>
+        <button id="calcBtn" type="button" class="primary-btn">排盘</button>
+        {# 设置抽屉：时间与地点、计算设置、工具；从右边滑出 #}
+        <button id="drawerBtn" type="button" class="icon-btn drawer-btn" aria-controls="drawer" aria-expanded="false" aria-label="设置">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg>
+        </button>
+    </div>
+</header>
+
+<main class="layout">
+    <section class="panel chart-panel" id="chartPanel">
+        <div class="chart-head">
+            <div class="chart-views">
+                <div id="chartViews" class="segmented compact" role="radiogroup" aria-label="星盘"></div>
+                {# 体系提供 viewMenu 时（分盘多），其余的盘放在这个下拉菜单里 #}
+                <div id="chartViewMenu" class="view-menu" hidden></div>
+            </div>
+            <span class="head-spacer"></span>
+            {# 体系自己放在这一行右端的控件（印度占星：转宫、北 / 南；西方占星：星盘 / 相位） #}
+            {% block time_tools %}{% endblock %}
+            {% block chart_head %}{% endblock %}
+        </div>
+        <div id="chartBox" class="chart-box"></div>
+        {# 体系自己放在星盘区域里的内容（西方占星：与星盘互相切换的相位表） #}
+        {% block chart_extra %}{% endblock %}
+    </section>
+
+    {# 三盘视角的两个小星盘：各自选一张盘（体系的 miniViews） #}
+    <section class="panel mini-panel" id="miniPanel" aria-label="小星盘">
+        <div class="mini-head">
+            <select id="miniSelA" aria-label="上方小星盘"></select>
+            <select id="miniSelB" aria-label="下方小星盘"></select>
+        </div>
+        <div id="miniBoxA" class="mini-box"></div>
+        <div id="miniBoxB" class="mini-box"></div>
+    </section>
+
+    <section class="panel result-panel" id="resultPanel">
+        <div id="errorBox" class="error-box hidden"></div>
+        <div class="tab-bar" role="tablist" id="resultTabs">
+            <button type="button" role="tab" data-tab="tabPlanets" class="active">行星</button>
+            <button type="button" role="tab" data-tab="tabHouses">宫位</button>
+            <button type="button" role="tab" data-tab="tabSun">值日星 · 行星时</button>
+            {% block result_tabs %}{% endblock %}
+            <button type="button" role="tab" data-tab="tabProfile" data-profile-tab class="hidden">档案资料</button>
+        </div>
+        <div class="tab-panels">
+            <div class="tab-panel" id="tabPlanets"><div id="planetResult"></div></div>
+            <div class="tab-panel hidden" id="tabHouses"><div id="houseResult"></div></div>
+            <div class="tab-panel hidden" id="tabSun"><div id="sunResult"></div></div>
+            {% block result_panels %}{% endblock %}
+            <div class="tab-panel hidden" id="tabProfile"><div id="profileView"></div></div>
+        </div>
+    </section>
+</main>
+
+<!-- 设置抽屉：从左边滑出，盖在星盘上；点外面、按 Esc 或再点左上角按钮收起 -->
+<div id="drawerScrim" class="drawer-scrim" hidden></div>
+<aside id="drawer" class="drawer" aria-label="设置" aria-hidden="true">
+    <section id="timePanel" class="panel">
+        <div class="panel-head">
+            <h2>时间与地点</h2>
+        </div>
+        <div class="field-block">
+            <span class="field-label">本地日期时间</span>
+            <div id="localTimeDrawer" class="dt-input" role="group" aria-label="本地日期时间">
+                <input data-part="year" class="dt-year" type="text" inputmode="numeric" placeholder="年" aria-label="年" autocomplete="off">
+                <span class="dt-sep">-</span>
+                <input data-part="month" type="text" inputmode="numeric" placeholder="月" aria-label="月" autocomplete="off">
+                <span class="dt-sep">-</span>
+                <input data-part="day" type="text" inputmode="numeric" placeholder="日" aria-label="日" autocomplete="off">
+                <span class="dt-gap"></span>
+                <input data-part="hour" type="text" inputmode="numeric" placeholder="时" aria-label="时" autocomplete="off">
+                <span class="dt-sep">:</span>
+                <input data-part="minute" type="text" inputmode="numeric" placeholder="分" aria-label="分" autocomplete="off">
+                <span class="dt-sep">:</span>
+                <input data-part="second" class="dt-second" type="text" inputmode="decimal" placeholder="秒" aria-label="秒（可带 3 位小数）" title="秒，可以带最多 3 位小数，如 05.25" autocomplete="off">
+            </div>
+            <p id="localTimeHintDrawer" class="dt-hint"></p>
+        </div>
+        <div class="grid-2">
+            <label>UTC 时区<input id="timezone" type="text" placeholder="+08:00"></label>
+            <label>历法
+                <select id="calendar">
+                    <option value="g">Gregorian</option>
+                    <option value="j">Julian</option>
+                </select>
+            </label>
+        </div>
+        <!-- 经纬度：十进制度 / 度分秒两种输入。真正参与计算的永远是下面两个十进制输入框，
+             度分秒只是另一种填写方式，填完自动换算回去。 -->
+        <div id="coordBlock" class="coord-block" data-format="decimal">
+            <div class="coord-head">
+                <span class="field-label">经纬度</span>
+                {# 只在过境（Transit / Gochara）时出现：定位、改用档案的出生地点 #}
+                <span id="transitLocTools" class="loc-tools hidden">
+                    <button id="locateBtn" type="button" class="icon-btn loc-btn" aria-label="定位">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="6.5"/><circle class="dot" cx="12" cy="12" r="2"/><path d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22"/></svg>
+                    </button>
+                    <button id="syncProfileLocBtn" type="button" class="icon-btn loc-btn" aria-label="用档案的出生地点">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21.5s-6.5-5.4-6.5-11a6.5 6.5 0 0 1 13 0c0 5.6-6.5 11-6.5 11z"/><circle cx="12" cy="10.5" r="2.3"/></svg>
+                    </button>
+                    <span id="locationInfo" class="muted loc-info"></span>
+                </span>
+                <div class="segmented mini" role="radiogroup" aria-label="经纬度格式">
+                    <label><input type="radio" name="coordFormat" value="decimal" checked><span>十进制</span></label>
+                    <label><input type="radio" name="coordFormat" value="dms"><span>度分秒</span></label>
+                </div>
+            </div>
+            <div class="coord-fields">
+                <div class="coord-field" data-coord="latitude">
+                    <label class="field-label" for="latitude">纬度</label>
+                    <input id="latitude" class="coord-dec" type="number" step="0.0000001" min="-90" max="90">
+                    <div class="dt-input dms-input" role="group" aria-label="纬度（度分秒）">
+                        <button type="button" class="hemi" aria-label="切换南北纬">北纬</button>
+                        <input data-dms="d" type="text" inputmode="numeric" placeholder="度" aria-label="度" autocomplete="off">
+                        <span class="dt-sep">°</span>
+                        <input data-dms="m" type="text" inputmode="numeric" placeholder="分" aria-label="分" autocomplete="off">
+                        <span class="dt-sep">′</span>
+                        <input data-dms="s" class="dms-sec" type="text" inputmode="decimal" placeholder="秒" aria-label="秒" autocomplete="off">
+                        <span class="dt-sep">″</span>
+                    </div>
+                </div>
+                <div class="coord-field" data-coord="longitude">
+                    <label class="field-label" for="longitude">经度</label>
+                    <input id="longitude" class="coord-dec" type="number" step="0.0000001" min="-180" max="180">
+                    <div class="dt-input dms-input" role="group" aria-label="经度（度分秒）">
+                        <button type="button" class="hemi" aria-label="切换东西经">东经</button>
+                        <input data-dms="d" type="text" inputmode="numeric" placeholder="度" aria-label="度" autocomplete="off">
+                        <span class="dt-sep">°</span>
+                        <input data-dms="m" type="text" inputmode="numeric" placeholder="分" aria-label="分" autocomplete="off">
+                        <span class="dt-sep">′</span>
+                        <input data-dms="s" class="dms-sec" type="text" inputmode="decimal" placeholder="秒" aria-label="秒" autocomplete="off">
+                        <span class="dt-sep">″</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <details class="panel fold" id="foldCalc" open>
+        <summary><h2>计算设置</h2></summary>
+        <div class="fold-body">
+            <div class="stack">
+                <label>黄道体系
+                    <select id="eclipticMode">
+                        <option value="sidereal">Sidereal 恒星黄道</option>
+                        <option value="tropical">Tropical 回归黄道</option>
+                    </select>
+                </label>
+                <label>岁差体系<select id="ayanamshaMode"></select></label>
+                <label>宫位制<select id="houseSystem"></select></label>
+                <label>月交点
+                    <select id="nodeMode">
+                        <option value="mean">Mean Node</option>
+                        <option value="true">True Node</option>
+                    </select>
+                </label>
+            </div>
+
+
+            {# 体系自己的计算设置 #}
+            {% block calc_settings %}{% endblock %}
+
+            <div class="point-settings">
+                <span class="field-label">工具</span>
+                <div class="point-entries">
+                    <button id="openTabOrderBtn" type="button" class="point-entry">
+                        <span class="point-entry-name">结果标签页顺序</span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                    <button id="openRawBtn" type="button" class="point-entry">
+                        <span class="point-entry-name">原始参数</span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                    <button id="openTransferBtn" type="button" class="point-entry">
+                        <span class="point-entry-name">导入 / 导出设置</span>
+                        <svg class="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </details>
+</aside>
+
+<!-- 选择人物：只有点「选择人物…」才弹出；切换到「人物档案」模式时不会自动弹出 -->
+<dialog id="pickerDialog" class="modal picker-modal" aria-labelledby="pickerTitle">
+    <div class="modal-head">
+        <h2 id="pickerTitle">选择人物</h2>
+        <span id="profileTotal" class="muted"></span>
+        <button type="button" class="icon-btn" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+        <p class="dialog-msg hidden" data-dialog-msg></p>
+        <div class="search-row">
+            <select id="searchScope" title="搜索范围">
+                <option value="name">名字</option>
+                <option value="all">全文</option>
+            </select>
+            <input id="profileSearch" type="search" placeholder="搜索名字" autocomplete="off">
+            <button id="filterToggle" type="button" class="small-btn" aria-expanded="false" aria-controls="filterBox">
+                筛选<span id="filterBadge" class="badge hidden"></span>
+            </button>
+        </div>
+
+        {# 排序一直显示，每个档案库单独记住（重启后照样用）；筛选和搜索不记住 #}
+        <div class="sort-row">
+            <span class="filter-label">排序</span>
+            <select id="sortSelect" title="排序依据" aria-label="排序依据"></select>
+            <select id="orderSelect" title="排序方向" aria-label="排序方向"></select>
+        </div>
+
+        <div id="filterBox" class="filter-box hidden">
+            <div class="filter-row">
+                <span class="filter-label">出生</span>
+                <input id="bornFrom" type="text" inputmode="numeric" placeholder="自 1980" autocomplete="off" title="年、年-月 或 年-月-日">
+                <span class="filter-sep">～</span>
+                <input id="bornTo" type="text" inputmode="numeric" placeholder="至 1989" autocomplete="off" title="年、年-月 或 年-月-日">
+            </div>
+            <div class="filter-row">
+                <span class="filter-label">标签</span>
+                <input id="filterTagInput" type="text" list="tagDatalist" placeholder="输入标签，回车添加" autocomplete="off">
+                <select id="tagModeSelect" class="hidden" title="多个标签之间的关系">
+                    <option value="all">全部满足</option>
+                    <option value="any">满足任一</option>
+                </select>
+            </div>
+            <datalist id="tagDatalist"></datalist>
+            <div id="filterTagChips" class="chips"></div>
+            <div id="fieldFilters" class="field-filters"></div>
+            <div class="filter-row">
+                <span class="filter-label">字段</span>
+                <button id="addFieldFilterBtn" type="button" class="small-btn">＋ 字段条件</button>
+            </div>
+            <div class="filter-row filter-actions">
+                <button id="resetFiltersBtn" type="button" class="small-btn" title="清空筛选和搜索（排序不变）">重置筛选</button>
+            </div>
+        </div>
+
+        <div id="profileList" class="profile-list" role="listbox" aria-label="人物档案列表"></div>
+
+        <div class="pager">
+            <button id="prevPageBtn" type="button" class="small-btn" aria-label="上一页">‹</button>
+            <span class="pager-info">
+                <input id="pageJump" type="number" min="1" step="1" aria-label="页码，回车跳转"> / <span id="pageCount">1</span>
+            </span>
+            <button id="nextPageBtn" type="button" class="small-btn" aria-label="下一页">›</button>
+        </div>
+    </div>
+    <div class="modal-foot">
+        <a id="exportCsvBtn" class="small-btn ghost-btn" href="/api/profiles/export.csv" download>导出 CSV</a>
+        <label class="small-btn ghost-btn file-btn">导入 CSV<input id="importCsvInput" type="file" accept=".csv,text/csv" hidden></label>
+        <button id="newProfileBtn" type="button" class="small-btn accent-btn">＋ 新建档案</button>
+        <span class="spacer"></span>
+    </div>
+</dialog>
+
+<!-- 编辑 / 新建档案 -->
+<dialog id="editorDialog" class="modal editor-modal" aria-labelledby="editorTitle">
+    <div class="modal-head">
+        <button id="editorBackBtn" type="button" class="icon-btn back-btn hidden" aria-label="返回选择人物">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8 10 12.5"/></svg>
+        </button>
+        <h2 id="editorTitle">编辑档案</h2>
+        <button type="button" class="icon-btn" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+        <p class="dialog-msg hidden" data-dialog-msg></p>
+        <label>人物名称<input id="profileName" type="text" autocomplete="off"></label>
+        <p id="editorBirthInfo" class="editor-birth"></p>
+        <label>分类标签<input id="profileTags" type="text" placeholder="用逗号分隔，如：名人, 客户" autocomplete="off"></label>
+        <div id="profileTagSuggest" class="chips"></div>
+        <div id="profileCustomFields" class="custom-fields"></div>
+
+        <details class="fold nested" id="foldTags">
+            <summary>管理标签 <span id="tagManagerCount" class="fold-meta"></span></summary>
+            <div class="fold-body"><div id="tagManagerList" class="tag-manager"></div></div>
+        </details>
+
+        <details class="fold nested" id="foldFields">
+            <summary>管理自定义字段</summary>
+            <div class="fold-body">
+                <div id="fieldManagerList"></div>
+                <div class="field-add-row">
+                    <input id="newFieldLabel" type="text" placeholder="新字段名称" maxlength="40">
+                    <select id="newFieldKind" aria-label="字段类型"></select>
+                    <select id="newFieldParent" aria-label="上级字段"></select>
+                    <button id="addFieldBtn" type="button">添加</button>
+                </div>
+            </div>
+        </details>
+    </div>
+    <div class="modal-foot">
+        <button id="deleteProfileBtn" type="button" class="danger" title="删除这份档案">删除</button>
+        <span class="spacer"></span>
+        <button type="button" data-close>取消</button>
+        <button id="saveProfileBtn" type="button" class="accent-btn">保存</button>
+    </div>
+</dialog>
+
+<!-- 结果标签页顺序：拖动把手或用 ↑ ↓ 调整，点「完成」才生效 -->
+<dialog id="tabOrderDialog" class="modal order-modal" aria-labelledby="tabOrderTitle">
+    <div class="modal-head">
+        <h2 id="tabOrderTitle">结果标签页顺序</h2>
+        <button type="button" class="icon-btn" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+        <p class="dialog-msg hidden" data-dialog-msg></p>
+        <div id="tabOrderList" class="order-list"></div>
+    </div>
+    <div class="modal-foot">
+        <button id="tabOrderResetBtn" type="button" class="small-btn">恢复默认</button>
+        <span class="spacer"></span>
+        <button type="button" class="small-btn" data-close>取消</button>
+        <button id="tabOrderDoneBtn" type="button" class="accent-btn">完成</button>
+    </div>
+</dialog>
+
+<!-- 原始参数：当前这张盘后端传回的全部原始数据 -->
+<!-- 导入 / 导出设置：先选做哪一件事，避免误触 -->
+<dialog id="transferDialog" class="modal transfer-modal" aria-labelledby="transferTitle">
+    <div class="modal-head">
+        <h2 id="transferTitle">导入 / 导出设置</h2>
+        <button type="button" class="icon-btn" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+        <p class="dialog-msg hidden" data-dialog-msg></p>
+        <div class="transfer-choices">
+            <button id="exportSettingsBtn" type="button" class="transfer-choice">
+                <span class="transfer-name">导出设置</span>
+                <span class="transfer-desc">把两个体系的全部设置存成一个 JSON 文件，交给别人导入后即可用相同设置起盘。不含档案数据。</span>
+            </button>
+            <button id="importSettingsBtn" type="button" class="transfer-choice">
+                <span class="transfer-name">导入设置</span>
+                <span class="transfer-desc">选择导出的 JSON 文件，替换当前设置。档案数据不受影响。</span>
+            </button>
+        </div>
+        <input id="importSettingsFile" type="file" accept=".json,application/json" hidden style="display:none">
+    </div>
+</dialog>
+
+<dialog id="rawDialog" class="modal raw-modal" aria-labelledby="rawTitle">
+    <div class="modal-head">
+        <h2 id="rawTitle">原始参数</h2>
+        <span id="rawTitleMeta" class="muted"></span>
+        <button type="button" class="icon-btn" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+        <p class="dialog-msg hidden" data-dialog-msg></p>
+        <div id="rawTabs" class="segmented raw-tabs" role="radiogroup" aria-label="原始参数分类"></div>
+        <div id="rawBody" class="raw-body"></div>
+    </div>
+    <div class="modal-foot">
+        <span class="spacer"></span>
+        <button id="rawCopyBtn" type="button" class="small-btn">复制本页 JSON</button>
+        <button type="button" class="accent-btn" data-close>关闭</button>
+    </div>
+</dialog>
+
+<!-- 档案库加密：设置 -->
+<dialog id="securityDialog" class="modal security-modal" aria-labelledby="securityTitle">
+    <div class="modal-head">
+        <h2 id="securityTitle">档案库加密</h2>
+        <button type="button" class="icon-btn" data-close aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+        <p class="dialog-msg hidden" data-dialog-msg></p>
+        <div id="securityBody"></div>
+    </div>
+</dialog>
+
+<!-- 档案库加密：解锁（当前档案库加密且锁定时出现；不解锁或不换库就不能关） -->
+<dialog id="unlockDialog" class="modal unlock-modal" aria-labelledby="unlockTitle" data-guarded>
+    <form id="unlockForm" novalidate>
+        <div class="modal-head"><h2 id="unlockTitle">档案库已加密</h2></div>
+        <div class="modal-body stack">
+            <p id="unlockMsg" class="dialog-msg hidden"></p>
+            <input id="unlockPassword" type="password" autocomplete="current-password" aria-label="密码" placeholder="密码">
+            {# 取消加密不在这里重复提供：解锁后在档案库菜单的「加密设置（取消加密 / 改密码）…」里操作 #}
+            <div id="unlockSwitch" class="unlock-switch hidden">
+                <span class="field-label">或改用其他档案库</span>
+                <div class="unlock-switch-row">
+                    <select id="unlockSwitchSelect" aria-label="其他档案库"></select>
+                    <button id="unlockSwitchBtn" type="button">切换</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <span class="spacer"></span>
+            <button id="unlockBtn" type="submit" class="accent-btn">解锁</button>
+        </div>
+    </form>
+</dialog>
+
+{# 体系自己的浮窗 #}
+{% block dialogs %}{% endblock %}
+
+{# 先加载共用逻辑，再加载体系自己的 JS（星盘 + registerSystem） #}
+<script src="{{ url_for('static', filename='common.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
